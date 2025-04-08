@@ -1,8 +1,8 @@
 # software-engineering-agh
 
 ## Role zespołu:
-Mateusz Bartnicki - Backend
-Piotr Andres - backend
-Dominik Dróżdż - frontend/devops
-Maciej Wilewski - frontend/ baza
-Michał Plaza - backend/PM
+Mateusz Bartnicki - Backend <br>
+Piotr Andres - backend <br>
+Dominik Dróżdż - frontend/devops <br>
+Maciej Wilewski - frontend/ baza <br>
+Michał Plaza - backend/PM <br>
