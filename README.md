@@ -1,6 +1,6 @@
 # software-engineering-agh
 
-##Role zespołu:
+## Role zespołu:
 Mateusz Bartnicki - Backend
 Piotr Andres - backend
 Dominik Dróżdż - frontend/devops
