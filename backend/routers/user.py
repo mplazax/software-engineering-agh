@@ -14,9 +14,6 @@ class UserResponse(BaseModel):
     name: str
     email: str
 
-    class Config:
-        orm_mode = True
-
 
 class UserCreate(BaseModel):
     name: str
@@ -24,9 +21,6 @@ class UserCreate(BaseModel):
     password: str
     role: UserRole
     group_id: Optional[int] = None
-
-    class Config:
-        orm_mode = True
 
 
 @router.get("/", response_model=List[UserResponse])
@@ -89,4 +83,3 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.delete(db_user)
     db.commit()
     return {"message": "User deleted successfully"}
-
