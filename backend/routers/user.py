@@ -3,24 +3,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from typing import List
 from model import User, UserRole
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from routers.schemas import UserCreate, UserResponse
+from routers.utils import get_password_hash
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-class UserResponse(BaseModel):
-    id: int
-    name: str
-    email: str
-
-
-class UserCreate(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-    role: UserRole
-    group_id: Optional[int] = None
 
 
 @router.get("/", response_model=List[UserResponse])
@@ -39,10 +25,21 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.post("/create", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if user already exists
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+    
+    # Hash the password
+    hashed_password = get_password_hash(user.password)
+    
     db_user = User(
         name=user.name,
         email=user.email,
-        password=user.password,
+        password=hashed_password,
         role=user.role,
         group_id=user.group_id
     )
@@ -64,8 +61,11 @@ def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Hash the password if it's being updated
+    hashed_password = get_password_hash(user.password)
+
     db_user.email = user.email
-    db_user.password = user.password
+    db_user.password = hashed_password
     db_user.name = user.name
     db_user.role = user.role
     db.commit()
