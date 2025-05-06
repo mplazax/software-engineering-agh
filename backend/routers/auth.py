@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from database import get_db
 from model import User, UserRole, Group
 from routers.schemas import UserCreate, Token, TokenData
-from routers.utils import verify_password, get_password_hash
 from passlib.context import CryptContext
 
 # Configuration

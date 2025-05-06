@@ -4,10 +4,9 @@ from database import get_db
 from typing import List
 from model import User, UserRole
 from routers.schemas import UserCreate, UserResponse
-from routers.utils import get_password_hash
+from routers.auth import get_password_hash
 
 router = APIRouter(prefix="/users", tags=["users"])
-
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db)):
