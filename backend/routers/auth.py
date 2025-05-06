@@ -7,18 +7,27 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from database import get_db
-from model import User, UserRole
+from model import User, UserRole, Group
 from routers.schemas import UserCreate, Token, TokenData
 from routers.utils import verify_password, get_password_hash
+from passlib.context import CryptContext
 
 # Configuration
-SECRET_KEY = "your-secret-key-here"  # In production, use a secure secret key
+SECRET_KEY = "secret-key"  # In production, use a secure secret key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -73,6 +82,13 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
 
+    db_group = db.query(Group).filter(Group.id == user.group_id).first()
+    if not db_group:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Group ID does not exist"
+        )
+
     hashed_password = get_password_hash(user.password)
     db_user = User(
         email=user.email,
@@ -86,7 +102,6 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return {"message": "User created successfully"}
 
-# Protected route example
 @router.get("/me")
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return {

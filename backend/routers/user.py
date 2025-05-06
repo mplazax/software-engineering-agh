@@ -25,15 +25,13 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.post("/create", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(
             status_code=400,
             detail="Email already registered"
         )
-    
-    # Hash the password
+
     hashed_password = get_password_hash(user.password)
     
     db_user = User(
@@ -61,7 +59,6 @@ def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Hash the password if it's being updated
     hashed_password = get_password_hash(user.password)
 
     db_user.email = user.email
