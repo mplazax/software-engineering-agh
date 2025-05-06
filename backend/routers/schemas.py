@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from model import UserRole
 
 # User
@@ -57,3 +57,17 @@ class GroupUpdate(BaseModel):
     name: str | None
     year: int | None
     leader_id: int | None
+
+# Proposal
+class AvailabilityInterval(BaseModel):
+    available_start_datetime: datetime
+    available_end_datetime: datetime
+
+class ProposalCreate(BaseModel):
+    change_request_id: int
+    user_id: int
+    intervals: List[AvailabilityInterval]
+
+class ProposalUpdate(BaseModel):
+    user_id: int
+    accepted_interval: AvailabilityInterval | None
