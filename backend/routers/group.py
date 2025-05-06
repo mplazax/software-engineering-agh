@@ -2,22 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from model import Group
-from pydantic import BaseModel
+from routers.schemas import GroupCreate, GroupUpdate
 
 router = APIRouter(prefix="/groups", tags=["groups"])
-
-
-class GroupCreate(BaseModel):
-    name: str
-    year: int | None
-    leader_id: int
-
-
-class GroupUpdate(BaseModel):
-    name: str | None
-    year: int | None
-    leader_id: int | None
-
 
 @router.get("/")
 async def get_groups(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):

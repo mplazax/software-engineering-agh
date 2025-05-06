@@ -7,32 +7,9 @@ from database import get_db
 from model import Room
 from model import CourseEvent
 from pydantic import BaseModel
-
+from routers.schemas import RoomCreate, DateInterval, CourseEventOut
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
-
-
-class RoomCreate(BaseModel):
-    name: str
-    group_id: int
-    year: int | None
-
-
-class DateInterval(BaseModel):
-    start_month: int
-    end_month: int
-    start_day: int
-    end_day: int
-
-
-class CourseEventOut(BaseModel):
-    id: int
-    course_id: int
-    room_id: int
-    start_datetime: datetime
-    end_datetime: datetime
-    canceled: bool
-
 
 @router.get("/")
 async def get_rooms(db: Session = Depends(get_db)):
