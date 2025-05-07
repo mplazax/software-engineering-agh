@@ -2,11 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from model import ChangeRequest
-
 from routers.schemas import ChangeRequestCreate
-
-from backend.model import AvailabilityProposal
-from backend.routers.schemas import ProposalCreate, ChangeRequestUpdate
+from model import AvailabilityProposal
+from routers.schemas import ProposalCreate, ChangeRequestUpdate
 
 router = APIRouter(prefix="/change_requests", tags=["change_requests"])
 
