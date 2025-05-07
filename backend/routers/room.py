@@ -12,8 +12,8 @@ from model import RoomUnavailability
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.get("/")
-async def get_rooms(db: Session = Depends(get_db)):
-    groups = db.query(Room).all()
+async def get_rooms(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    groups = db.query(Room).offset(skip).limit(limit).all()
     return groups
 
 @router.get("/check-availability")
@@ -55,32 +55,32 @@ async def add_unavailability(room: RoomAddUnavailability, db: Session = Depends(
 
 @router.get("/{room_id}")
 async def get_room(room_id: int, db: Session = Depends(get_db)):
-    group = db.query(Room).filter(Room.id == room_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    return group
-
-@router.get("/{group_id}/interval", response_model=List[CourseEventOut])
-async def get_groups_in_interval(room_id: int,
-                                 start: datetime,
-                                 end: datetime,
-                                 db: Session = Depends(get_db)
-                                 ):
-
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    return room
 
-    events = (
-        db.query(CourseEvent)
-        .filter(
-            CourseEvent.room_id == room_id,
-            CourseEvent.start_datetime.between(start, end),
-            CourseEvent.end_datetime.between(start, end)
-        )
-        .all()
-    )
-    return events
+# @router.get("/{group_id}/interval", response_model=List[CourseEventOut])
+# async def get_groups_in_interval(room_id: int,
+#                                  start: datetime,
+#                                  end: datetime,
+#                                  db: Session = Depends(get_db)
+#                                  ):
+#
+#     room = db.query(Room).filter(Room.id == room_id).first()
+#     if not room:
+#         raise HTTPException(status_code=404, detail="Room not found")
+#
+#     events = (
+#         db.query(CourseEvent)
+#         .filter(
+#             CourseEvent.room_id == room_id,
+#             CourseEvent.start_datetime.between(start, end),
+#             CourseEvent.end_datetime.between(start, end)
+#         )
+#         .all()
+#     )
+#     return events
 
 @router.post("/", status_code=201)
 async def create_room(room: RoomCreate, db: Session = Depends(get_db)):
@@ -90,22 +90,23 @@ async def create_room(room: RoomCreate, db: Session = Depends(get_db)):
     db.refresh(new_room)
     return new_room
 
-@router.put("/{group_id}")
-async def update_room(room_id: int, group: RoomCreate, db: Session = Depends(get_db)):
+@router.put("/{room_id}")
+async def update_room(room_id: int, room: RoomCreate, db: Session = Depends(get_db)):
     existing_room = db.query(Room).filter(Room.id == room_id).first()
     if not existing_room:
-        raise HTTPException(status_code=404, detail="Group not found")
-    for key, value in group.dict(exclude_unset=True).items():
+        raise HTTPException(status_code=404, detail="Room not found")
+    for key, value in room.dict(exclude_unset=True).items():
         setattr(existing_room, key, value)
     db.commit()
     db.refresh(existing_room)
     return existing_room
 
+# cascade delete error, TODO
 @router.delete("/{room_id}", status_code=204)
-async def delete_group(room_id: int, db: Session = Depends(get_db)):
-    group = db.query(Room).filter(Room.id == room_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    db.delete(group)
+async def delete_room(room_id: int, db: Session = Depends(get_db)):
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    db.delete(room)
     db.commit()
-    return {"message": "Group deleted"}
+    return {"message": "Room deleted"}

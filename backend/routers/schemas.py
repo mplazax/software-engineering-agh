@@ -4,6 +4,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from model import UserRole
 from model import ChangeRequestStatus
+from model import RoomType
 
 
 class DateInterval(BaseModel):
@@ -34,8 +35,9 @@ class TokenData(BaseModel):
 # Room
 class RoomCreate(BaseModel):
     name: str
-    group_id: int
-    year: int | None
+    capacity: int
+    type: RoomType
+    equipment: Optional[str]
 
 class RoomAddUnavailability(BaseModel):
     room_id: int

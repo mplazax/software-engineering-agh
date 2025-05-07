@@ -12,8 +12,8 @@ from model import ChangeRequestStatus
 router = APIRouter(prefix="/change_requests", tags=["change_requests"])
 
 @router.get("/")
-async def get_requests(db: Session = Depends(get_db)):
-    requests = db.query(ChangeRequest).all()
+async def get_requests(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    requests = db.query(ChangeRequest).offset(skip).limit(limit).all()
     return requests
 
 @router.post("/")

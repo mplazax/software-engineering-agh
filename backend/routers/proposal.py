@@ -13,8 +13,8 @@ from model import User
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
 @router.get("/")
-async def get_proposals(db: Session = Depends(get_db)):
-    proposals = db.query(AvailabilityProposal).all()
+async def get_proposals(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    proposals = db.query(AvailabilityProposal).offset(skip).limit(limit).all()
     return proposals
 
 @router.get("/{proposal_id}")
