@@ -66,8 +66,8 @@ class ChangeRequestCreate(BaseModel):
     course_event_id: int
     initiator_id: int # should be assigned automatically
     status: ChangeRequestStatus
-    reason: str | None
-    room_requirements: str | None
+    reason: str
+    room_requirements: str
     created_at: datetime
 
 class ChangeRequestUpdate(BaseModel):

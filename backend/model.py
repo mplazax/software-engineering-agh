@@ -123,8 +123,8 @@ class ChangeRequest(Base):
 
     course_event = relationship("CourseEvent", back_populates="change_requests")
     initiator = relationship("User", back_populates="initiated_requests")
-    availability_proposals = relationship("AvailabilityProposal", back_populates="change_request")
-    change_to_recommendation = relationship("ChangeRecomendation", back_populates="change_request")
+    availability_proposals = relationship("AvailabilityProposal", back_populates="change_request", cascade="all, delete-orphan")
+    change_to_recommendation = relationship("ChangeRecomendation", back_populates="change_request", cascade="all, delete-orphan")
 
 
 class AvailabilityProposal(Base):
