@@ -4,15 +4,21 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from model import Room
+from model import Room, UserRole
 from model import CourseEvent
+from routers.auth import role_required
 from routers.schemas import RoomCreate, CourseEventOut, RoomAddUnavailability
 from model import RoomUnavailability
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.get("/")
-async def get_rooms(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+async def get_rooms(
+        skip: int = 0,
+        limit: int = 10,
+        db: Session = Depends(get_db),
+        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))
+):
     groups = db.query(Room).offset(skip).limit(limit).all()
     return groups
 
@@ -20,7 +26,8 @@ async def get_rooms(skip: int = 0, limit: int = 10, db: Session = Depends(get_db
 async def get_available_rooms(seats: int, room_type: str,
     start: datetime = Query(..., description="Start of desired interval"),
     end: datetime = Query(..., description="End of desired interval"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))
 ):
     if start >= end:
         raise HTTPException(status_code=400, detail="Start time must be before end time")
@@ -43,7 +50,11 @@ async def get_available_rooms(seats: int, room_type: str,
     return available_rooms
 
 @router.post("/unavailability/{room_id}")
-async def add_unavailability(room: RoomAddUnavailability, db: Session = Depends(get_db)):
+async def add_unavailability(
+        room: RoomAddUnavailability,
+        db: Session = Depends(get_db),
+        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+):
     unavailability = RoomUnavailability(**room.dict())
     room = db.query(Room.id).filter(Room.id == room.room_id).first()
     if room is None:
@@ -54,7 +65,11 @@ async def add_unavailability(room: RoomAddUnavailability, db: Session = Depends(
     return unavailability
 
 @router.get("/{room_id}")
-async def get_room(room_id: int, db: Session = Depends(get_db)):
+async def get_room(
+        room_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))
+):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -83,7 +98,11 @@ async def get_room(room_id: int, db: Session = Depends(get_db)):
 #     return events
 
 @router.post("/", status_code=201)
-async def create_room(room: RoomCreate, db: Session = Depends(get_db)):
+async def create_room(
+        room: RoomCreate,
+        db: Session = Depends(get_db),
+        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+):
     new_room = Room(**room.dict())
     db.add(new_room)
     db.commit()
@@ -91,7 +110,12 @@ async def create_room(room: RoomCreate, db: Session = Depends(get_db)):
     return new_room
 
 @router.put("/{room_id}")
-async def update_room(room_id: int, room: RoomCreate, db: Session = Depends(get_db)):
+async def update_room(
+        room_id: int,
+        room: RoomCreate,
+        db: Session = Depends(get_db),
+        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+):
     existing_room = db.query(Room).filter(Room.id == room_id).first()
     if not existing_room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -103,7 +127,11 @@ async def update_room(room_id: int, room: RoomCreate, db: Session = Depends(get_
 
 # cascade delete error, TODO
 @router.delete("/{room_id}", status_code=204)
-async def delete_room(room_id: int, db: Session = Depends(get_db)):
+async def delete_room(
+        room_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
