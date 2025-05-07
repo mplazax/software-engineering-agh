@@ -11,8 +11,7 @@ from model import User, UserRole, Group
 from routers.schemas import UserCreate, Token, TokenData
 from passlib.context import CryptContext
 
-# Configuration
-SECRET_KEY = "secret-key"  # In production, use a secure secret key
+SECRET_KEY = "secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
