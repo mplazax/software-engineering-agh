@@ -1,8 +1,14 @@
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional
 from model import UserRole
+from model import ChangeRequestStatus
+
+
+class DateInterval(BaseModel):
+    start_date: datetime
+    end_date: datetime
 
 # User
 class UserResponse(BaseModel):
@@ -31,13 +37,10 @@ class RoomCreate(BaseModel):
     group_id: int
     year: int | None
 
-
-class DateInterval(BaseModel):
-    start_month: int
-    end_month: int
-    start_day: int
-    end_day: int
-
+class RoomAddUnavailability(BaseModel):
+    room_id: int
+    start_datetime: datetime
+    end_datetime: datetime
 
 class CourseEventOut(BaseModel):
     id: int
@@ -58,16 +61,29 @@ class GroupUpdate(BaseModel):
     year: int | None
     leader_id: int | None
 
-# Proposal
-class AvailabilityInterval(BaseModel):
-    available_start_datetime: datetime
-    available_end_datetime: datetime
+# Change requests
+class ChangeRequestCreate(BaseModel):
+    course_event_id: int
+    initiator_id: int # should be assigned automatically
+    status: ChangeRequestStatus
+    reason: str | None
+    room_requirements: str | None
+    created_at: datetime
 
+class ChangeRequestUpdate(BaseModel):
+    course_event_id: int | None
+    initiator_id: int | None
+    status: ChangeRequestStatus | None
+    reason: str | None
+    room_requirements: str | None
+    created_at: datetime | None
+
+# Proposal
 class ProposalCreate(BaseModel):
     change_request_id: int
     user_id: int
-    intervals: List[AvailabilityInterval]
+    interval: DateInterval
 
 class ProposalUpdate(BaseModel):
     user_id: int
-    accepted_interval: AvailabilityInterval | None
+    interval: DateInterval
