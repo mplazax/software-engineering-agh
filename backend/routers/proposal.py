@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from model import AvailabilityProposal
+from routers.auth import role_required, get_current_user
 from routers.schemas import ProposalCreate
 from model import ChangeRequest
 from routers.schemas import ChangeRequestCreate
@@ -13,26 +14,43 @@ from model import User
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
 @router.get("/")
-async def get_proposals(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+async def get_proposals(
+        skip: int = 0,
+        limit: int = 10,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     proposals = db.query(AvailabilityProposal).offset(skip).limit(limit).all()
     return proposals
 
 @router.get("/{proposal_id}")
-async def get_proposal(proposal_id: int, db: Session = Depends(get_db)):
+async def get_proposal(
+        proposal_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == proposal_id).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
     return proposal
 
 @router.get("/{change_request_id}")
-async def get_change_request_proposals(change_request_id: int, db: Session = Depends(get_db)):
+async def get_change_request_proposals(
+        change_request_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     proposals = db.query(AvailabilityProposal).filter(AvailabilityProposal.change_request_id == change_request_id).all()
     if not proposals:
         raise HTTPException(status_code=404, detail="Change request not found")
     return proposals
 
 @router.post("/{proposal_id}")
-async def create_proposal(proposal: ProposalCreate, db: Session = Depends(get_db)):
+async def create_proposal(
+        proposal: ProposalCreate,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     change_request = db.query(ChangeRequest).filter(ChangeRequest.id == proposal.change_request_id).first()
     if not change_request:
         raise HTTPException(status_code=404, detail="Change request not found")
@@ -51,7 +69,12 @@ async def create_proposal(proposal: ProposalCreate, db: Session = Depends(get_db
     return new_proposal
 
 @router.put("/{proposal_id}")
-async def update_proposal(proposal_id: int, proposal: ProposalUpdate, db: Session = Depends(get_db)):
+async def update_proposal(
+        proposal_id: int,
+        proposal: ProposalUpdate,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     existing_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == proposal_id).first()
     if not existing_proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
@@ -69,7 +92,11 @@ async def update_proposal(proposal_id: int, proposal: ProposalUpdate, db: Sessio
     return existing_proposal
 
 @router.delete("/{proposal_id}")
-async def delete_proposal(proposal_id: int, db: Session = Depends(get_db)):
+async def delete_proposal(
+        proposal_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     existing_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == proposal_id).first()
     if not existing_proposal:
         raise HTTPException(status_code=404, detail="Change request not found")

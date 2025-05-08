@@ -8,16 +8,27 @@ from routers.schemas import ProposalCreate, ChangeRequestUpdate
 from model import CourseEvent
 from model import User
 from model import ChangeRequestStatus
+from model import ChangeRequest, UserRole
+from routers.auth import role_required, get_current_user
 
 router = APIRouter(prefix="/change_requests", tags=["change_requests"])
 
 @router.get("/")
-async def get_requests(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+async def get_requests(
+        skip: int = 0,
+        limit: int = 10,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     requests = db.query(ChangeRequest).offset(skip).limit(limit).all()
     return requests
 
 @router.post("/")
-async def create_request(request: ChangeRequestCreate, db: Session = Depends(get_db)):
+async def create_request(
+        request: ChangeRequestCreate,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     course_event = db.query(CourseEvent).filter(CourseEvent.course_id == request.course_event_id).first()
     if not course_event:
         raise HTTPException(status_code=404, detail="Course event not found")
@@ -32,7 +43,12 @@ async def create_request(request: ChangeRequestCreate, db: Session = Depends(get
     return new_request
 
 @router.put("/{request_id}")
-async def update_request(request_id: int, request: ChangeRequestUpdate, db: Session = Depends(get_db)):
+async def update_request(
+        request_id: int,
+        request: ChangeRequestUpdate,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
     existing_request = db.query(ChangeRequest).filter(ChangeRequest.id == request_id).first()
     if existing_request is None:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -50,7 +66,7 @@ async def update_request(request_id: int, request: ChangeRequestUpdate, db: Sess
     return existing_request
 
 @router.delete("/{request_id}")
-async def delete_request(request_id: int, db: Session = Depends(get_db)):
+async def delete_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     existing_request = db.query(ChangeRequest).filter(ChangeRequest.id == request_id).first()
     if existing_request is None:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -61,7 +77,8 @@ async def delete_request(request_id: int, db: Session = Depends(get_db)):
 @router.get("/my")
 async def get_my_requests(
     initiator_id: int = Query(..., description="ID użytkownika"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
     user = db.query(User).filter(User.id == initiator_id).first()
     if not user:

@@ -38,7 +38,7 @@ class Group(Base):
     leader_id = Column(Integer, ForeignKey('users.id'), nullable=False)
 
     leader = relationship("User", foreign_keys=[leader_id])
-    courses = relationship("Course", back_populates="group")
+    courses = relationship("Course", back_populates="group", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -50,6 +50,7 @@ class User(Base):
     name = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
 
     group = relationship("Group", foreign_keys=[group_id])
     leads_group = relationship("Group", foreign_keys='Group.leader_id', back_populates="leader", uselist=False)
@@ -67,7 +68,7 @@ class Room(Base):
     type = Column(Enum(RoomType), nullable=True)
 
     course_events = relationship("CourseEvent", back_populates="room")
-    unavailability = relationship("RoomUnavailability", back_populates="room")
+    unavailability = relationship("RoomUnavailability", back_populates="room", cascade="all, delete-orphan")
 
 
 
@@ -92,7 +93,7 @@ class Course(Base):
 
     group = relationship("Group", back_populates="courses")
     teacher = relationship("User", foreign_keys=[teacher_id], backref="courses")
-    events = relationship("CourseEvent", back_populates="course")
+    events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")
 
 
 class CourseEvent(Base):
@@ -107,7 +108,7 @@ class CourseEvent(Base):
 
     course = relationship("Course", back_populates="events")
     room = relationship("Room", back_populates="course_events")
-    change_requests = relationship("ChangeRequest", back_populates="course_event")
+    change_requests = relationship("ChangeRequest", back_populates="course_event", cascade="all, delete-orphan")
 
 
 class ChangeRequest(Base):
@@ -123,8 +124,12 @@ class ChangeRequest(Base):
 
     course_event = relationship("CourseEvent", back_populates="change_requests")
     initiator = relationship("User", back_populates="initiated_requests")
-    availability_proposals = relationship("AvailabilityProposal", back_populates="change_request", cascade="all, delete-orphan")
-    change_to_recommendation = relationship("ChangeRecomendation", back_populates="change_request", cascade="all, delete-orphan")
+    availability_proposals = relationship("AvailabilityProposal",
+                                          back_populates="change_request",
+                                          cascade="all, delete-orphan")
+    change_to_recommendation = relationship("ChangeRecomendation",
+                                            back_populates="change_request",
+                                            cascade="all, delete-orphan")
 
 
 class AvailabilityProposal(Base):
