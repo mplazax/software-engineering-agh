@@ -89,3 +89,28 @@ class ProposalCreate(BaseModel):
 class ProposalUpdate(BaseModel):
     user_id: int
     interval: DateInterval
+
+class CourseCreate(BaseModel):
+    name: str
+    teacher_id: int
+    group_id: int
+
+class CourseResponse(CourseCreate):
+    id: int
+
+class CourseEventCreate(BaseModel):
+    room_id: Optional[int]
+    start_datetime: datetime
+    end_datetime: datetime
+    canceled: Optional[bool] = False
+
+class CourseEventResponse(CourseEventCreate):
+    id: int
+    course_id: int
+
+class ChangeRecomendationResponse(BaseModel):
+    id: int
+    change_request_id: int
+    recommended_start_datetime: datetime
+    recommended_end_datetime: datetime
+    recommended_room_id: int

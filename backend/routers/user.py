@@ -98,7 +98,6 @@ def update_user(
 
     return db_user
 
-# cascade delete error, TODO
 @router.delete("/{user_id}")
 def delete_user(
         user_id: int,

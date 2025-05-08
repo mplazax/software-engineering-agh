@@ -68,7 +68,6 @@ async def update_group(
     db.refresh(existing_group)
     return existing_group
 
-# Problem with cascade delete, TODO
 @router.delete("/{group_id}", status_code=204)
 async def delete_group(
         group_id: int,

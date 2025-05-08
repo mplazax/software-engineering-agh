@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from model import Room, UserRole
 from model import CourseEvent
-from routers.auth import role_required
+from routers.auth import role_required, get_current_user
 from routers.schemas import RoomCreate, CourseEventOut, RoomAddUnavailability
 from model import RoomUnavailability
 
@@ -17,7 +17,7 @@ async def get_rooms(
         skip: int = 0,
         limit: int = 10,
         db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))
+        current_user=Depends(get_current_user)
 ):
     groups = db.query(Room).offset(skip).limit(limit).all()
     return groups
@@ -27,7 +27,7 @@ async def get_available_rooms(seats: int, room_type: str,
     start: datetime = Query(..., description="Start of desired interval"),
     end: datetime = Query(..., description="End of desired interval"),
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))
+    current_user=Depends(get_current_user)
 ):
     if start >= end:
         raise HTTPException(status_code=400, detail="Start time must be before end time")
@@ -68,34 +68,13 @@ async def add_unavailability(
 async def get_room(
         room_id: int,
         db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))
+        current_user=Depends(get_current_user)
 ):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     return room
 
-# @router.get("/{group_id}/interval", response_model=List[CourseEventOut])
-# async def get_groups_in_interval(room_id: int,
-#                                  start: datetime,
-#                                  end: datetime,
-#                                  db: Session = Depends(get_db)
-#                                  ):
-#
-#     room = db.query(Room).filter(Room.id == room_id).first()
-#     if not room:
-#         raise HTTPException(status_code=404, detail="Room not found")
-#
-#     events = (
-#         db.query(CourseEvent)
-#         .filter(
-#             CourseEvent.room_id == room_id,
-#             CourseEvent.start_datetime.between(start, end),
-#             CourseEvent.end_datetime.between(start, end)
-#         )
-#         .all()
-#     )
-#     return events
 
 @router.post("/", status_code=201)
 async def create_room(
@@ -125,7 +104,6 @@ async def update_room(
     db.refresh(existing_room)
     return existing_room
 
-# cascade delete error, TODO
 @router.delete("/{room_id}", status_code=204)
 async def delete_room(
         room_id: int,
