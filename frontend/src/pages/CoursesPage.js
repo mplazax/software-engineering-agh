@@ -53,11 +53,16 @@ const CoursesPage = () => {
   };
 
   const handleDelete = (courseId) => {
+    // Optimistically update the UI
+    setCourses((prev) => prev.filter((course) => course.id !== courseId));
+  
+    // Send the delete request to the backend
     apiRequest(`/courses/${courseId}`, { method: "DELETE" })
-      .then(() => {
-        setCourses((prev) => prev.filter((course) => course.id !== courseId));
-      })
-      .catch((error) => console.error("Error deleting course:", error));
+      .catch((error) => {
+        console.error("Error deleting course:", error);
+        // Revert the UI update if the request fails
+        fetchCourses();
+      });
   };
 
   return (
