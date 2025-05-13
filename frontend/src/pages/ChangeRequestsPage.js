@@ -1,65 +1,133 @@
-import React, { useState } from "react";
-import { Box, Typography, Button, TextField } from "@mui/material";
-import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { format } from "date-fns";
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+} from "@mui/material";
+import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay } from "date-fns";
+import "react-big-calendar/lib/css/react-big-calendar.css";
 import Navbar from "../components/Navbar";
+import { apiRequest } from "../services/apiService";
+
+const locales = { "en-US": require("date-fns/locale/en-US") };
+const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
 const ChangeRequestsPage = () => {
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [openProposal, setOpenProposal] = useState(false);
+  const [formData, setFormData] = useState({ start: "", end: "" });
+  const [view, setView] = useState(Views.MONTH);
 
-  const handleToday = () => {
-    const today = new Date();
-    setStartDate(today);
-    setEndDate(today);
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = () => {
+    apiRequest("/courses/1/events")
+      .then((data) =>
+        setEvents(
+          data.map((event) => ({
+            id: event.id,
+            title: "Wydarzenie",
+            start: new Date(event.start_datetime),
+            end: new Date(event.end_datetime),
+          }))
+        )
+      )
+      .catch((error) => console.error("Błąd podczas pobierania wydarzeń:", error));
   };
 
-  const handleSubmit = () => {
-    if (!startDate || !endDate) {
-      alert("Wybierz daty początku i końca!");
-      return;
-    }
-    console.log("Wybrane daty:", {
-      start: format(startDate, "yyyy-MM-dd"),
-      end: format(endDate, "yyyy-MM-dd"),
-    });
-    // Możesz tutaj dodać logikę wysyłania danych do backendu
+  const handleOpenProposal = () => {
+    setFormData({ start: "", end: "" });
+    setOpenProposal(true);
+  };
+
+  const handleCloseProposal = () => setOpenProposal(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitProposal = () => {
+    const payload = {
+      change_request_id: 1, // Przykładowe ID zgłoszenia zmiany
+      user_id: 1, // Przykładowe ID użytkownika
+      interval: {
+        start_date: new Date(formData.start).toISOString(),
+        end_date: new Date(formData.end).toISOString(),
+      },
+    };
+
+    apiRequest("/proposals", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+      .then(() => {
+        fetchEvents();
+        handleCloseProposal();
+      })
+      .catch((error) => console.error("Błąd podczas dodawania propozycji:", error));
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        <Navbar />
-        <Box padding={2}>
-          <Typography variant="h4" gutterBottom>
-            Wybierz daty dla zmiany
-          </Typography>
-          <Box display="flex" flexDirection="column" gap={2} maxWidth={400}>
-            <DatePicker
-              label="Data początkowa"
-              value={startDate}
-              onChange={(newValue) => setStartDate(newValue)}
-              renderInput={(params) => <TextField {...params} />}
-            />
-            <DatePicker
-              label="Data końcowa"
-              value={endDate}
-              onChange={(newValue) => setEndDate(newValue)}
-              renderInput={(params) => <TextField {...params} />}
-            />
-            <Box display="flex" justifyContent="space-between" gap={2}>
-              <Button variant="outlined" onClick={handleToday}>
-                Powrót do dzisiaj
-              </Button>
-              <Button variant="contained" onClick={handleSubmit}>
-                Zatwierdź
-              </Button>
-            </Box>
-          </Box>
-        </Box>
+    <Box>
+      <Navbar />
+      <Box padding={2}>
+        <Typography variant="h4" gutterBottom>
+          Zarządzaj zgłoszeniami zmian
+        </Typography>
+        <Button variant="contained" onClick={handleOpenProposal} sx={{ marginBottom: 2 }}>
+          Dodaj propozycję zmiany
+        </Button>
+        <Calendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: 700, margin: "50px 0" }}
+          views={[Views.MONTH, Views.WEEK, Views.DAY]}
+          onView={(newView) => setView(newView)}
+          view={view}
+        />
       </Box>
-    </LocalizationProvider>
+
+      <Dialog open={openProposal} onClose={handleCloseProposal}>
+        <DialogTitle>Dodaj propozycję zmiany</DialogTitle>
+        <DialogContent>
+          <TextField
+            margin="dense"
+            label="Data początkowa"
+            name="start"
+            type="datetime-local"
+            fullWidth
+            value={formData.start}
+            onChange={handleChange}
+          />
+          <TextField
+            margin="dense"
+            label="Data końcowa"
+            name="end"
+            type="datetime-local"
+            fullWidth
+            value={formData.end}
+            onChange={handleChange}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseProposal}>Anuluj</Button>
+          <Button onClick={handleSubmitProposal} variant="contained">
+            Dodaj
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

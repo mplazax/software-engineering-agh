@@ -45,7 +45,30 @@ async def get_change_request_proposals(
         raise HTTPException(status_code=404, detail="Change request not found")
     return proposals
 
-@router.post("/{proposal_id}")
+# @router.post("/{proposal_id}")
+# async def create_proposal(
+#         proposal: ProposalCreate,
+#         db: Session = Depends(get_db),
+#         current_user=Depends(get_current_user)
+# ):
+#     change_request = db.query(ChangeRequest).filter(ChangeRequest.id == proposal.change_request_id).first()
+#     if not change_request:
+#         raise HTTPException(status_code=404, detail="Change request not found")
+#     user = db.query(User).filter(User.id == proposal.user_id).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     if proposal.interval.start_date >= proposal.interval.end_date:
+#         raise HTTPException(status_code=400, detail="Start date must be before end date")
+#
+#     new_proposal = AvailabilityProposal(change_request_id=proposal.change_request_id, user_id=proposal.user_id,
+#                                         available_start_datetime=proposal.interval.start_date,
+#                                         available_end_datetime=proposal.interval.end_date)
+#     db.add(new_proposal)
+#     db.commit()
+#     db.refresh(new_proposal)
+#     return new_proposal
+
+@router.post("/", status_code=201)
 async def create_proposal(
         proposal: ProposalCreate,
         db: Session = Depends(get_db),
@@ -60,9 +83,12 @@ async def create_proposal(
     if proposal.interval.start_date >= proposal.interval.end_date:
         raise HTTPException(status_code=400, detail="Start date must be before end date")
 
-    new_proposal = AvailabilityProposal(change_request_id=proposal.change_request_id, user_id=proposal.user_id,
-                                        available_start_datetime=proposal.interval.start_date,
-                                        available_end_datetime=proposal.interval.end_date)
+    new_proposal = AvailabilityProposal(
+        change_request_id=proposal.change_request_id,
+        user_id=proposal.user_id,
+        available_start_datetime=proposal.interval.start_date,
+        available_end_datetime=proposal.interval.end_date
+    )
     db.add(new_proposal)
     db.commit()
     db.refresh(new_proposal)
