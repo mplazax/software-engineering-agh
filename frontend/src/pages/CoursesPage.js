@@ -6,12 +6,14 @@ import {
   List,
   ListItem,
   ListItemText,
+  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
 } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 
@@ -21,10 +23,14 @@ const CoursesPage = () => {
   const [formData, setFormData] = useState({ name: "", teacher_id: "", group_id: "" });
 
   useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = () => {
     apiRequest("/courses")
       .then((data) => setCourses(data))
       .catch((error) => console.error("Error fetching courses:", error));
-  }, []);
+  };
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -46,6 +52,14 @@ const CoursesPage = () => {
       .catch((error) => console.error("Error adding course:", error));
   };
 
+  const handleDelete = (courseId) => {
+    apiRequest(`/courses/${courseId}`, { method: "DELETE" })
+      .then(() => {
+        setCourses((prev) => prev.filter((course) => course.id !== courseId));
+      })
+      .catch((error) => console.error("Error deleting course:", error));
+  };
+
   return (
     <Box>
       <Navbar />
@@ -53,7 +67,11 @@ const CoursesPage = () => {
         <Typography variant="h4">Zarządzaj kursami</Typography>
         <List>
           {courses.map((course) => (
-            <ListItem key={course.id}>
+            <ListItem key={course.id} secondaryAction={
+              <IconButton edge="end" onClick={() => handleDelete(course.id)}>
+                <DeleteIcon />
+              </IconButton>
+            }>
               <ListItemText primary={`${course.name} - Prowadzący: ${course.teacher_id}`} />
             </ListItem>
           ))}
