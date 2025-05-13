@@ -6,12 +6,14 @@ import {
   List,
   ListItem,
   ListItemText,
+  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
 } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 
@@ -21,10 +23,14 @@ const GroupsPage = () => {
   const [formData, setFormData] = useState({ name: "", year: "", leader_id: "" });
 
   useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  const fetchGroups = () => {
     apiRequest("/groups")
       .then((data) => setGroups(data))
       .catch((error) => console.error("Error fetching groups:", error));
-  }, []);
+  };
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -46,6 +52,19 @@ const GroupsPage = () => {
       .catch((error) => console.error("Error adding group:", error));
   };
 
+  const handleDelete = (groupId) => {
+    // Optimistically update the UI
+    setGroups((prev) => prev.filter((group) => group.id !== groupId));
+
+    // Send the delete request to the backend
+    apiRequest(`/groups/${groupId}`, { method: "DELETE" })
+      .catch((error) => {
+        console.error("Error deleting group:", error);
+        // Revert the UI update if the request fails
+        fetchGroups();
+      });
+  };
+
   return (
     <Box>
       <Navbar />
@@ -53,7 +72,14 @@ const GroupsPage = () => {
         <Typography variant="h4">Zarządzaj grupami</Typography>
         <List>
           {groups.map((group) => (
-            <ListItem key={group.id}>
+            <ListItem
+              key={group.id}
+              secondaryAction={
+                <IconButton edge="end" onClick={() => handleDelete(group.id)}>
+                  <DeleteIcon />
+                </IconButton>
+              }
+            >
               <ListItemText primary={`${group.name} - Rok: ${group.year || "Brak danych"}`} />
             </ListItem>
           ))}
