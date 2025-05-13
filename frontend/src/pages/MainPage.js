@@ -23,6 +23,9 @@ const MainPage = () => {
         <Button variant="contained" onClick={() => navigate("/courses")}>
           Zarządzaj kursami
         </Button>
+        <Button variant="contained" onClick={() => navigate("/requests")}>
+          Zarządzaj zgłoszeniami zmian
+        </Button>
       </Box>
     </Box>
   );

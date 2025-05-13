@@ -6,6 +6,8 @@ import RoomsPage from "./pages/RoomsPage";
 import UsersPage from "./pages/UsersPage";
 import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
+import ProposalsPage from "./pages/ProposalsPage";
+import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import { isAuthenticated } from "./services/authService";
 
 const App = () => {
@@ -32,6 +34,14 @@ const App = () => {
         <Route
           path="/courses"
           element={isAuthenticated() ? <CoursesPage /> : <Navigate to="/login" />}
+        />
+        <Route
+            path="/proposals"
+            element={isAuthenticated() ? <ProposalsPage /> : <Navigate to="/login" />}
+        />
+        <Route
+            path="/requests"
+            element={isAuthenticated() ? <ChangeRequestsPage /> : <Navigate to="/login" />}
         />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
