@@ -6,6 +6,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -13,6 +14,7 @@ import {
   TextField,
   MenuItem,
 } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 
@@ -21,7 +23,6 @@ const RoomsPage = () => {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", capacity: "", equipment: "", type: "" });
 
-  // Mapa tłumaczeń typów pokoju
   const roomTypeTranslations = {
     LECTURE_HALL: "Sala wykładowa",
     LABORATORY: "Laboratorium",
@@ -31,10 +32,14 @@ const RoomsPage = () => {
   };
 
   useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = () => {
     apiRequest("/rooms")
       .then((data) => setRooms(data))
       .catch((error) => console.error("Error fetching rooms:", error));
-  }, []);
+  };
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -43,7 +48,7 @@ const RoomsPage = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "capacity" ? parseInt(value, 10) : value, // Konwersja capacity na liczbę
+      [name]: name === "capacity" ? parseInt(value, 10) : value,
     }));
   };
 
@@ -59,6 +64,19 @@ const RoomsPage = () => {
       .catch((error) => console.error("Error adding room:", error));
   };
 
+  const handleDelete = (roomId) => {
+    // Optimistically update the UI
+    setRooms((prev) => prev.filter((room) => room.id !== roomId));
+
+    // Send the delete request to the backend
+    apiRequest(`/rooms/${roomId}`, { method: "DELETE" })
+      .catch((error) => {
+        console.error("Error deleting room:", error);
+        // Revert the UI update if the request fails
+        fetchRooms();
+      });
+  };
+
   return (
     <Box>
       <Navbar />
@@ -66,7 +84,14 @@ const RoomsPage = () => {
         <Typography variant="h4">Zarządzaj salami</Typography>
         <List>
           {rooms.map((room) => (
-            <ListItem key={room.id}>
+            <ListItem
+              key={room.id}
+              secondaryAction={
+                <IconButton edge="end" onClick={() => handleDelete(room.id)}>
+                  <DeleteIcon />
+                </IconButton>
+              }
+            >
               <ListItemText primary={`${room.name} - ${room.capacity || "Brak danych"} miejsc`} />
             </ListItem>
           ))}
