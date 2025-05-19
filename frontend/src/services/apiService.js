@@ -1,4 +1,6 @@
 // frontend/src/services/apiService.js
+import { ErrorContext } from "../App";
+
 const API_BASE_URL = "http://localhost:8000";
 
 export const apiRequest = async (endpoint, options = {}) => {
@@ -13,6 +15,13 @@ export const apiRequest = async (endpoint, options = {}) => {
     ...options,
     headers,
   });
+
+  if (response.status === 401) {
+    const setError = ErrorContext._currentValue;
+    setError("Nie masz dostępu do tej funkcji.");
+    throw new Error("Unauthorized");
+  }
+
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);

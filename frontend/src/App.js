@@ -1,5 +1,6 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import React, { createContext, useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
 import LoginPage from "./pages/LoginPage";
 import MainPage from "./pages/MainPage";
 import RoomsPage from "./pages/RoomsPage";
@@ -8,44 +9,57 @@ import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
 import ProposalsPage from "./pages/ProposalsPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
-import { isAuthenticated } from "./services/authService";
+import AvailabilityPage from "./pages/AvailabilityPage";
+import Navbar from "./components/Navbar";
+import { isAuthenticated, getCurrentUser } from "./services/authService";
+
+export const UserContext = createContext(null);
+export const ErrorContext = createContext(null);
 
 const App = () => {
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      getCurrentUser()
+        .then((data) => setUser(data))
+        .catch(() => setUser(null));
+    }
+  }, []);
+
+  const handleCloseError = () => setError("");
+
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/main"
-          element={isAuthenticated() ? <MainPage /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/rooms"
-          element={isAuthenticated() ? <RoomsPage /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/users"
-          element={isAuthenticated() ? <UsersPage /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/groups"
-          element={isAuthenticated() ? <GroupsPage /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/courses"
-          element={isAuthenticated() ? <CoursesPage /> : <Navigate to="/login" />}
-        />
-        <Route
-            path="/proposals"
-            element={isAuthenticated() ? <ProposalsPage /> : <Navigate to="/login" />}
-        />
-        <Route
-            path="/requests"
-            element={isAuthenticated() ? <ChangeRequestsPage /> : <Navigate to="/login" />}
-        />
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
-    </Router>
+    <ErrorContext.Provider value={setError}>
+      <UserContext.Provider value={user}>
+        <Router>
+          <Navbar />
+          <Box sx={{ paddingTop: (theme) => theme.mixins.toolbar.minHeight || 64 }}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/main" element={<MainPage />} />
+              <Route path="/rooms" element={<RoomsPage />} />
+              <Route path="/users" element={<UsersPage />} />
+              <Route path="/groups" element={<GroupsPage />} />
+              <Route path="/courses" element={<CoursesPage />} />
+              <Route path="/proposals" element={<ProposalsPage />} />
+              <Route path="/requests" element={<ChangeRequestsPage />} />
+              <Route path="/availability" element={<AvailabilityPage />} />
+            </Routes>
+          </Box>
+        </Router>
+        <Dialog open={!!error} onClose={handleCloseError}>
+          <DialogTitle>Błąd autoryzacji</DialogTitle>
+          <DialogContent>{error}</DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseError} variant="contained">
+              Zamknij
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </UserContext.Provider>
+    </ErrorContext.Provider>
   );
 };
 

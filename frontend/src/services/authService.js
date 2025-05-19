@@ -1,3 +1,5 @@
+import { apiRequest } from "./apiService";
+
 const API_URL = "http://localhost:8000/auth";
 
 export const login = async (email, password) => {
@@ -16,3 +18,10 @@ export const logout = () => {
 };
 
 export const isAuthenticated = () => !!localStorage.getItem("token");
+
+export const getCurrentUser = async () => {
+  const response = await apiRequest("/auth/me", {
+    method: "GET",
+  });
+  return response.json();
+};
