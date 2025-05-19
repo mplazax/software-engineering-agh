@@ -44,10 +44,18 @@ def create_user(
             status_code=400,
             detail="Email already registered"
         )
-    group = db.query(Group).filter(Group.id == user.group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    hashed_password = get_password_hash(user.password)
+
+    if user.role not in [UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY] and user.group_id is not None:
+        raise HTTPException(status_code=400, detail="Group ID is not required for this role")
+
+    if user.role in [UserRole.STAROSTA] and user.group_id is None:
+        raise HTTPException(status_code=400, detail="Group ID is required for this role")
+
+    if user.group_id is not None:
+        group = db.query(Group).filter(Group.id == user.group_id).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        hashed_password = get_password_hash(user.password)
     
     db_user = User(
         name=user.name,
