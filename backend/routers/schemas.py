@@ -114,3 +114,14 @@ class ChangeRecomendationResponse(BaseModel):
     recommended_start_datetime: datetime
     recommended_end_datetime: datetime
     recommended_room_id: int
+
+class RoomUnavailabilityCreate(BaseModel):
+    room_id: int
+    start_datetime: datetime
+    end_datetime: datetime
+
+class RoomUnavailabilityResponse(BaseModel):
+    id: int
+    room_id: int
+    start_datetime: datetime
+    end_datetime: datetime
