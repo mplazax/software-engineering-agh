@@ -131,6 +131,7 @@ const ChangeRequestsPage = () => {
         </Button>
         <Calendar
           localizer={localizer}
+          culture="pl" // <-- dodaj to!
           events={events}
           startAccessor="start"
           endAccessor="end"
@@ -138,8 +139,8 @@ const ChangeRequestsPage = () => {
           views={[Views.MONTH, Views.WEEK, Views.DAY]}
           onView={(newView) => setView(newView)}
           view={view}
-          date={date} // Ustaw aktualną datę
-          onNavigate={handleNavigate} // Obsłuż nawigację
+          date={date}
+          onNavigate={handleNavigate}
           messages={{
             date: "Data",
             time: "Czas",
