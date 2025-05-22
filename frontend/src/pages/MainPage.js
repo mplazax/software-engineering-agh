@@ -1,10 +1,18 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { Box, Typography, Grid, Card, CardContent, CardActions, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
 const MainPage = () => {
   const navigate = useNavigate();
+
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
 
   const features = [
     { title: "Zgłoszenia", description: "Przeglądaj zgłoszenia zmian.", path: "/requests" },
