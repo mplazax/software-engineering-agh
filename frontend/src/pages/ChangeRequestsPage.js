@@ -25,22 +25,30 @@ const ChangeRequestsPage = () => {
   const [view, setView] = useState(Views.MONTH);
 
   useEffect(() => {
-    fetchEvents();
+    fetchAllEvents();
   }, []);
 
-  const fetchEvents = () => {
-    apiRequest("/courses/1/events")
-      .then((data) =>
-        setEvents(
-          data.map((event) => ({
-            id: event.id,
-            title: "Wydarzenie",
+  const fetchAllEvents = async () => {
+    try {
+      // Pobierz wszystkie kursy
+      const courses = await apiRequest("/courses");
+      // Pobierz wydarzenia dla każdego kursu
+      const allEvents = [];
+      for (const course of courses) {
+        const events = await apiRequest(`/courses/${course.id}/events`);
+        allEvents.push(
+          ...events.map((event) => ({
+            id: `${course.id}-${event.id}`,
+            title: `Kurs ${course.name || course.id}`,
             start: new Date(event.start_datetime),
             end: new Date(event.end_datetime),
           }))
-        )
-      )
-      .catch((error) => console.error("Błąd podczas pobierania wydarzeń:", error));
+        );
+      }
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń:", error);
+    }
   };
 
   const handleOpenProposal = () => {
@@ -70,7 +78,7 @@ const ChangeRequestsPage = () => {
       body: JSON.stringify(payload),
     })
       .then(() => {
-        fetchEvents();
+        fetchAllEvents();
         handleCloseProposal();
       })
       .catch((error) => console.error("Błąd podczas dodawania propozycji:", error));
