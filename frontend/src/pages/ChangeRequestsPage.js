@@ -14,15 +14,23 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
+import { pl } from "date-fns/locale"; // Dodaj ten import
 
-const locales = { "en-US": require("date-fns/locale/en-US") };
-const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
+const locales = { "pl": pl }; // Ustaw polski locale
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }), // tydzień od poniedziałku
+  getDay,
+  locales,
+});
 
 const ChangeRequestsPage = () => {
   const [events, setEvents] = useState([]);
   const [openProposal, setOpenProposal] = useState(false);
   const [formData, setFormData] = useState({ start: "", end: "" });
   const [view, setView] = useState(Views.MONTH);
+  const [date, setDate] = useState(new Date()); // Dodaj stan daty
 
   useEffect(() => {
     fetchAllEvents();
@@ -84,6 +92,33 @@ const ChangeRequestsPage = () => {
       .catch((error) => console.error("Błąd podczas dodawania propozycji:", error));
   };
 
+  // Funkcje do obsługi nawigacji
+  const handleNavigate = (action) => {
+    let newDate = new Date(date);
+    if (action === "TODAY") {
+      newDate = new Date();
+    } else if (action === "PREV") {
+      if (view === Views.MONTH) {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else if (view === Views.WEEK) {
+        newDate.setDate(newDate.getDate() - 7);
+      } else if (view === Views.DAY) {
+        newDate.setDate(newDate.getDate() - 1);
+      }
+    } else if (action === "NEXT") {
+      if (view === Views.MONTH) {
+        newDate.setMonth(newDate.getMonth() + 1);
+      } else if (view === Views.WEEK) {
+        newDate.setDate(newDate.getDate() + 7);
+      } else if (view === Views.DAY) {
+        newDate.setDate(newDate.getDate() + 1);
+      }
+    } else if (action instanceof Date) {
+      newDate = action;
+    }
+    setDate(newDate);
+  };
+
   return (
     <Box>
       <Navbar />
@@ -103,6 +138,26 @@ const ChangeRequestsPage = () => {
           views={[Views.MONTH, Views.WEEK, Views.DAY]}
           onView={(newView) => setView(newView)}
           view={view}
+          date={date} // Ustaw aktualną datę
+          onNavigate={handleNavigate} // Obsłuż nawigację
+          messages={{
+            date: "Data",
+            time: "Czas",
+            event: "Wydarzenie",
+            allDay: "Cały dzień",
+            week: "Tydzień",
+            work_week: "Tydzień roboczy",
+            day: "Dzień",
+            month: "Miesiąc",
+            previous: "Poprzedni",
+            next: "Następny",
+            yesterday: "Wczoraj",
+            tomorrow: "Jutro",
+            today: "Dziś",
+            agenda: "Agenda",
+            noEventsInRange: "Brak wydarzeń w tym zakresie.",
+            showMore: (total) => `+${total} więcej`,
+          }}
         />
       </Box>
 
