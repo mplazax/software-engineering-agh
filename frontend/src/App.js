@@ -46,6 +46,7 @@ const App = () => {
               <Route path="/proposals" element={<ProposalsPage />} />
               <Route path="/requests" element={<ChangeRequestsPage />} />
               <Route path="/availability" element={<AvailabilityPage />} />
+              <Route path="*" element={<RedirectOnRoot />} />
             </Routes>
           </Box>
         </Router>
