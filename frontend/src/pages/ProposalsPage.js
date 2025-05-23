@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from "@mui/material";
+import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { useNavigate } from "react-router-dom";
@@ -96,6 +97,22 @@ const ProposalsPage = () => {
       .catch((error) => console.error("Error adding proposal:", error));
   };
 
+  // Usuwanie propozycji
+  const handleDelete = (proposalId) => {
+    // Optimistycznie usuń z UI
+    setProposals((prev) => prev.filter((proposal) => proposal.id !== proposalId));
+
+    // Wyślij żądanie DELETE do backendu
+    apiRequest(`/proposals/${proposalId}`, { method: "DELETE" })
+      .catch((error) => {
+        console.error("Error deleting proposal:", error);
+        // Przy błędzie pobierz ponownie listę
+        apiRequest("/proposals")
+          .then((data) => setProposals(data))
+          .catch(() => {});
+      });
+  };
+
   return (
     <Box>
       <Navbar />
@@ -122,7 +139,14 @@ const ProposalsPage = () => {
               }
             };
             return (
-              <ListItem key={proposal.id}>
+              <ListItem
+                key={proposal.id}
+                secondaryAction={
+                  <IconButton edge="end" onClick={() => handleDelete(proposal.id)}>
+                    <DeleteIcon />
+                  </IconButton>
+                }
+              >
                 <ListItemText
                   primary={
                     user
