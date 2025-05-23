@@ -16,15 +16,23 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const CoursesPage = () => {
   const [courses, setCourses] = useState([]);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", teacher_id: "", group_id: "" });
 
+  const navigate = useNavigate();
+
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     fetchCourses();
-  }, []);
+  }, [navigate]);
 
   const fetchCourses = () => {
     apiRequest("/courses")

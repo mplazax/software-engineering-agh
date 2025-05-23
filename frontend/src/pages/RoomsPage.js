@@ -17,6 +17,7 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const RoomsPage = () => {
   const [rooms, setRooms] = useState([]);
@@ -31,9 +32,16 @@ const RoomsPage = () => {
     OTHER: "Inne",
   };
 
+  const navigate = useNavigate();
+
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     fetchRooms();
-  }, []);
+  }, [navigate]);
 
   const fetchRooms = () => {
     apiRequest("/rooms")

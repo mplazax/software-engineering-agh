@@ -5,6 +5,7 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { apiRequest } from "../services/apiService";
 import Navbar from "../components/Navbar";
+import {useNavigate} from "react-router-dom";
 
 const locales = { "en-US": require("date-fns/locale/en-US") };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
@@ -13,17 +14,24 @@ const UserPlanPage = () => {
   const [events, setEvents] = useState([]);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ title: "", start: "", end: "" });
+  const navigate = useNavigate();
 
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     apiRequest("/courses/events")
-      .then((data) => setEvents(data.map(event => ({
-        id: event.id,
-        title: event.name,
-        start: new Date(event.start_datetime),
-        end: new Date(event.end_datetime),
-      }))))
-      .catch((error) => console.error("Error fetching events:", error));
-  }, []);
+        .then((data) => setEvents(data.map(event => ({
+          id: event.id,
+          title: event.name,
+          start: new Date(event.start_datetime),
+          end: new Date(event.end_datetime),
+        }))))
+        .catch((error) => console.error("Error fetching events:", error));
+  }, [navigate]);
+
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
