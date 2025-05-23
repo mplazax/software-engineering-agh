@@ -122,21 +122,23 @@ const ProposalsPage = () => {
           />
           <TextField
             margin="dense"
-            label="Data początkowa"
             name="start_date"
             type="datetime-local"
             fullWidth
             value={formData.start_date}
             onChange={handleChange}
+            InputLabelProps={{ shrink: true }}
+            label="Data początkowa"
           />
           <TextField
             margin="dense"
-            label="Data końcowa"
             name="end_date"
             type="datetime-local"
             fullWidth
             value={formData.end_date}
             onChange={handleChange}
+            InputLabelProps={{ shrink: true }}
+            label="Data końcowa"
           />
         </DialogContent>
         <DialogActions>
