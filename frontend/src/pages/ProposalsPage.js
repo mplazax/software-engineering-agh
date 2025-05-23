@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from "@mui/material";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 const ProposalsPage = () => {
   const [proposals, setProposals] = useState([]);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ change_request_id: "", user_id: "", start_date: "", end_date: "" });
+  const [userDetails, setUserDetails] = useState({});
   const navigate = useNavigate();
 
   // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
@@ -17,10 +18,28 @@ const ProposalsPage = () => {
       navigate("/login", { replace: true });
     }
     apiRequest("/proposals")
-        .then((data) => setProposals(data))
-        .catch((error) => console.error("Error fetching proposals:", error));
-  }, [navigate]);
+      .then(async (data) => {
+        setProposals(data);
 
+        // Pobierz dane użytkowników tylko dla unikalnych user_id z proposals
+        const uniqueUserIds = [...new Set(data.map((p) => p.user_id))];
+        const userMap = {};
+        await Promise.all(
+          uniqueUserIds.map(async (id) => {
+            if (id) {
+              try {
+                const user = await apiRequest(`/users/${id}`);
+                userMap[id] = user;
+              } catch (e) {
+                userMap[id] = { name: "Nieznany", email: "" };
+              }
+            }
+          })
+        );
+        setUserDetails(userMap);
+      })
+      .catch((error) => console.error("Error fetching proposals:", error));
+  }, [navigate]);
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -45,6 +64,12 @@ const ProposalsPage = () => {
       .then((newProposal) => {
         setProposals((prev) => [...prev, newProposal]);
         handleClose();
+        // Opcjonalnie pobierz dane użytkownika dla nowej propozycji
+        if (newProposal.user_id && !userDetails[newProposal.user_id]) {
+          apiRequest(`/users/${newProposal.user_id}`)
+            .then((user) => setUserDetails((prev) => ({ ...prev, [newProposal.user_id]: user })))
+            .catch(() => {});
+        }
       })
       .catch((error) => console.error("Error adding proposal:", error));
   };
@@ -55,14 +80,21 @@ const ProposalsPage = () => {
       <Box padding={2}>
         <Typography variant="h4">Zarządzaj propozycjami</Typography>
         <List>
-          {proposals.map((proposal) => (
-            <ListItem key={proposal.id}>
-              <ListItemText
-                primary={`Propozycja ID: ${proposal.id}, Użytkownik: ${proposal.user_id}`}
-                secondary={`Od: ${proposal.available_start_datetime}, Do: ${proposal.available_end_datetime}`}
-              />
-            </ListItem>
-          ))}
+          {proposals.map((proposal) => {
+            const user = userDetails[proposal.user_id];
+            return (
+              <ListItem key={proposal.id}>
+                <ListItemText
+                  primary={
+                    user
+                      ? `Propozycja ID: ${proposal.id}, Użytkownik: ${user.name} (${user.email})`
+                      : `Propozycja ID: ${proposal.id}, Użytkownik: [ładowanie...]`
+                  }
+                  secondary={`Od: ${proposal.available_start_datetime}, Do: ${proposal.available_end_datetime}`}
+                />
+              </ListItem>
+            );
+          })}
         </List>
         <Button variant="contained" onClick={handleOpen}>
           Dodaj propozycję
