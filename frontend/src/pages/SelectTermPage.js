@@ -2,15 +2,24 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, List, ListItem, Button } from "@mui/material";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const SelectTermPage = ({ changeRequestId }) => {
   const [recommendations, setRecommendations] = useState([]);
 
+  const navigate = useNavigate();
+
+    // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
-    apiRequest(`/change_recommendation/${changeRequestId}/recommendations`)
-      .then((data) => setRecommendations(data))
-      .catch((error) => console.error("Błąd podczas pobierania rekomendacji:", error));
-  }, [changeRequestId]);
+      const token = localStorage.getItem("token");
+      if (!token) {
+          navigate("/login", { replace: true });
+      }
+      apiRequest(`/change_recommendation/${changeRequestId}/recommendations`)
+          .then((data) => setRecommendations(data))
+          .catch((error) => console.error("Błąd podczas pobierania rekomendacji:", error));
+    }, [navigate, changeRequestId]);
+
 
   const handleSelect = (recommendationId) => {
     alert(`Wybrano termin: ${recommendationId}`);

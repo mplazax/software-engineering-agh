@@ -14,7 +14,8 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
-import { pl } from "date-fns/locale"; // Dodaj ten import
+import { pl } from "date-fns/locale";
+import {useNavigate} from "react-router-dom"; // Dodaj ten import
 
 const locales = { "pl": pl }; // Ustaw polski locale
 const localizer = dateFnsLocalizer({
@@ -31,10 +32,17 @@ const ChangeRequestsPage = () => {
   const [formData, setFormData] = useState({ start: "", end: "" });
   const [view, setView] = useState(Views.MONTH);
   const [date, setDate] = useState(new Date()); // Dodaj stan daty
+  const navigate = useNavigate();
 
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     fetchAllEvents();
-  }, []);
+  }, [navigate]);
+
 
   const fetchAllEvents = async () => {
     try {

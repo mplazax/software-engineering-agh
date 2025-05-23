@@ -10,7 +10,7 @@ import CoursesPage from "./pages/CoursesPage";
 import ProposalsPage from "./pages/ProposalsPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import AvailabilityPage from "./pages/AvailabilityPage";
-import Navbar from "./components/Navbar";
+import RedirectOnRoot from "./pages/RedirectOnRoot";
 import { isAuthenticated, getCurrentUser } from "./services/authService";
 
 export const UserContext = createContext(null);
@@ -34,9 +34,9 @@ const App = () => {
     <ErrorContext.Provider value={setError}>
       <UserContext.Provider value={user}>
         <Router>
-          <Navbar />
-          <Box sx={{ paddingTop: (theme) => theme.mixins.toolbar.minHeight || 64 }}>
+          <Box sx={{ paddingTop: 8 }}>
             <Routes>
+              <Route path="/" element={<RedirectOnRoot />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/main" element={<MainPage />} />
               <Route path="/rooms" element={<RoomsPage />} />

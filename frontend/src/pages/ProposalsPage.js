@@ -2,17 +2,25 @@ import React, { useEffect, useState } from "react";
 import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from "@mui/material";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const ProposalsPage = () => {
   const [proposals, setProposals] = useState([]);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ change_request_id: "", user_id: "", start_date: "", end_date: "" });
+  const navigate = useNavigate();
 
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     apiRequest("/proposals")
-      .then((data) => setProposals(data))
-      .catch((error) => console.error("Error fetching proposals:", error));
-  }, []);
+        .then((data) => setProposals(data))
+        .catch((error) => console.error("Error fetching proposals:", error));
+  }, [navigate]);
+
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);

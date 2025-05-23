@@ -1,11 +1,21 @@
 // frontend/src/pages/AvailabilityPage.js
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import { Box, TextField, Button, Typography } from "@mui/material";
 import { apiRequest } from "../services/apiService";
+import Navbar from "../components/Navbar";
+import {useNavigate} from "react-router-dom";
 
 const AvailabilityPage = () => {
   const [formData, setFormData] = useState({ change_request_id: "", start_date: "", end_date: "" });
+  const navigate = useNavigate();
 
+    // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        navigate("/login", { replace: true });
+    }
+  }, [navigate]);
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -28,6 +38,7 @@ const AvailabilityPage = () => {
 
   return (
     <Box>
+        <Navbar />
       <Typography variant="h4">Wskaż Dostępność</Typography>
       <TextField label="ID Zgłoszenia" name="change_request_id" onChange={handleChange} />
       <TextField label="Data Początkowa" name="start_date" type="datetime-local" onChange={handleChange} />
