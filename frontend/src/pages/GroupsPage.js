@@ -16,15 +16,23 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const GroupsPage = () => {
   const [groups, setGroups] = useState([]);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", year: "", leader_id: "" });
 
+  const navigate = useNavigate();
+
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     fetchGroups();
-  }, []);
+  }, [navigate]);
 
   const fetchGroups = () => {
     apiRequest("/groups")

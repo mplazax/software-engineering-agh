@@ -2,15 +2,23 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, List, ListItem } from "@mui/material";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const RequestStatusPage = ({ userId }) => {
   const [requests, setRequests] = useState([]);
+  const navigate = useNavigate();
 
+    // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
-    apiRequest(`/change_requests/my?initiator_id=${userId}`)
-      .then((data) => setRequests(data))
-      .catch((error) => console.error("Błąd podczas pobierania statusu zgłoszeń:", error));
-  }, [userId]);
+      const token = localStorage.getItem("token");
+      if (!token) {
+          navigate("/login", { replace: true });
+      }
+      apiRequest(`/change_requests/my?initiator_id=${userId}`)
+          .then((data) => setRequests(data))
+          .catch((error) => console.error("Błąd podczas pobierania statusu zgłoszeń:", error));
+    }, [navigate, userId]);
+
 
   return (
     <Box>

@@ -16,6 +16,7 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
@@ -23,10 +24,18 @@ const UsersPage = () => {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "ADMIN", group_id: "" });
 
+  const navigate = useNavigate();
+
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
     fetchUsers();
     fetchCurrentUser();
-  }, []);
+  }, [navigate]);
+  
 
   const fetchUsers = () => {
     apiRequest("/users")
