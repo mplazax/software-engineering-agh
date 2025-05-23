@@ -3,6 +3,8 @@ import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTi
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { pl } from "date-fns/locale";
 
 const ProposalsPage = () => {
   const [proposals, setProposals] = useState([]);
@@ -82,15 +84,24 @@ const ProposalsPage = () => {
         <List>
           {proposals.map((proposal) => {
             const user = userDetails[proposal.user_id];
+            // Formatowanie daty
+            const formatDate = (dateStr) => {
+              if (!dateStr) return "";
+              try {
+                return format(new Date(dateStr), "d MMMM yyyy HH:mm", { locale: pl });
+              } catch {
+                return dateStr;
+              }
+            };
             return (
               <ListItem key={proposal.id}>
                 <ListItemText
                   primary={
                     user
-                      ? `Propozycja ID: ${proposal.id}, Użytkownik: ${user.name} (${user.email})`
-                      : `Propozycja ID: ${proposal.id}, Użytkownik: [ładowanie...]`
+                      ? `Użytkownik: ${user.name} (${user.email})`
+                      : `Użytkownik: [ładowanie...]`
                   }
-                  secondary={`Od: ${proposal.available_start_datetime}, Do: ${proposal.available_end_datetime}`}
+                  secondary={`Od: ${formatDate(proposal.available_start_datetime)}, Do: ${formatDate(proposal.available_end_datetime)}`}
                 />
               </ListItem>
             );
