@@ -11,6 +11,7 @@ const ProposalsPage = () => {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ change_request_id: "", user_id: "", start_date: "", end_date: "" });
   const [userDetails, setUserDetails] = useState({});
+  const [currentUserId, setCurrentUserId] = useState("");
   const navigate = useNavigate();
 
   // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
@@ -19,6 +20,10 @@ const ProposalsPage = () => {
     if (!token) {
       navigate("/login", { replace: true });
     }
+    // Zakładam, że user_id jest w localStorage (dostosuj jeśli inaczej)
+    const userId = localStorage.getItem("user_id");
+    setCurrentUserId(userId || "");
+
     apiRequest("/proposals")
       .then(async (data) => {
         setProposals(data);
@@ -43,7 +48,22 @@ const ProposalsPage = () => {
       .catch((error) => console.error("Error fetching proposals:", error));
   }, [navigate]);
 
-  const handleOpen = () => setOpen(true);
+  const handleOpen = async () => {
+    // Pobierz user_id z /auth/me
+    try {
+      const user = await apiRequest("/auth/me");
+      setFormData((prev) => ({
+        ...prev,
+        user_id: user.id || "",
+      }));
+    } catch {
+      setFormData((prev) => ({
+        ...prev,
+        user_id: "",
+      }));
+    }
+    setOpen(true);
+  };
   const handleClose = () => setOpen(false);
 
   const handleChange = (e) => {
@@ -80,6 +100,14 @@ const ProposalsPage = () => {
     <Box>
       <Navbar />
       <Box padding={2}>
+        {/* Dodaj poniżej */}
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Twoje proposals ID:{" "}
+          {proposals
+            .filter((p) => String(p.user_id) === String(currentUserId))
+            .map((p) => p.id)
+            .join(", ") || "Brak"}
+        </Typography>
         <Typography variant="h4">Zarządzaj propozycjami</Typography>
         <List>
           {proposals.map((proposal) => {
@@ -123,14 +151,7 @@ const ProposalsPage = () => {
             value={formData.change_request_id}
             onChange={handleChange}
           />
-          <TextField
-            margin="dense"
-            label="ID użytkownika"
-            name="user_id"
-            fullWidth
-            value={formData.user_id}
-            onChange={handleChange}
-          />
+          {/* Usunięto pole ID użytkownika */}
           <TextField
             margin="dense"
             name="start_date"
