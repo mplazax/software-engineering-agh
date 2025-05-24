@@ -8,6 +8,7 @@ from model import CourseEvent
 from model import ChangeRequest
 from routers.auth import get_current_user
 from routers.schemas import ChangeRecomendationResponse
+from starlette.status import HTTP_204_NO_CONTENT
 
 router = APIRouter(prefix="/change_recommendation", tags=["change_recommendation"])
 
@@ -85,7 +86,7 @@ async def get_proposals(
 
 
 
-@router.delete("/{change_request_id}/recommendations", status_code=204)
+@router.delete("/{change_request_id}/recommendations", status_code=HTTP_204_NO_CONTENT)
 async def delete_recommendations(
         change_request_id: int,
         db: Session = Depends(get_db),
@@ -97,4 +98,4 @@ async def delete_recommendations(
 
     db.query(ChangeRecomendation).filter(ChangeRecomendation.change_request_id == change_request_id).delete()
     db.commit()
-    return {"detail": "Recommendations deleted successfully"}
+    return

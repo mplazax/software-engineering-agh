@@ -10,7 +10,8 @@ from model import CourseEvent
 from routers.auth import role_required, get_current_user
 from routers.schemas import RoomCreate, CourseEventOut, RoomAddUnavailability
 from model import RoomUnavailability, RoomType
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST, \
+    HTTP_204_NO_CONTENT
 
 from backend.routers.schemas import RoomUpdate, RoomResponse
 
@@ -144,7 +145,7 @@ async def update_room(
     db.refresh(existing_room)
     return existing_room
 
-@router.delete("/{room_id}", status_code=HTTP_200_OK, response_model=dict)
+@router.delete("/{room_id}", status_code=HTTP_204_NO_CONTENT)
 async def delete_room(
         room_id: int,
         db: Session = Depends(get_db),
@@ -155,4 +156,4 @@ async def delete_room(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
     db.delete(room)
     db.commit()
-    return {"message": "Room deleted"}
+    return

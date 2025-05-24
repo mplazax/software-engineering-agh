@@ -6,7 +6,7 @@ from typing import List
 
 from routers.auth import role_required, get_current_user
 from routers.schemas import RoomUnavailabilityResponse, RoomUnavailabilityCreate
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
 from backend.routers.schemas import RoomUnavailabilityUpdate
 
@@ -71,7 +71,7 @@ def update_room_unavailability(
     return existing_unavailability
 
 
-@router.delete("/{unavailability_id}", response_model=dict, status_code=HTTP_200_OK)
+@router.delete("/{unavailability_id}", status_code=HTTP_204_NO_CONTENT)
 def delete_room_unavailability(
         unavailability_id: int,
         db: Session = Depends(get_db),
@@ -82,4 +82,4 @@ def delete_room_unavailability(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room unavailability not found")
     db.delete(existing_unavailability)
     db.commit()
-    return {"message": "Room unavailability deleted successfully"}
+    return

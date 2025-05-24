@@ -7,7 +7,7 @@ from model import Group, UserRole
 from routers.auth import role_required
 from routers.schemas import GroupCreate, GroupUpdate, GroupResponse
 from model import User
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -73,7 +73,7 @@ async def update_group(
     db.refresh(existing_group)
     return existing_group
 
-@router.delete("/{group_id}", status_code=HTTP_200_OK, response_model=dict)
+@router.delete("/{group_id}", status_code=HTTP_204_NO_CONTENT)
 async def delete_group(
         group_id: int,
         db: Session = Depends(get_db),

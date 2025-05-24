@@ -11,7 +11,7 @@ from starlette.status import (
     HTTP_201_CREATED,
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
-    HTTP_422_UNPROCESSABLE_ENTITY,
+    HTTP_422_UNPROCESSABLE_ENTITY, HTTP_204_NO_CONTENT,
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -124,7 +124,7 @@ def update_user(
     return db_user
 
 
-@router.delete("/{user_id}", response_model=dict, status_code=HTTP_200_OK)
+@router.delete("/{user_id}", status_code=HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
@@ -136,4 +136,4 @@ def delete_user(
 
     db.delete(db_user)
     db.commit()
-    return {"message": "User deleted successfully"}
+    return
