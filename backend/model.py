@@ -48,6 +48,7 @@ class User(Base):
     email = Column(String(150), unique=True, nullable=False)
     password = Column(String(150), nullable=False)
     name = Column(String(100), nullable=False)
+    surname = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
     is_active = Column(Boolean, default=True)

@@ -32,7 +32,7 @@ def get_user(
     return user
 
 
-@router.post("/create", response_model=UserResponse)
+@router.post("/create", response_model=UserResponse) # ????????????????
 def create_user(
         user: UserCreate,
         db: Session = Depends(get_db),
@@ -51,19 +51,34 @@ def create_user(
     if user.role in [UserRole.STAROSTA] and user.group_id is None:
         raise HTTPException(status_code=400, detail="Group ID is required for this role")
 
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user is not None:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed_password = get_password_hash(user.password)
+
     if user.group_id is not None:
         group = db.query(Group).filter(Group.id == user.group_id).first()
         if not group:
             raise HTTPException(status_code=404, detail="Group not found")
-        hashed_password = get_password_hash(user.password)
-    
-    db_user = User(
-        name=user.name,
-        email=user.email,
-        password=hashed_password,
-        role=user.role,
-        group_id=user.group_id
-    )
+
+        db_user = User(
+            name=user.name,
+            surname=user.surname,
+            email=user.email,
+            password=hashed_password,
+            role=user.role,
+            group_id=user.group_id
+        )
+    else:
+        db_user = User(
+            name=user.name,
+            surname=user.surname,
+            email=user.email,
+            password=hashed_password,
+            role=user.role,
+        )
+
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -71,6 +86,7 @@ def create_user(
     response_user = UserResponse(
         id=db_user.id,
         name=db_user.name,
+        surname=db_user.surname,
         email=db_user.email
     )
     return response_user
@@ -99,6 +115,7 @@ def update_user(
     db_user.email = user.email
     db_user.password = hashed_password
     db_user.name = user.name
+    db_user.surname = user.surname
     db_user.role = user.role
     db_user.group_id = user.group_id
     db.commit()

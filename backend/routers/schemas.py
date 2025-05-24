@@ -15,10 +15,13 @@ class DateInterval(BaseModel):
 class UserResponse(BaseModel):
     id: int
     name: str
+    surname: str
     email: str
+    role: UserRole
 
 class UserCreate(BaseModel):
     name: str
+    surname: str
     email: EmailStr
     password: str
     role: UserRole

@@ -16,10 +16,10 @@ Base.metadata.create_all(bind=engine)
 now = datetime.now()
 
 # Users
-admin = User(email="admin@example.com", password="admin123", name="Admin User", role=UserRole.ADMIN)
-teacher = User(email="teacher@example.com", password="teach123", name="John Smith", role=UserRole.PROWADZACY)
-student = User(email="student@example.com", password="stud123", name="Anna Kowalska", role=UserRole.STAROSTA)
-coordinator = User(email="koord@example.com", password="koord123", name="Coord Person", role=UserRole.KOORDYNATOR)
+admin = User(email="admin@example.com", password="admin123", name="Admin", surname="User", role=UserRole.ADMIN)
+teacher = User(email="teacher@example.com", password="teach123", name="John", surname="Smith", role=UserRole.PROWADZACY)
+student = User(email="student@example.com", password="stud123", name="Anna", surname="Kowalska", role=UserRole.STAROSTA)
+coordinator = User(email="koord@example.com", password="koord123", name="Coord", surname="Person", role=UserRole.KOORDYNATOR)
 
 session.add_all([admin, teacher, student, coordinator])
 session.flush()
