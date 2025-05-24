@@ -109,6 +109,12 @@ class GroupCreate(BaseModel):
         if 0 <= value <= 6: return value
         raise ValueError("Year must be between 1 and 6")
 
+class GroupResponse(BaseModel):
+    id: int
+    name: str
+    year: int
+    leader_id: int
+
 class GroupUpdate(BaseModel):
     name: str | None
     year: int | None
