@@ -115,6 +115,9 @@ class GroupResponse(BaseModel):
     year: int
     leader_id: int
 
+    class Config:
+        orm_mode = True
+
 class GroupUpdate(BaseModel):
     name: str | None
     year: int | None
@@ -152,6 +155,9 @@ class ChangeRequestResponse(BaseModel):
     room_requirements: str
     created_at: datetime
 
+    class Config:
+        orm_mode = True
+
 # Proposal
 class ProposalCreate(BaseModel):
     change_request_id: int
@@ -161,6 +167,15 @@ class ProposalCreate(BaseModel):
 class ProposalUpdate(BaseModel):
     user_id: int
     interval: DateInterval
+
+class ProposalResponse(BaseModel):
+    id: int
+    change_request_id: int
+    user_id: int
+    interval: DateInterval
+
+    class Config:
+        orm_mode = True
 
 class CourseCreate(BaseModel):
     name: str
