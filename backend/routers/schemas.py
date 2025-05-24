@@ -5,11 +5,20 @@ from typing import Optional
 from model import UserRole
 from model import ChangeRequestStatus
 from model import RoomType
+from pydantic.v1 import validator, root_validator
 
 
 class DateInterval(BaseModel):
     start_date: datetime
     end_date: datetime
+
+    @root_validator
+    def check_date_order(cls, values):
+        start = values.get("start_date")
+        end = values.get("end_date")
+        if start and end and end <= start:
+            raise ValueError("Start date must be before end date")
+        return values
 
 # User
 class UserResponse(BaseModel):
@@ -27,6 +36,12 @@ class UserCreate(BaseModel):
     role: UserRole
     group_id: Optional[int] = None
 
+    @validator("password")
+    def check_password(cls, value):
+        if len(value) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        return value
+
 # Auth
 class Token(BaseModel):
     access_token: str
@@ -42,17 +57,21 @@ class RoomCreate(BaseModel):
     type: RoomType
     equipment: Optional[str]
 
+    @validator("capacity")
+    def capacity_must_be_positive(cls, value):
+        if value <= 0:
+            raise ValueError("Capacity must be greater than zero")
+        return value
+
 class RoomAddUnavailability(BaseModel):
     room_id: int
-    start_datetime: datetime
-    end_datetime: datetime
+    interval: DateInterval
 
 class CourseEventOut(BaseModel):
     id: int
     course_id: int
     room_id: int
-    start_datetime: datetime
-    end_datetime: datetime
+    interval: DateInterval
     canceled: bool
 
 # Group
@@ -61,10 +80,22 @@ class GroupCreate(BaseModel):
     year: int | None
     leader_id: int
 
+    @validator("year")
+    def valid_study_year(cls, value):
+        if value is None: return value
+        if 0 <= value <= 6: return value
+        raise ValueError("Year must be between 1 and 6")
+
 class GroupUpdate(BaseModel):
     name: str | None
     year: int | None
     leader_id: int | None
+
+    @validator("year")
+    def valid_study_year(cls, value):
+        if value is None: return value
+        if 0 <= value <= 6: return value
+        raise ValueError("Year must be between 1 and 6")
 
 # Change requests
 class ChangeRequestCreate(BaseModel):
@@ -81,7 +112,7 @@ class ChangeRequestUpdate(BaseModel):
     status: ChangeRequestStatus | None
     reason: str | None
     room_requirements: str | None
-    created_at: datetime | None
+    created_at: datetime
 
 # Proposal
 class ProposalCreate(BaseModel):
@@ -103,8 +134,7 @@ class CourseResponse(CourseCreate):
 
 class CourseEventCreate(BaseModel):
     room_id: Optional[int]
-    start_datetime: datetime
-    end_datetime: datetime
+    interval: DateInterval
     canceled: Optional[bool] = False
 
 class CourseEventResponse(CourseEventCreate):
@@ -114,17 +144,14 @@ class CourseEventResponse(CourseEventCreate):
 class ChangeRecomendationResponse(BaseModel):
     id: int
     change_request_id: int
-    recommended_start_datetime: datetime
-    recommended_end_datetime: datetime
+    interval: DateInterval
     recommended_room_id: int
 
 class RoomUnavailabilityCreate(BaseModel):
     room_id: int
-    start_datetime: datetime
-    end_datetime: datetime
+    interval: DateInterval
 
 class RoomUnavailabilityResponse(BaseModel):
     id: int
     room_id: int
-    start_datetime: datetime
-    end_datetime: datetime
+    interval: DateInterval
