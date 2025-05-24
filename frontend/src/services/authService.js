@@ -20,8 +20,7 @@ export const logout = () => {
 export const isAuthenticated = () => !!localStorage.getItem("token");
 
 export const getCurrentUser = async () => {
-  const response = await apiRequest("/auth/me", {
+  return apiRequest("/auth/me", {
     method: "GET",
   });
-  return response.json();
 };

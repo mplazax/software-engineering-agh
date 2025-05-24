@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// frontend/src/pages/ChangeRequestsPage.js
+import React, { useState, useEffect, useContext } from "react";
 import {
   Box,
   Typography,
@@ -8,6 +9,9 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  List,
+  ListItem,
+  ListItemText,
 } from "@mui/material";
 import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
@@ -15,26 +19,29 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { pl } from "date-fns/locale";
-import {useNavigate} from "react-router-dom"; // Dodaj ten import
+import { useNavigate } from "react-router-dom";
+import { UserContext } from "../App";
 
-const locales = { "pl": pl }; // Ustaw polski locale
+const locales = { "pl": pl };
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }), // tydzień od poniedziałku
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
   getDay,
   locales,
 });
 
 const ChangeRequestsPage = () => {
   const [events, setEvents] = useState([]);
-  const [openProposal, setOpenProposal] = useState(false);
-  const [formData, setFormData] = useState({ start: "", end: "" });
+  const [eventDetails, setEventDetails] = useState(null);
+  const [openEventDialog, setOpenEventDialog] = useState(false);
+  const [openProposalDialog, setOpenProposalDialog] = useState(false);
+  const [formData, setFormData] = useState({ start: "", end: "", reason: "", room_requirements: "" });
   const [view, setView] = useState(Views.MONTH);
-  const [date, setDate] = useState(new Date()); // Dodaj stan daty
+  const [date, setDate] = useState(new Date());
   const navigate = useNavigate();
+  const user = useContext(UserContext);
 
-  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -43,23 +50,23 @@ const ChangeRequestsPage = () => {
     fetchAllEvents();
   }, [navigate]);
 
-
   const fetchAllEvents = async () => {
     try {
-      // Pobierz wszystkie kursy
       const courses = await apiRequest("/courses");
-      // Pobierz wydarzenia dla każdego kursu
       const allEvents = [];
       for (const course of courses) {
         const events = await apiRequest(`/courses/${course.id}/events`);
-        allEvents.push(
-          ...events.map((event) => ({
+        for (const event of events) {
+          allEvents.push({
+            ...event,
             id: `${course.id}-${event.id}`,
             title: `Kurs ${course.name || course.id}`,
             start: new Date(event.start_datetime),
             end: new Date(event.end_datetime),
-          }))
-        );
+            courseId: course.id,
+            courseName: course.name,
+          });
+        }
       }
       setEvents(allEvents);
     } catch (error) {
@@ -67,40 +74,81 @@ const ChangeRequestsPage = () => {
     }
   };
 
-  const handleOpenProposal = () => {
-    setFormData({ start: "", end: "" });
-    setOpenProposal(true);
+  // Po kliknięciu w wydarzenie pobierz szczegóły i pokaż dialog
+  const handleSelectEvent = async (event) => {
+    try {
+      // Pobierz szczegóły pokoju
+      let room = null;
+      if (event.room_id) {
+        room = await apiRequest(`/rooms/${event.room_id}`);
+      }
+      setEventDetails({
+        ...event,
+        room,
+      });
+      setOpenEventDialog(true);
+    } catch (error) {
+      console.error("Błąd podczas pobierania szczegółów wydarzenia:", error);
+    }
   };
 
-  const handleCloseProposal = () => setOpenProposal(false);
+  const handleCloseEventDialog = () => {
+    setOpenEventDialog(false);
+    setEventDetails(null);
+  };
+
+  // Otwórz dialog do zgłoszenia zmiany
+  const handleOpenProposalDialog = () => {
+    setFormData({ start: "", end: "", reason: "", room_requirements: "" });
+    setOpenProposalDialog(true);
+  };
+
+  const handleCloseProposalDialog = () => setOpenProposalDialog(false);
+
+  const handleSubmitProposal = async () => {
+    try {
+      if (!user) throw new Error("Brak danych użytkownika");
+
+      const changeRequestPayload = {
+        course_event_id: parseInt(eventDetails.id.split("-")[1], 10),
+        initiator_id: user.id,
+        status: "PENDING",
+        reason: formData.reason,
+        room_requirements: formData.room_requirements,
+        created_at: new Date().toISOString(),
+      };
+      alert(changeRequestPayload);
+      const newChangeRequest = await apiRequest("/change_requests/", {
+        method: "POST",
+        body: JSON.stringify(changeRequestPayload),
+      });
+
+      const proposalPayload = {
+        change_request_id: newChangeRequest.id,
+        user_id: user.id,
+        interval: {
+          start_date: new Date(formData.start).toISOString(),
+          end_date: new Date(formData.end).toISOString(),
+        },
+      };
+      await apiRequest("/proposals/", {
+        method: "POST",
+        body: JSON.stringify(proposalPayload),
+      });
+
+      setOpenProposalDialog(false);
+      setOpenEventDialog(false);
+      fetchAllEvents();
+    } catch (error) {
+      console.error("Błąd podczas zgłaszania zmiany:", error);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmitProposal = () => {
-    const payload = {
-      change_request_id: 1, // Przykładowe ID zgłoszenia zmiany
-      user_id: 1, // Przykładowe ID użytkownika
-      interval: {
-        start_date: new Date(formData.start).toISOString(),
-        end_date: new Date(formData.end).toISOString(),
-      },
-    };
-
-    apiRequest("/proposals", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    })
-      .then(() => {
-        fetchAllEvents();
-        handleCloseProposal();
-      })
-      .catch((error) => console.error("Błąd podczas dodawania propozycji:", error));
-  };
-
-  // Funkcje do obsługi nawigacji
   const handleNavigate = (action) => {
     let newDate = new Date(date);
     if (action === "TODAY") {
@@ -134,12 +182,9 @@ const ChangeRequestsPage = () => {
         <Typography variant="h4" gutterBottom>
           Zarządzaj zgłoszeniami zmian
         </Typography>
-        <Button variant="contained" onClick={handleOpenProposal} sx={{ marginBottom: 2 }}>
-          Dodaj propozycję zmiany
-        </Button>
         <Calendar
           localizer={localizer}
-          culture="pl" // <-- dodaj to!
+          culture="pl"
           events={events}
           startAccessor="start"
           endAccessor="end"
@@ -149,6 +194,7 @@ const ChangeRequestsPage = () => {
           view={view}
           date={date}
           onNavigate={handleNavigate}
+          onSelectEvent={handleSelectEvent}
           messages={{
             date: "Data",
             time: "Czas",
@@ -170,32 +216,89 @@ const ChangeRequestsPage = () => {
         />
       </Box>
 
-      <Dialog open={openProposal} onClose={handleCloseProposal}>
-        <DialogTitle>Dodaj propozycję zmiany</DialogTitle>
+      {/* Dialog ze szczegółami wydarzenia */}
+      <Dialog open={openEventDialog} onClose={handleCloseEventDialog}>
+        <DialogTitle>Szczegóły wydarzenia</DialogTitle>
+        <DialogContent>
+          {eventDetails && (
+            <List>
+              <ListItem>
+                <ListItemText primary="Kurs" secondary={eventDetails.courseName} />
+              </ListItem>
+              <ListItem>
+                <ListItemText primary="Data początkowa" secondary={eventDetails.start.toLocaleString()} />
+              </ListItem>
+              <ListItem>
+                <ListItemText primary="Data końcowa" secondary={eventDetails.end.toLocaleString()} />
+              </ListItem>
+              {eventDetails.room && (
+                <>
+                  <ListItem>
+                    <ListItemText primary="Pokój" secondary={eventDetails.room.name} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="Pojemność" secondary={eventDetails.room.capacity} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="Wyposażenie" secondary={eventDetails.room.equipment || "Brak danych"} />
+                  </ListItem>
+                </>
+              )}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEventDialog}>Zamknij</Button>
+          <Button onClick={handleOpenProposalDialog} variant="contained">
+            Zaproponuj zmianę
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openProposalDialog} onClose={handleCloseProposalDialog}>
+        <DialogTitle>Zaproponuj zmianę terminu</DialogTitle>
         <DialogContent>
           <TextField
-            margin="dense"
-            label="Data początkowa"
-            name="start"
-            type="datetime-local"
-            fullWidth
-            value={formData.start}
-            onChange={handleChange}
+              margin="dense"
+              label="Nowa data początkowa"
+              name="start"
+              type="datetime-local"
+              fullWidth
+              value={formData.start}
+              InputLabelProps={{ shrink: true }}
+              onChange={handleChange}
           />
           <TextField
-            margin="dense"
-            label="Data końcowa"
-            name="end"
-            type="datetime-local"
-            fullWidth
-            value={formData.end}
-            onChange={handleChange}
+              margin="dense"
+              label="Nowa data końcowa"
+              name="end"
+              type="datetime-local"
+              fullWidth
+              value={formData.end}
+              InputLabelProps={{ shrink: true }}
+              onChange={handleChange}
+          />
+          <TextField
+              margin="dense"
+              label="Powód zmiany"
+              name="reason"
+              fullWidth
+              value={formData.reason}
+              onChange={handleChange}
+          />
+          <TextField
+              margin="dense"
+              label="Wymagania dotyczące sali"
+              name="room_requirements"
+              fullWidth
+              value={formData.room_requirements}
+              onChange={handleChange}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseProposal}>Anuluj</Button>
+          <Button onClick={handleCloseProposalDialog}>Anuluj</Button>
           <Button onClick={handleSubmitProposal} variant="contained">
-            Dodaj
+            Wyślij propozycję
           </Button>
         </DialogActions>
       </Dialog>
