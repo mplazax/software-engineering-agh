@@ -183,6 +183,9 @@ class RoomUnavailabilityCreate(BaseModel):
     room_id: int
     interval: DateInterval
 
+class RoomUnavailabilityUpdate(BaseModel):
+    interval: DateInterval
+
 class RoomUnavailabilityResponse(BaseModel):
     id: int
     room_id: int

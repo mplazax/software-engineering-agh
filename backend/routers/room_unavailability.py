@@ -8,6 +8,8 @@ from routers.auth import role_required, get_current_user
 from routers.schemas import RoomUnavailabilityResponse, RoomUnavailabilityCreate
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED
 
+from backend.routers.schemas import RoomUnavailabilityUpdate
+
 router = APIRouter(prefix="/room-unavailability", tags=["room-unavailability"])
 
 @router.get("/", response_model=List[RoomUnavailabilityResponse])
@@ -54,7 +56,7 @@ def create_room_unavailability(
 @router.put("/{unavailability_id}", response_model=RoomUnavailabilityResponse, status_code=HTTP_200_OK)
 def update_room_unavailability(
         unavailability_id: int,
-        unavailability: RoomUnavailabilityCreate,
+        unavailability: RoomUnavailabilityUpdate,
         db: Session = Depends(get_db),
         current_user = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
@@ -62,11 +64,6 @@ def update_room_unavailability(
     if not existing_unavailability:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room unavailability not found")
 
-    existing_room = db.query(Room).filter(Room.id == unavailability.room_id).first()
-    if not existing_room:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room does not exist")
-
-    existing_unavailability.room_id = unavailability.room_id
     existing_unavailability.start_datetime = unavailability.start_datetime
     existing_unavailability.end_datetime = unavailability.end_datetime
     db.commit()
