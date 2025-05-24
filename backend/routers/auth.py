@@ -10,7 +10,9 @@ from database import get_db
 from model import User, UserRole, Group
 from routers.schemas import UserCreate, Token, TokenData
 from passlib.context import CryptContext
-from starlette.status import HTTP_409_CONFLICT, HTTP_201_CREATED
+from starlette.status import HTTP_409_CONFLICT, HTTP_201_CREATED, HTTP_422_UNPROCESSABLE_ENTITY, HTTP_401_UNAUTHORIZED, \
+    HTTP_403_FORBIDDEN
+
 from routers.schemas import UserResponse
 
 SECRET_KEY = "secret-key"
@@ -41,7 +43,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        status_code=HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
@@ -63,7 +65,7 @@ def role_required(allowed_roles: List[UserRole]):
     def role_checker(current_user=Depends(get_current_user)):
         if current_user.role not in allowed_roles:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this resource"
             )
         return current_user
@@ -75,7 +77,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -90,7 +92,7 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=HTTP_409_CONFLICT,
             detail="Email already registered"
         )
 
@@ -100,7 +102,7 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
         db_group = db.query(Group).filter(Group.id == user.group_id).first()
         if not db_group:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Group ID does not exist"
             )
 

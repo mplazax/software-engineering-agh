@@ -6,109 +6,111 @@ from model import User, UserRole
 from routers.schemas import UserCreate, UserResponse
 from routers.auth import get_password_hash, get_current_user, role_required
 from model import Group
+from starlette.status import (
+    HTTP_200_OK,
+    HTTP_201_CREATED,
+    HTTP_204_NO_CONTENT,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
+    HTTP_422_UNPROCESSABLE_ENTITY,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("/", response_model=List[UserResponse])
+
+@router.get("/", response_model=List[UserResponse], status_code=HTTP_200_OK)
 def get_users(
-        skip: int = 0,
-        limit: int = 10,
-        db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
     users = db.query(User).offset(skip).limit(limit).all()
     return users
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, status_code=HTTP_200_OK)
 def get_user(
-        user_id: int,
-        db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
     return user
 
 
-@router.post("/create", response_model=UserResponse) # ????????????????
+@router.post("/create", response_model=UserResponse, status_code=HTTP_201_CREATED)
 def create_user(
-        user: UserCreate,
-        db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
+    if db.query(User).filter(User.email == user.email).first():
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Email already registered")
 
     if user.role not in [UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY] and user.group_id is not None:
-        raise HTTPException(status_code=400, detail="Group ID is not required for this role")
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
 
-    if user.role in [UserRole.STAROSTA] and user.group_id is None:
-        raise HTTPException(status_code=400, detail="Group ID is required for this role")
+    if user.role == UserRole.STAROSTA and user.group_id is None:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
 
-    existing_user = db.query(User).filter(User.email == user.email).first()
-    if existing_user is not None:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    hashed_password = get_password_hash(user.password)
+    if user.role == UserRole.KOORDYNATOR and user.group_id is None:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
 
     if user.group_id is not None:
         group = db.query(Group).filter(Group.id == user.group_id).first()
         if not group:
-            raise HTTPException(status_code=404, detail="Group not found")
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group does not exist")
 
-        db_user = User(
-            name=user.name,
-            surname=user.surname,
-            email=user.email,
-            password=hashed_password,
-            role=user.role,
-            group_id=user.group_id
-        )
-    else:
-        db_user = User(
-            name=user.name,
-            surname=user.surname,
-            email=user.email,
-            password=hashed_password,
-            role=user.role,
-        )
+    hashed_password = get_password_hash(user.password)
+
+    db_user = User(
+        name=user.name,
+        surname=user.surname,
+        email=user.email,
+        password=hashed_password,
+        role=user.role,
+        group_id=user.group_id
+    )
 
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
 
-    response_user = UserResponse(
-        id=db_user.id,
-        name=db_user.name,
-        surname=db_user.surname,
-        email=db_user.email
-    )
-    return response_user
+    return db_user
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, status_code=HTTP_200_OK)
 def update_user(
-        user_id: int,
-        user: UserCreate,
-        db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+    user_id: int,
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
     db_user = db.query(User).filter(User.id == user_id).first()
     if db_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
 
-    email = db.query(User).filter(User.email == user.email).first()
-    if email is not None:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    group = db.query(Group).filter(Group.id == user.group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    existing_email = db.query(User).filter(User.email == user.email, User.id != user_id).first()
+    if existing_email is not None:
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Email already registered")
+
+    if user.role == UserRole.STAROSTA and user.group_id is None:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
+
+    if user.role == UserRole.KOORDYNATOR and user.group_id is None:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
+
+    if user.role in [UserRole.ADMIN, UserRole.PROWADZACY] and user.group_id is not None:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
+
+    if user.group_id is not None:
+        existing_group = db.query(Group).filter(Group.id == user.group_id).first()
+        if not existing_group:
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group does not exist")
 
     hashed_password = get_password_hash(user.password)
 
@@ -123,15 +125,16 @@ def update_user(
 
     return db_user
 
-@router.delete("/{user_id}")
+
+@router.delete("/{user_id}", response_model=dict, status_code=HTTP_200_OK)
 def delete_user(
-        user_id: int,
-        db: Session = Depends(get_db),
-        current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
     db_user = db.query(User).filter(User.id == user_id).first()
     if db_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
 
     db.delete(db_user)
     db.commit()
