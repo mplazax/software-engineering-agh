@@ -28,6 +28,9 @@ class UserResponse(BaseModel):
     email: str
     role: UserRole
 
+    class Config:
+        orm_mode = True
+
 class UserCreate(BaseModel):
     name: str
     surname: str
@@ -62,6 +65,26 @@ class RoomCreate(BaseModel):
         if value <= 0:
             raise ValueError("Capacity must be greater than zero")
         return value
+
+class RoomUpdate(BaseModel):
+    capacity: Optional[int]
+    type: Optional[RoomType]
+    equipment: Optional[str]
+
+    @validator("capacity")
+    def check_capacity(cls, value):
+        if value <= 0:
+            raise ValueError("Capacity must be greater than zero")
+
+class RoomResponse(BaseModel):
+    id: int
+    name: str
+    capacity: int
+    type: RoomType
+    equipment: str | None = None
+
+    class Config:
+        orm_mode = True
 
 class RoomAddUnavailability(BaseModel):
     room_id: int
@@ -132,6 +155,9 @@ class CourseCreate(BaseModel):
 class CourseResponse(CourseCreate):
     id: int
 
+    class Config:
+        orm_mode = True
+
 class CourseEventCreate(BaseModel):
     room_id: Optional[int]
     interval: DateInterval
@@ -141,11 +167,17 @@ class CourseEventResponse(CourseEventCreate):
     id: int
     course_id: int
 
+    class Config:
+        orm_mode = True
+
 class ChangeRecomendationResponse(BaseModel):
     id: int
     change_request_id: int
     interval: DateInterval
     recommended_room_id: int
+
+    class Config:
+        orm_mode = True
 
 class RoomUnavailabilityCreate(BaseModel):
     room_id: int
@@ -155,3 +187,6 @@ class RoomUnavailabilityResponse(BaseModel):
     id: int
     room_id: int
     interval: DateInterval
+
+    class Config:
+        orm_mode = True
