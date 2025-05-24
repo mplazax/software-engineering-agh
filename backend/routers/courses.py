@@ -5,12 +5,10 @@ from typing import List
 
 from model import Course, UserRole, User, Room, CourseEvent, RoomUnavailability, Group
 from database import get_db
-from routers.schemas import CourseCreate, CourseResponse, CourseEventResponse, CourseEventCreate
+from routers.schemas import CourseCreate, CourseResponse, CourseEventResponse, CourseEventCreate, CourseEventUpdate
 from routers.auth import get_current_user, role_required
 from starlette.status import HTTP_201_CREATED, HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_204_NO_CONTENT, \
     HTTP_422_UNPROCESSABLE_ENTITY
-
-from backend.routers.schemas import CourseEventUpdate
 
 router = APIRouter(prefix="/courses", tags=["courses"])
 

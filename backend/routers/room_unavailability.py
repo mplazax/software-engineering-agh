@@ -5,10 +5,8 @@ from model import RoomUnavailability, Room, UserRole
 from typing import List
 
 from routers.auth import role_required, get_current_user
-from routers.schemas import RoomUnavailabilityResponse, RoomUnavailabilityCreate
+from routers.schemas import RoomUnavailabilityResponse, RoomUnavailabilityCreate, RoomUnavailabilityUpdate
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
-
-from backend.routers.schemas import RoomUnavailabilityUpdate
 
 router = APIRouter(prefix="/room-unavailability", tags=["room-unavailability"])
 

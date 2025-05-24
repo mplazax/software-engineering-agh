@@ -8,12 +8,10 @@ from database import get_db
 from model import Room, UserRole
 from model import CourseEvent
 from routers.auth import role_required, get_current_user
-from routers.schemas import RoomCreate, CourseEventOut, RoomAddUnavailability
+from routers.schemas import RoomCreate, CourseEventOut, RoomAddUnavailability, RoomUpdate, RoomResponse
 from model import RoomUnavailability, RoomType
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST, \
     HTTP_204_NO_CONTENT
-
-from backend.routers.schemas import RoomUpdate, RoomResponse
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 

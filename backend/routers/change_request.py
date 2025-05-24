@@ -6,15 +6,13 @@ from database import get_db
 from model import ChangeRequest
 from routers.schemas import ChangeRequestCreate
 from model import AvailabilityProposal
-from routers.schemas import ProposalCreate, ChangeRequestUpdate
+from routers.schemas import ProposalCreate, ChangeRequestUpdate, ChangeRequestResponse
 from model import CourseEvent
 from model import User
 from model import ChangeRequestStatus
 from model import ChangeRequest, UserRole
 from routers.auth import role_required, get_current_user
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
-
-from backend.routers.schemas import ChangeRequestResponse
 
 router = APIRouter(prefix="/change_requests", tags=["change_requests"])
 

@@ -5,14 +5,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from model import AvailabilityProposal
 from routers.auth import role_required, get_current_user
-from routers.schemas import ProposalCreate
+from routers.schemas import ProposalCreate, ChangeRequestCreate, ProposalResponse, ProposalUpdate
 from model import ChangeRequest
-from routers.schemas import ChangeRequestCreate
-from routers.schemas import ProposalUpdate
 from model import User
 from starlette.status import HTTP_204_NO_CONTENT, HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_201_CREATED
-
-from backend.routers.schemas import ProposalResponse, ChangeRequestResponse
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
