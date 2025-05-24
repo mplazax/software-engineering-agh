@@ -165,13 +165,18 @@ class CourseResponse(CourseCreate):
         orm_mode = True
 
 class CourseEventCreate(BaseModel):
-    room_id: Optional[int]
+    course_id: int
+    room_id: int
     interval: DateInterval
+    canceled: bool = False
+
+class CourseEventUpdate(BaseModel):
+    room_id: Optional[int]
+    interval: Optional[DateInterval]
     canceled: Optional[bool] = False
 
 class CourseEventResponse(CourseEventCreate):
     id: int
-    course_id: int
 
     class Config:
         orm_mode = True
