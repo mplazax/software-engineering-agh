@@ -136,11 +136,20 @@ class ChangeRequestCreate(BaseModel):
     created_at: datetime
 
 class ChangeRequestUpdate(BaseModel):
-    course_event_id: int | None
-    initiator_id: int | None
+    change_request_id: int
+    course_event_id: int
+    initiator_id: int
     status: ChangeRequestStatus | None
     reason: str | None
     room_requirements: str | None
+    created_at: datetime
+
+class ChangeRequestResponse(BaseModel):
+    course_event_id: int
+    initiator_id: int
+    status: ChangeRequestStatus
+    reason: str
+    room_requirements: str
     created_at: datetime
 
 # Proposal
