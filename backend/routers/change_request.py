@@ -41,7 +41,7 @@ async def create_request(
         db: Session = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
-    course_event = db.query(CourseEvent).filter(CourseEvent.course_id == request.course_event_id).first()
+    course_event = db.query(CourseEvent).filter(CourseEvent.id == request.course_event_id).first()
     if not course_event:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
     user = db.query(User).filter(User.id == request.initiator_id).first()
