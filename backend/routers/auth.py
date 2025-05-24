@@ -92,21 +92,28 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
 
-    db_group = db.query(Group).filter(Group.id == user.group_id).first()
-    if not db_group:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Group ID does not exist"
-        )
-
     hashed_password = get_password_hash(user.password)
-    db_user = User(
+    if user.role == UserRole.ADMIN:
+        db_user = User(
         email=user.email,
         password=hashed_password,
         name=user.name,
-        role=user.role,
-        group_id=user.group_id
-    )
+        role=user.role)
+    else:
+        db_group = db.query(Group).filter(Group.id == user.group_id).first()
+        if not db_group:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Group ID does not exist"
+            )
+        db_user = User(
+            email=user.email,
+            password=hashed_password,
+            name=user.name,
+            role=user.role,
+            group_id=user.group_id
+        )
+    db.add(db_user)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
