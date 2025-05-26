@@ -18,7 +18,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/", response_model=List[UserResponse], status_code=HTTP_200_OK)
-def get_users(
+async def get_users(
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db),
@@ -29,7 +29,7 @@ def get_users(
 
 
 @router.get("/{user_id}", response_model=UserResponse, status_code=HTTP_200_OK)
-def get_user(
+async def get_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
@@ -41,7 +41,7 @@ def get_user(
 
 
 @router.post("/create", response_model=UserResponse, status_code=HTTP_201_CREATED)
-def create_user(
+async def create_user(
     user: UserCreate,
     db: Session = Depends(get_db),
     current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
@@ -82,7 +82,7 @@ def create_user(
 
 
 @router.put("/{user_id}", response_model=UserResponse, status_code=HTTP_200_OK)
-def update_user(
+async def update_user(
     user_id: int,
     user: UserCreate,
     db: Session = Depends(get_db),
@@ -125,7 +125,7 @@ def update_user(
 
 
 @router.delete("/{user_id}", status_code=HTTP_204_NO_CONTENT)
-def delete_user(
+async def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))

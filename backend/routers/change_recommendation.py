@@ -28,43 +28,50 @@ async def find_and_add_common_availability(
                        .filter(AvailabilityProposal.user_id == user2_id,
                                AvailabilityProposal.change_request_id == change_request_id).all())
 
+    change_request = db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
+    if not change_request:
+        raise HTTPException(status_code=404, detail="Change request not found")
+
     common_intervals = []
     for proposal1 in user1_proposals:
         for proposal2 in user2_proposals:
-            start = max(proposal1.available_start_datetime, proposal2.available_start_datetime)
-            end = min(proposal1.available_end_datetime, proposal2.available_end_datetime)
-            if start < end:
-                common_intervals.append((start, end))
+            if proposal1.time_slot_id == proposal1.time_slot_id and proposal1.day == proposal2.day:
+                common_intervals.append((proposal1.time_slot_id.start_time, proposal1.day))
 
     if not common_intervals:
         raise HTTPException(status_code=404, detail="No common availability found")
 
-    for start, end in common_intervals:
-        rooms = db.query(Room).filter(
-            ~db.query(CourseEvent).filter(
-                and_(
-                    CourseEvent.room_id == Room.id,
-                    CourseEvent.start_datetime < end,
-                    CourseEvent.end_datetime > start
+    recommendations = []
+    for slot_id, day in common_intervals:
+        available_rooms = db.query(Room).filter(
+            ~Room.id.in_(
+                db.query(RoomUnavailability.room_id).filter(
+                    RoomUnavailability.start_datetime <= day,
+                    RoomUnavailability.end_datetime >= day
                 )
-            ).exists(),
-            ~db.query(RoomUnavailability).filter(
-                and_(
-                    RoomUnavailability.room_id == Room.id,
-                    RoomUnavailability.start_datetime < end,
-                    RoomUnavailability.end_datetime > start
+            ),
+            ~Room.id.in_(
+                db.query(CourseEvent.room_id).filter(
+                    CourseEvent.day == day,
+                    CourseEvent.time_slot_id == slot_id.id,
+                    CourseEvent.canceled == False
                 )
-            ).exists()
+            )
         ).all()
 
-        for room in rooms:
-            new_recommendation = ChangeRecomendation(
+        # TODO: Dodaj sprawdzanie wymagań (requirements) dla dostępnych pokoi
+        for room in available_rooms:
+            recommendation = ChangeRecomendation(
                 change_request_id=change_request_id,
-                recommended_start_datetime=start,
-                recommended_end_datetime=end,
+                recommended_slot_id=slot_id.id,
+                recommended_day=day,
                 recommended_room_id=room.id
             )
-            db.add(new_recommendation)
+            recommendations.append(recommendation)
+            db.add(recommendation)
+
+    if not recommendations:
+        raise HTTPException(status_code=404, detail="No rooms available for the common intervals")
 
     db.commit()
     return {"message": "Recommendations added successfully"}

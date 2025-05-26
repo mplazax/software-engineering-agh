@@ -1,14 +1,14 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, not_
 from sqlalchemy.orm import Session
 from database import get_db
 from model import Room, UserRole
 from model import CourseEvent
 from routers.auth import role_required, get_current_user
-from routers.schemas import RoomCreate, CourseEventOut, RoomAddUnavailability, RoomUpdate, RoomResponse
+from routers.schemas import RoomCreate, RoomUpdate, RoomResponse
 from model import RoomUnavailability, RoomType
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST, \
     HTTP_204_NO_CONTENT
@@ -26,7 +26,49 @@ async def get_rooms(
     return rooms
 
 @router.get("/check-availability", status_code=HTTP_200_OK, response_model=List[RoomResponse])
-async def get_available_rooms(seats: int, room_type: RoomType,
+async def get_available_rooms(
+    seats: int,
+    room_type: RoomType,
+    start: date = Query(..., description="Start of desired interval"),
+    end: date = Query(..., description="End of desired interval"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    if end <= start:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="End time must be greater than start time")
+    if seats <= 0:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Seats must be greater than zero")
+
+    query = db.query(Room).filter(
+        Room.capacity >= seats,
+        Room.type == room_type
+    )
+
+    busy_rooms_subq = db.query(Room.id).join(CourseEvent).filter(
+        CourseEvent.day >= start,
+        CourseEvent.day <= end,
+        CourseEvent.canceled == False
+    ).distinct().subquery()
+
+    unavailable_rooms_subq = db.query(Room.id).join(RoomUnavailability).filter(
+        not_(
+            or_(
+                RoomUnavailability.end_datetime <= start,
+                RoomUnavailability.start_datetime >= end
+            )
+        )
+    ).distinct().subquery()
+
+    available_rooms = query.filter(
+        Room.id.not_in(busy_rooms_subq),
+        Room.id.not_in(unavailable_rooms_subq)
+    ).all()
+
+    return available_rooms
+
+@router.get("/check-availability/{room_id}", status_code=HTTP_200_OK, response_model=dict)
+async def get_room_availability(
+    room_id: int,
     start: datetime = Query(..., description="Start of desired interval"),
     end: datetime = Query(..., description="End of desired interval"),
     db: Session = Depends(get_db),
@@ -35,73 +77,28 @@ async def get_available_rooms(seats: int, room_type: RoomType,
     if end <= start:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="End time must be greater than start time")
 
-    subquery_course_event = (
-        db.query(CourseEvent.room_id)
-        .filter(CourseEvent.start_datetime < end, CourseEvent.end_datetime > start)
-        .distinct()
-        .subquery()
-    )
-    subquery_unavailability = (
-        db.query(RoomUnavailability.room_id)
-        .filter(RoomUnavailability.start_datetime < end, RoomUnavailability.end_datetime > start)
-        .distinct()
-        .subquery()
-    )
-
-    available_rooms = db.query(Room).filter(Room.id.notin_(subquery_course_event), Room.id.notin_(subquery_unavailability), Room.capacity >= seats, Room.type == room_type).all() # equipment
-
-    return available_rooms
-
-@router.get("/check-availability/{room_id}", status_code=HTTP_200_OK, response_model=dict)
-async def get_room_availability(room_id: int,
-    start: datetime = Query(..., description="Start of desired interval"),
-    end: datetime = Query(..., description="End of desired interval"),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)):
-
-    if end <= start:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="End time must be greater than start time")
-
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
 
-    unavailability = db.query(RoomUnavailability).filter(
-        RoomUnavailability.room_id == room_id,
-        or_(
-            and_(RoomUnavailability.start_datetime <= start, RoomUnavailability.end_datetime > start),
-            and_(RoomUnavailability.start_datetime < end, RoomUnavailability.end_datetime >= end),
-            and_(RoomUnavailability.start_datetime >= start, RoomUnavailability.end_datetime <= end)
-        )
-    ).first()
-
-    conflict = db.query(CourseEvent).filter(
+    is_busy = db.query(CourseEvent).filter(
         CourseEvent.room_id == room_id,
-        or_(
-            and_(CourseEvent.start_datetime <= start, CourseEvent.end_datetime > start),
-            and_(CourseEvent.start_datetime < end, CourseEvent.end_datetime >= end),
-            and_(CourseEvent.start_datetime >= start, CourseEvent.end_datetime <= end)
+        CourseEvent.day >= start.date(),
+        CourseEvent.day <= end.date(),
+        CourseEvent.canceled == False
+    ).first() is not None
+
+    is_unavailable = db.query(RoomUnavailability).filter(
+        RoomUnavailability.room_id == room_id,
+        not_(
+            or_(
+                RoomUnavailability.end_datetime <= start,
+                RoomUnavailability.start_datetime >= end
+            )
         )
-    ).first()
+    ).first() is not None
 
-    if not conflict and not unavailability:
-        return {"available": True}
-
-    if unavailability:
-        return {
-            "available": False,
-            "reason": "unavailability",
-            "start": str(unavailability.start_datetime),
-            "end": str(unavailability.end_datetime)
-        }
-
-    if conflict:
-        return {
-            "available": False,
-            "reason": "event",
-            "start": str(conflict.start_datetime),
-            "end": str(conflict.end_datetime)
-        }
+    return {"available": not (is_busy or is_unavailable)}
 
 @router.get("/{room_id}", status_code=HTTP_200_OK, response_model=RoomResponse)
 async def get_room(
@@ -121,6 +118,14 @@ async def create_room(
         db: Session = Depends(get_db),
         current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
+    if room.capacity <= 0:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Capacity must be greater than zero")
+    existing_room = db.query(Room).filter(Room.name == room.name).first()
+    if existing_room:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Room with this name already exists")
+    if room.type not in RoomType:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Invalid room type")
+
     new_room = Room(**room.dict())
     db.add(new_room)
     db.commit()
@@ -137,6 +142,15 @@ async def update_room(
     existing_room = db.query(Room).filter(Room.id == room_id).first()
     if not existing_room:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
+    if room.capacity is not None and room.capacity <= 0:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Capacity must be greater than zero")
+    if room.type is not None and room.type not in RoomType:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Invalid room type")
+    if room.name is not None:
+        existing_name_room = db.query(Room).filter(Room.name == room.name, Room.id != room_id).first()
+        if existing_name_room:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Room with this name already exists")
+
     for key, value in room.dict(exclude_unset=True).items():
         setattr(existing_room, key, value)
     db.commit()

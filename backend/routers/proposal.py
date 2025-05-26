@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 from database import get_db
 from model import AvailabilityProposal
 from routers.auth import role_required, get_current_user
-from routers.schemas import ProposalCreate, ChangeRequestCreate, ProposalResponse, ProposalUpdate
+from routers.schemas import ProposalCreate, ProposalResponse, ProposalUpdate
 from model import ChangeRequest
 from model import User
-from starlette.status import HTTP_204_NO_CONTENT, HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_201_CREATED
+from starlette.status import HTTP_204_NO_CONTENT, HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_201_CREATED, \
+    HTTP_400_BAD_REQUEST
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
@@ -57,11 +58,21 @@ async def create_proposal(
     if not user:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
 
+    proposal_exists = db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.change_request_id == proposal.change_request_id,
+        AvailabilityProposal.user_id == proposal.user_id,
+        AvailabilityProposal.day == proposal.day,
+        AvailabilityProposal.time_slot_id == proposal.time_slot_id
+    ).first()
+
+    if proposal_exists:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Proposal already exists for this user and time slot")
+
     new_proposal = AvailabilityProposal(
         change_request_id=proposal.change_request_id,
         user_id=proposal.user_id,
-        available_start_datetime=proposal.interval.start_date,
-        available_end_datetime=proposal.interval.end_date
+        time_slot_id=proposal.time_slot_id,
+        day=proposal.day,
     )
     db.add(new_proposal)
     db.commit()
@@ -82,9 +93,9 @@ async def update_proposal(
     if not user:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
 
-    setattr(existing_proposal, "user_id", proposal.user_id)
-    setattr(existing_proposal, "available_start_datetime", proposal.interval.start_date)
-    setattr(existing_proposal, "available_end_datetime", proposal.interval.end_date)
+    existing_proposal.user_id = proposal.user_id
+    existing_proposal.day = proposal.day
+    existing_proposal.time_slot_id = proposal.time_slot_id
     db.commit()
     db.refresh(existing_proposal)
     return existing_proposal

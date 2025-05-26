@@ -7,7 +7,8 @@ from model import Group, UserRole
 from routers.auth import role_required
 from routers.schemas import GroupCreate, GroupUpdate, GroupResponse
 from model import User
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, \
+    HTTP_422_UNPROCESSABLE_ENTITY
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -44,6 +45,14 @@ async def create_group(
     if not user:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
 
+    if group.year is not None and (group.year < 1 or group.year > 5):
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Year must be between 1 and 6")
+
+    leader = db.query(User).filter(User.id == group.leader_id).first()
+
+    if leader.role != UserRole.STAROSTA:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="User must not be a student")
+
     new_group = Group(**group.dict())
     db.add(new_group)
     db.commit()
@@ -62,10 +71,17 @@ async def update_group(
     if not existing_group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
 
-    if group.leader_id is not None:
-        user = db.query(User).filter(User.id == group.leader_id).first()
-        if not user:
-            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
+    user = db.query(User).filter(User.id == group.leader_id).first()
+    if not user:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
+
+    if group.year is not None and (group.year < 1 or group.year > 5):
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Year must be between 1 and 6")
+
+    leader = db.query(User).filter(User.id == group.leader_id).first()
+
+    if leader.role != UserRole.STAROSTA:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="User must not be a student")
 
     for key, value in group.dict(exclude_unset=True).items():
         setattr(existing_group, key, value)

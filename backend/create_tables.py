@@ -16,6 +16,7 @@ with engine.connect() as conn:
     conn.execute(text("DROP TABLE IF EXISTS rooms CASCADE"))
     conn.execute(text("DROP TABLE IF EXISTS users CASCADE"))
     conn.execute(text("DROP TABLE IF EXISTS groups CASCADE"))
+    conn.execute(text("DROP TABLE IF EXISTS time_slots CASCADE"))
     conn.execute(text("DROP TYPE IF EXISTS userrole CASCADE"))
     conn.commit()
     Base.metadata.create_all(bind=engine)

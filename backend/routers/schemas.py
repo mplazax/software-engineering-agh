@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import BaseModel, EmailStr
 from typing import Optional
@@ -7,18 +7,6 @@ from model import ChangeRequestStatus
 from model import RoomType
 from pydantic.v1 import validator, root_validator
 
-
-class DateInterval(BaseModel):
-    start_date: datetime
-    end_date: datetime
-
-    @root_validator
-    def check_date_order(cls, values):
-        start = values.get("start_date")
-        end = values.get("end_date")
-        if start and end and end <= start:
-            raise ValueError("Start date must be before end date")
-        return values
 
 # User
 class UserResponse(BaseModel):
@@ -86,17 +74,6 @@ class RoomResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class RoomAddUnavailability(BaseModel):
-    room_id: int
-    interval: DateInterval
-
-class CourseEventOut(BaseModel):
-    id: int
-    course_id: int
-    room_id: int
-    interval: DateInterval
-    canceled: bool
-
 # Group
 class GroupCreate(BaseModel):
     name: str
@@ -162,17 +139,20 @@ class ChangeRequestResponse(BaseModel):
 class ProposalCreate(BaseModel):
     change_request_id: int
     user_id: int
-    interval: DateInterval
+    day: date
+    time_slot_id: int
 
 class ProposalUpdate(BaseModel):
     user_id: int
-    interval: DateInterval
+    day: date
+    time_slot_id: int
 
 class ProposalResponse(BaseModel):
     id: int
     change_request_id: int
     user_id: int
-    interval: DateInterval
+    day: date
+    time_slot_id: int
 
     class Config:
         orm_mode = True
@@ -191,13 +171,15 @@ class CourseResponse(CourseCreate):
 class CourseEventCreate(BaseModel):
     course_id: int
     room_id: int
-    interval: DateInterval
+    day: date
+    time_slot_id: int
     canceled: bool = False
 
 class CourseEventUpdate(BaseModel):
-    room_id: Optional[int]
-    interval: Optional[DateInterval]
-    canceled: Optional[bool] = False
+    room_id: int
+    day: date
+    time_slot_id: int
+    canceled: bool = False
 
 class CourseEventResponse(CourseEventCreate):
     id: int
@@ -208,7 +190,8 @@ class CourseEventResponse(CourseEventCreate):
 class ChangeRecomendationResponse(BaseModel):
     id: int
     change_request_id: int
-    interval: DateInterval
+    recommended_day: date
+    recommended_slot_id: int
     recommended_room_id: int
 
     class Config:
@@ -216,15 +199,18 @@ class ChangeRecomendationResponse(BaseModel):
 
 class RoomUnavailabilityCreate(BaseModel):
     room_id: int
-    interval: DateInterval
+    start_datetime: date
+    end_datetime: date
 
 class RoomUnavailabilityUpdate(BaseModel):
-    interval: DateInterval
+    start_datetime: date
+    end_datetime: date
 
 class RoomUnavailabilityResponse(BaseModel):
     id: int
     room_id: int
-    interval: DateInterval
+    start_datetime: date
+    end_datetime: date
 
     class Config:
         orm_mode = True
