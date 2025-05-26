@@ -49,14 +49,11 @@ async def create_user(
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Email already registered")
 
-    if user.role not in [UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY] and user.group_id is not None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
-
     if user.role == UserRole.STAROSTA and user.group_id is None:
         raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
 
-    if user.role == UserRole.KOORDYNATOR and user.group_id is None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
+    if user.role in [UserRole.ADMIN, UserRole.PROWADZACY, UserRole.KOORDYNATOR] and user.group_id is not None:
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
 
     if user.group_id is not None:
         group = db.query(Group).filter(Group.id == user.group_id).first()
@@ -99,10 +96,7 @@ async def update_user(
     if user.role == UserRole.STAROSTA and user.group_id is None:
         raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
 
-    if user.role == UserRole.KOORDYNATOR and user.group_id is None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
-
-    if user.role in [UserRole.ADMIN, UserRole.PROWADZACY] and user.group_id is not None:
+    if user.role in [UserRole.ADMIN, UserRole.PROWADZACY, UserRole.KOORDYNATOR] and user.group_id is not None:
         raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
 
     if user.group_id is not None:
