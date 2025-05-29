@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from database import get_db
 from model import RoomUnavailability, Room, UserRole
 from typing import List
 
 from routers.auth import role_required, get_current_user
-from routers.schemas import RoomUnavailabilityResponse, RoomUnavailabilityCreate
+from routers.schemas import RoomUnavailabilityResponse, RoomUnavailabilityCreate, RoomUnavailabilityUpdate
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, \
+    HTTP_400_BAD_REQUEST
 
 router = APIRouter(prefix="/room-unavailability", tags=["room-unavailability"])
-
 
 @router.get("/", response_model=List[RoomUnavailabilityResponse])
 def get_room_unavailability(
@@ -19,7 +21,7 @@ def get_room_unavailability(
     return unavailability
 
 
-@router.get("/{unavailability_id}", response_model=RoomUnavailabilityResponse)
+@router.get("/{unavailability_id}", response_model=RoomUnavailabilityResponse, status_code=HTTP_200_OK)
 def get_room_unavailability_by_id(
         unavailability_id: int,
         db: Session = Depends(get_db),
@@ -27,21 +29,36 @@ def get_room_unavailability_by_id(
 ):
     unavailability = db.query(RoomUnavailability).filter(RoomUnavailability.id == unavailability_id).first()
     if not unavailability:
-        raise HTTPException(status_code=404, detail="Room unavailability not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room unavailability not found")
     return unavailability
 
 
-@router.post("/", response_model=RoomUnavailabilityResponse, status_code=201)
+@router.post("/", response_model=RoomUnavailabilityResponse, status_code=HTTP_201_CREATED)
 def create_room_unavailability(
         unavailability: RoomUnavailabilityCreate,
         db: Session = Depends(get_db),
         current_user = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
+    if unavailability.start_datetime > unavailability.end_datetime:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="End time must be greater than start time")
+
     room = db.query(Room).filter(Room.id == unavailability.room_id).first()
     if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    if unavailability.start_datetime >= unavailability.end_datetime:
-        raise HTTPException(status_code=400, detail="Start datetime must be before end datetime")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
+
+    existing_unavailability = db.query(RoomUnavailability).filter(
+        RoomUnavailability.room_id == unavailability.room_id,
+        and_(
+            and_(RoomUnavailability.start_datetime <= unavailability.end_datetime, RoomUnavailability.end_datetime >= unavailability.start_datetime),
+            and_(RoomUnavailability.start_datetime >= unavailability.start_datetime, RoomUnavailability.end_datetime <= unavailability.end_datetime)
+        )
+    ).first()
+
+    if existing_unavailability:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Room unavailability overlaps with existing unavailability"
+        )
 
     new_unavailability = RoomUnavailability(
         room_id=unavailability.room_id,
@@ -53,21 +70,20 @@ def create_room_unavailability(
     db.refresh(new_unavailability)
     return new_unavailability
 
-
-@router.put("/{unavailability_id}", response_model=RoomUnavailabilityResponse)
+@router.put("/{unavailability_id}", response_model=RoomUnavailabilityResponse, status_code=HTTP_200_OK)
 def update_room_unavailability(
         unavailability_id: int,
-        unavailability: RoomUnavailabilityCreate,
+        unavailability: RoomUnavailabilityUpdate,
         db: Session = Depends(get_db),
         current_user = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))
 ):
     existing_unavailability = db.query(RoomUnavailability).filter(RoomUnavailability.id == unavailability_id).first()
     if not existing_unavailability:
-        raise HTTPException(status_code=404, detail="Room unavailability not found")
-    if unavailability.start_datetime >= unavailability.end_datetime:
-        raise HTTPException(status_code=400, detail="Start datetime must be before end datetime")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room unavailability not found")
 
-    existing_unavailability.room_id = unavailability.room_id
+    if unavailability.start_datetime > unavailability.end_datetime:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="End time must be greater than start time")
+
     existing_unavailability.start_datetime = unavailability.start_datetime
     existing_unavailability.end_datetime = unavailability.end_datetime
     db.commit()
@@ -75,7 +91,7 @@ def update_room_unavailability(
     return existing_unavailability
 
 
-@router.delete("/{unavailability_id}")
+@router.delete("/{unavailability_id}", status_code=HTTP_204_NO_CONTENT)
 def delete_room_unavailability(
         unavailability_id: int,
         db: Session = Depends(get_db),
@@ -83,7 +99,7 @@ def delete_room_unavailability(
 ):
     existing_unavailability = db.query(RoomUnavailability).filter(RoomUnavailability.id == unavailability_id).first()
     if not existing_unavailability:
-        raise HTTPException(status_code=404, detail="Room unavailability not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room unavailability not found")
     db.delete(existing_unavailability)
     db.commit()
-    return {"message": "Room unavailability deleted successfully"}
+    return

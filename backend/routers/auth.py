@@ -10,6 +10,10 @@ from database import get_db
 from model import User, UserRole, Group
 from routers.schemas import UserCreate, Token, TokenData
 from passlib.context import CryptContext
+from starlette.status import HTTP_409_CONFLICT, HTTP_201_CREATED, HTTP_422_UNPROCESSABLE_ENTITY, HTTP_401_UNAUTHORIZED, \
+    HTTP_403_FORBIDDEN
+
+from routers.schemas import UserResponse
 
 SECRET_KEY = "secret-key"
 ALGORITHM = "HS256"
@@ -32,14 +36,14 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        status_code=HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
@@ -61,7 +65,7 @@ def role_required(allowed_roles: List[UserRole]):
     def role_checker(current_user=Depends(get_current_user)):
         if current_user.role not in allowed_roles:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this resource"
             )
         return current_user
@@ -73,7 +77,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -83,40 +87,40 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/register", status_code=201)
+@router.post("/register", status_code=HTTP_201_CREATED)
 async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=HTTP_409_CONFLICT,
             detail="Email already registered"
         )
 
-    db_group = db.query(Group).filter(Group.id == user.group_id).first()
-    if not db_group:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Group ID does not exist"
-        )
-
     hashed_password = get_password_hash(user.password)
+
+    if user.role != UserRole.ADMIN:
+        db_group = db.query(Group).filter(Group.id == user.group_id).first()
+        if not db_group:
+            raise HTTPException(
+                status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Group ID does not exist"
+            )
+
     db_user = User(
         email=user.email,
         password=hashed_password,
         name=user.name,
+        surname=user.surname,
         role=user.role,
-        group_id=user.group_id
+        group_id=user.group_id if user.role != UserRole.ADMIN else None
     )
+
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
     return {"message": "User created successfully"}
 
-@router.get("/me")
+@router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "name": current_user.name,
-        "role": current_user.role
-    } 
+    return current_user

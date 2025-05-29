@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, Text
+    Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, Text, Time, Date
 )
 from sqlalchemy.orm import relationship, declarative_base
 import enum
@@ -48,6 +48,7 @@ class User(Base):
     email = Column(String(150), unique=True, nullable=False)
     password = Column(String(150), nullable=False)
     name = Column(String(100), nullable=False)
+    surname = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
     is_active = Column(Boolean, default=True)
@@ -77,8 +78,8 @@ class RoomUnavailability(Base):
 
     id = Column(Integer, primary_key=True)
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
-    start_datetime = Column(DateTime, nullable=False)
-    end_datetime = Column(DateTime, nullable=False)
+    start_datetime = Column(Date, nullable=False)
+    end_datetime = Column(Date, nullable=False)
 
     room = relationship("Room", back_populates="unavailability")
 
@@ -96,18 +97,30 @@ class Course(Base):
     events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")
 
 
+class TimeSlots(Base):
+    __tablename__ = "time_slots"
+
+    id = Column(Integer, primary_key=True)
+    start_time = Column(Time, nullable=False)
+    end_time = Column(Time, nullable=False)
+
+    course_events = relationship("CourseEvent", back_populates="slot_id", cascade="all, delete-orphan")
+    availability_proposals = relationship("AvailabilityProposal", back_populates="time_slot", cascade="all, delete-orphan")
+    change_recommendations = relationship("ChangeRecomendation", back_populates="recommended_interval")
+
 class CourseEvent(Base):
     __tablename__ = "course_events"
 
     id = Column(Integer, primary_key=True)
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=True)
-    start_datetime = Column(DateTime, nullable=False)
-    end_datetime = Column(DateTime, nullable=False)
+    time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
+    day = Column(Date, nullable=False)
     canceled = Column(Boolean, default=False)
 
     course = relationship("Course", back_populates="events")
     room = relationship("Room", back_populates="course_events")
+    slot_id = relationship("TimeSlots", back_populates="course_events")
     change_requests = relationship("ChangeRequest", back_populates="course_event", cascade="all, delete-orphan")
 
 
@@ -138,10 +151,11 @@ class AvailabilityProposal(Base):
     id = Column(Integer, primary_key=True)
     change_request_id = Column(Integer, ForeignKey("change_requests.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    available_start_datetime = Column(DateTime, nullable=False)
-    available_end_datetime = Column(DateTime, nullable=False)
+    day = Column(Date, nullable=False)
+    time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
 
     change_request = relationship("ChangeRequest", back_populates="availability_proposals")
+    time_slot = relationship("TimeSlots", back_populates="availability_proposals")
     user = relationship("User", back_populates="availability_proposals")
 
 
@@ -150,9 +164,10 @@ class ChangeRecomendation(Base):
 
     id = Column(Integer, primary_key=True)
     change_request_id = Column(Integer, ForeignKey("change_requests.id"), nullable=False)
-    recommended_start_datetime = Column(DateTime, nullable=False)
-    recommended_end_datetime = Column(DateTime, nullable=False)
+    recommended_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
+    recommended_day = Column(Date, nullable=False)
     recommended_room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
 
     recommended_room = relationship("Room")
+    recommended_interval = relationship("TimeSlots", back_populates="change_recommendations")
     change_request = relationship("ChangeRequest", back_populates="change_to_recommendation")
