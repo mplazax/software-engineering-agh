@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton } from "@mui/material";
+import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, MenuItem } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
@@ -10,7 +10,7 @@ import { pl } from "date-fns/locale";
 const ProposalsPage = () => {
   const [proposals, setProposals] = useState([]);
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ change_request_id: "", user_id: "", start_date: "", end_date: "" });
+  const [formData, setFormData] = useState({ change_request_id: "", user_id: "", day: "", time_slot_id: "" });
   const [userDetails, setUserDetails] = useState({});
   const [currentUserId, setCurrentUserId] = useState("");
   const navigate = useNavigate();
@@ -76,13 +76,11 @@ const ProposalsPage = () => {
     apiRequest("/proposals", {
       method: "POST",
       body: JSON.stringify({
-        change_request_id: formData.change_request_id,
-        user_id: formData.user_id,
-        interval: {
-          start_date: formData.start_date,
-          end_date: formData.end_date,
-        },
-      }),
+      change_request_id: formData.change_request_id,
+      user_id: formData.user_id,
+      day: formData.day,
+      time_slot_id: Number(formData.time_slot_id),
+}),
     })
       .then((newProposal) => {
         setProposals((prev) => [...prev, newProposal]);
@@ -129,15 +127,28 @@ const ProposalsPage = () => {
         <List>
           {proposals.map((proposal) => {
             const user = userDetails[proposal.user_id];
+
+            // Funkcja do tłumaczenia numeru slotu na zakres godzin
+            const timeSlotMap = {
+              1: "8:00-9:30",
+              2: "9:45-11:15",
+              3: "11:30-13:00",
+              4: "13:15-14:45",
+              5: "15:00-16:30",
+              6: "16:45-18:15",
+              7: "18:30-20:00",
+            };
+
             // Formatowanie daty
-            const formatDate = (dateStr) => {
+            const formatDay = (dateStr) => {
               if (!dateStr) return "";
               try {
-                return format(new Date(dateStr), "d MMMM yyyy HH:mm", { locale: pl });
+                return format(new Date(dateStr), "d MMMM yyyy", { locale: pl });
               } catch {
                 return dateStr;
               }
             };
+
             return (
               <ListItem
                 key={proposal.id}
@@ -153,7 +164,11 @@ const ProposalsPage = () => {
                       ? `Użytkownik: ${user.name} (${user.email})`
                       : `Użytkownik: [ładowanie...]`
                   }
-                  secondary={`Od: ${formatDate(proposal.available_start_datetime)}, Do: ${formatDate(proposal.available_end_datetime)}`}
+                  secondary={
+                    proposal.day && proposal.time_slot_id
+                      ? `Dzień: ${formatDay(proposal.day)}, Slot: ${proposal.time_slot_id} (${timeSlotMap[proposal.time_slot_id] || "nieznany"})`
+                      : "Brak danych o terminie"
+                  }
                 />
               </ListItem>
             );
@@ -175,27 +190,36 @@ const ProposalsPage = () => {
             value={formData.change_request_id}
             onChange={handleChange}
           />
-          {/* Usunięto pole ID użytkownika */}
+          {/* Pole wyboru dnia */}
           <TextField
             margin="dense"
-            name="start_date"
-            type="datetime-local"
+            name="day"
+            label="Dzień"
+            type="date"
             fullWidth
-            value={formData.start_date}
+            value={formData.day || ""}
             onChange={handleChange}
             InputLabelProps={{ shrink: true }}
-            label="Data początkowa"
           />
+          {/* Pole wyboru slotu czasowego */}
           <TextField
             margin="dense"
-            name="end_date"
-            type="datetime-local"
+            name="time_slot_id"
+            label="Slot czasowy"
+            select
             fullWidth
-            value={formData.end_date}
+            value={formData.time_slot_id || ""}
             onChange={handleChange}
             InputLabelProps={{ shrink: true }}
-            label="Data końcowa"
-          />
+          >
+            <MenuItem value={1}>8:00-9:30</MenuItem>
+            <MenuItem value={2}>9:45-11:15</MenuItem>
+            <MenuItem value={3}>11:30-13:00</MenuItem>
+            <MenuItem value={4}>13:15-14:45</MenuItem>
+            <MenuItem value={5}>15:00-16:30</MenuItem>
+            <MenuItem value={6}>16:45-18:15</MenuItem>
+            <MenuItem value={7}>18:30-20:00</MenuItem>
+          </TextField>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Anuluj</Button>
