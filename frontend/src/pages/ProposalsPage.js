@@ -13,6 +13,7 @@ const ProposalsPage = () => {
   const [formData, setFormData] = useState({ change_request_id: "", user_id: "", day: "", time_slot_id: "" });
   const [userDetails, setUserDetails] = useState({});
   const [currentUserId, setCurrentUserId] = useState("");
+  const [courseNames, setCourseNames] = useState({});
   const navigate = useNavigate();
 
   // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
@@ -21,7 +22,6 @@ const ProposalsPage = () => {
     if (!token) {
       navigate("/login", { replace: true });
     }
-    // Zakładam, że user_id jest w localStorage (dostosuj jeśli inaczej)
     const userId = localStorage.getItem("user_id");
     setCurrentUserId(userId || "");
 
@@ -45,6 +45,35 @@ const ProposalsPage = () => {
           })
         );
         setUserDetails(userMap);
+
+        // Pobierz nazwy kursów dla każdej propozycji
+        const courseNameMap = {};
+        await Promise.all(
+          data.map(async (proposal) => {
+            try {
+              // 1. change_request_id z proposal
+              const changeRequestId = proposal.change_request_id;
+              if (!changeRequestId) return;
+              // 2. change_request
+              const changeRequest = await apiRequest(`/change_requests/${changeRequestId}?request_id=${changeRequestId}`);
+              // 3. course_event_id
+              const courseEventId = changeRequest.course_event_id;
+              if (!courseEventId) return;
+              // 4. course_event
+              const courseEvent = await apiRequest(`/courses/${courseEventId}/events`);
+              // 5. course_id
+              const courseId = courseEvent[0].course_id;
+              if (!courseId) return;
+              // 6. course
+              const course = await apiRequest(`/courses/${courseId}`);
+              // 7. name
+              courseNameMap[proposal.id] = course.name || "Nieznany kurs";
+            } catch {
+              courseNameMap[proposal.id] = "Nieznany kurs";
+            }
+          })
+        );
+        setCourseNames(courseNameMap);
       })
       .catch((error) => console.error("Error fetching proposals:", error));
   }, [navigate]);
@@ -127,6 +156,7 @@ const ProposalsPage = () => {
         <List>
           {proposals.map((proposal) => {
             const user = userDetails[proposal.user_id];
+            const courseName = courseNames[proposal.id];
 
             // Funkcja do tłumaczenia numeru slotu na zakres godzin
             const timeSlotMap = {
@@ -160,9 +190,13 @@ const ProposalsPage = () => {
               >
                 <ListItemText
                   primary={
-                    user
-                      ? `Użytkownik: ${user.name} (${user.email})`
-                      : `Użytkownik: [ładowanie...]`
+                    <>
+                      {user
+                        ? `Użytkownik: ${user.name} (${user.email})`
+                        : `Użytkownik: [ładowanie...]`}
+                      <br />
+                      {courseName ? `Kurs: ${courseName}` : "Kurs: [ładowanie...]"}
+                    </>
                   }
                   secondary={
                     proposal.day && proposal.time_slot_id
