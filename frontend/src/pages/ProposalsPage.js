@@ -191,16 +191,19 @@ const ProposalsPage = () => {
                 <ListItemText
                   primary={
                     <>
-                      {user
-                        ? `Użytkownik: ${user.name} (${user.email})`
-                        : `Użytkownik: [ładowanie...]`}
-                      <br />
-                      {courseName ? `Kurs: ${courseName}` : "Kurs: [ładowanie...]"}
+                      <Typography variant="h6">
+                        {courseName ? `Kurs: ${courseName}` : "Kurs: [ładowanie...]"}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {user
+                          ? `Od: ${user.name} (${user.email})`
+                          : `Od: [ładowanie...]`}
+                      </Typography>
                     </>
                   }
                   secondary={
                     proposal.day && proposal.time_slot_id
-                      ? `Dzień: ${formatDay(proposal.day)}, Slot: ${proposal.time_slot_id} (${timeSlotMap[proposal.time_slot_id] || "nieznany"})`
+                      ? `Dzień: ${formatDay(proposal.day)}, Slot: ${timeSlotMap[proposal.time_slot_id] || "nieznany"}`
                       : "Brak danych o terminie"
                   }
                 />
