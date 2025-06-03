@@ -49,17 +49,6 @@ async def create_user(
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Email already registered")
 
-    if user.role == UserRole.STAROSTA and user.group_id is None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
-
-    if user.role in [UserRole.ADMIN, UserRole.PROWADZACY, UserRole.KOORDYNATOR] and user.group_id is not None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
-
-    if user.group_id is not None:
-        group = db.query(Group).filter(Group.id == user.group_id).first()
-        if not group:
-            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group does not exist")
-
     hashed_password = get_password_hash(user.password)
 
     db_user = User(
@@ -67,8 +56,7 @@ async def create_user(
         surname=user.surname,
         email=user.email,
         password=hashed_password,
-        role=user.role,
-        group_id=user.group_id
+        role=user.role
     )
 
     db.add(db_user)
@@ -93,17 +81,6 @@ async def update_user(
     if existing_email is not None:
         raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Email already registered")
 
-    if user.role == UserRole.STAROSTA and user.group_id is None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is required for this role")
-
-    if user.role in [UserRole.ADMIN, UserRole.PROWADZACY, UserRole.KOORDYNATOR] and user.group_id is not None:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group ID is not required for this role")
-
-    if user.group_id is not None:
-        existing_group = db.query(Group).filter(Group.id == user.group_id).first()
-        if not existing_group:
-            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Group does not exist")
-
     hashed_password = get_password_hash(user.password)
 
     db_user.email = user.email
@@ -111,7 +88,6 @@ async def update_user(
     db_user.name = user.name
     db_user.surname = user.surname
     db_user.role = user.role
-    db_user.group_id = user.group_id
     db.commit()
     db.refresh(db_user)
 

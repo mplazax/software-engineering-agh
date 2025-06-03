@@ -50,10 +50,9 @@ class User(Base):
     name = Column(String(100), nullable=False)
     surname = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
     is_active = Column(Boolean, default=True)
 
-    group = relationship("Group", foreign_keys=[group_id])
+    group = relationship("Group", foreign_keys='Group.leader_id', back_populates="leader", uselist=False)
     leads_group = relationship("Group", foreign_keys='Group.leader_id', back_populates="leader", uselist=False)
     initiated_requests = relationship("ChangeRequest", back_populates="initiator")
     availability_proposals = relationship("AvailabilityProposal", back_populates="user")

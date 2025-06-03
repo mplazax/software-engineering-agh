@@ -25,7 +25,6 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     role: UserRole
-    group_id: Optional[int] = None
 
     @validator("password")
     def check_password(cls, value):
