@@ -50,6 +50,23 @@ const ChangeRequestsPage = () => {
     fetchAllEvents();
   }, [navigate]);
 
+  // Funkcja pomocnicza do wyliczania godzin na podstawie slotu
+  const getSlotTimes = (day, slot) => {
+    const slotTimes = [
+      { start: "08:00", end: "09:30" },
+      { start: "09:45", end: "11:15" },
+      { start: "11:30", end: "13:00" },
+      { start: "13:15", end: "14:45" },
+      { start: "15:00", end: "16:30" },
+      { start: "16:45", end: "18:15" },
+      { start: "18:30", end: "20:00" },
+    ];
+    const { start, end } = slotTimes[slot - 1];
+    const startDate = new Date(`${day}T${start}`);
+    const endDate = new Date(`${day}T${end}`);
+    return { start: startDate, end: endDate };
+  };
+
   const fetchAllEvents = async () => {
     try {
       const courses = await apiRequest("/courses");
@@ -57,12 +74,14 @@ const ChangeRequestsPage = () => {
       for (const course of courses) {
         const events = await apiRequest(`/courses/${course.id}/events`);
         for (const event of events) {
+          const { start, end } = getSlotTimes(event.day, event.time_slot_id);
           allEvents.push({
             ...event,
             id: `${course.id}-${event.id}`,
             title: `Kurs ${course.name || course.id}`,
-            start: new Date(event.start_datetime),
-            end: new Date(event.end_datetime),
+            start,
+            end,
+            time_slot_id: event.time_slot_id,
             courseId: course.id,
             courseName: course.name,
           });

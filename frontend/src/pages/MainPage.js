@@ -1,12 +1,15 @@
-import React, { useEffect } from "react";
+import React, { useContext, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { Box, Typography, Grid, Card, CardContent, CardActions, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { UserContext } from "../App";
+
 
 const MainPage = () => {
   const navigate = useNavigate();
 
-  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
+  const user = useContext(UserContext);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -14,15 +17,21 @@ const MainPage = () => {
     }
   }, [navigate]);
 
+
   const features = [
-    { title: "Zgłoszenia", description: "Przeglądaj zgłoszenia zmian.", path: "/requests" },
-    { title: "Dostępność", description: "Wskaż swoją dostępność.", path: "/availability" },
-    { title: "Propozycje", description: "Przeglądaj propozycje terminów.", path: "/proposals" },
-    { title: "Sale", description: "Przeglądaj sale.", path: "/rooms" },
-    { title: "Użytkownicy", description: "Przeglądaj użytkowników.", path: "/users" },
-    { title: "Grupy", description: "Przeglądaj grupy.", path: "/groups" },
-    { title: "Kursy", description: "Przeglądaj kursy.", path: "/courses" },
+    { title: "Zgłoszenia", description: "Przeglądaj zgłoszenia zmian.", path: "/requests", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
+    { title: "Dostępność", description: "Wskaż swoją dostępność.", path: "/availability", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
+    { title: "Propozycje", description: "Przeglądaj propozycje terminów.", path: "/proposals", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
+    { title: "Sale", description: "Przeglądaj sale.", path: "/rooms", allowedRole: ["ADMIN", "KOORDYNATOR"] },
+    { title: "Użytkownicy", description: "Przeglądaj użytkowników.", path: "/users", allowedRole: ["ADMIN"] },
+    { title: "Grupy", description: "Przeglądaj grupy.", path: "/groups", allowedRole: ["ADMIN", "KOORDYNATOR"] },
+    { title: "Kursy", description: "Przeglądaj kursy.", path: "/courses", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY"] },
   ];
+
+  const visibleFeatures = features.filter(
+    (feature) => user && feature.allowedRole.includes(user.role)
+  );
+
 
   return (
     <Box>
@@ -32,7 +41,7 @@ const MainPage = () => {
           Witaj w systemie zarządzania zajęciami!
         </Typography>
         <Grid container spacing={3}>
-          {features.map((feature) => (
+          {visibleFeatures.map((feature) => (
             <Grid item xs={12} sm={6} md={3} key={feature.title}>
               <Card>
                 <CardContent>
