@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta, time
 
+# TODO: add room requirements
 from model import (
     Base, User, Group, Room, Course, CourseEvent, RoomUnavailability,
     ChangeRequest, AvailabilityProposal, ChangeRecomendation,
