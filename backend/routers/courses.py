@@ -168,3 +168,12 @@ async def update_event(event_id: int, event: CourseEventUpdate, db: Session = De
 @router.get("/{course_id}/events", response_model=List[CourseEventResponse], status_code=HTTP_200_OK)
 async def get_events_for_course(course_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return db.query(CourseEvent).filter(CourseEvent.course_id == course_id).all()
+
+
+@router.get("/event/{course_event_id}" , response_model=CourseEventResponse, status_code=HTTP_200_OK)
+async def get_course_event(course_event_id: int, db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+        course_event = db.query(CourseEvent).filter(CourseEvent.id == course_event_id).first()
+        if not course_event:
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
+        return course_event
