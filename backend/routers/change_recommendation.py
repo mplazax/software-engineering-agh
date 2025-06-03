@@ -35,15 +35,16 @@ async def find_and_add_common_availability(
     common_intervals = []
     for proposal1 in user1_proposals:
         for proposal2 in user2_proposals:
-            if proposal1.time_slot_id == proposal1.time_slot_id and proposal1.day == proposal2.day:
-                common_intervals.append((proposal1.time_slot_id.start_time, proposal1.day))
+            if proposal1.time_slot_id == proposal2.time_slot_id and proposal1.day == proposal2.day:
+                common_intervals.append((proposal1.time_slot_id, proposal1.day))
 
     if not common_intervals:
         raise HTTPException(status_code=404, detail="No common availability found")
 
     recommendations = []
     for slot_id, day in common_intervals:
-        available_rooms = db.query(Room).filter(
+        # Base query for available rooms
+        available_rooms_query = db.query(Room).filter(
             ~Room.id.in_(
                 db.query(RoomUnavailability.room_id).filter(
                     RoomUnavailability.start_datetime <= day,
@@ -57,9 +58,23 @@ async def find_and_add_common_availability(
                     CourseEvent.canceled == False
                 )
             )
-        ).all()
+        )
 
-        # TODO: Dodaj sprawdzanie wymagań (requirements) dla dostępnych pokoi
+        # Add room requirements filtering if specified
+        if change_request.room_requirements:
+            requirements = change_request.room_requirements.lower()
+            if "projector" in requirements:
+                available_rooms_query = available_rooms_query.filter(Room.equipment.ilike("%projector%"))
+            if "capacity" in requirements:
+                # Extract capacity requirement if present
+                import re
+                capacity_match = re.search(r"capacity\s*>\s*(\d+)", requirements)
+                if capacity_match:
+                    min_capacity = int(capacity_match.group(1))
+                    available_rooms_query = available_rooms_query.filter(Room.capacity >= min_capacity)
+
+        available_rooms = available_rooms_query.all()
+
         for room in available_rooms:
             recommendation = ChangeRecomendation(
                 change_request_id=change_request_id,
@@ -90,7 +105,6 @@ async def get_proposals(
     change_recommendations = db.query(ChangeRecomendation).filter(
         ChangeRecomendation.change_request_id == change_request_id).all()
     return change_recommendations
-
 
 
 @router.delete("/{change_request_id}/recommendations", status_code=HTTP_204_NO_CONTENT)
