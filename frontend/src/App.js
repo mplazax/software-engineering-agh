@@ -32,7 +32,7 @@ const App = () => {
 
   return (
     <ErrorContext.Provider value={setError}>
-      <UserContext.Provider value={user}>
+      <UserContext.Provider value={{ user, setUser }}>
         <Router>
           <Box sx={{ paddingTop: 8 }}>
             <Routes>

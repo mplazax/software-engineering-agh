@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { UserContext } from "../App";
+import { getCurrentUser, login } from "../services/authService";
 import { useNavigate } from "react-router-dom";
-import { login } from "../services/authService";
 import { TextField, Button, Box, Typography, Alert } from "@mui/material";
 
 const LoginPage = () => {
@@ -8,11 +9,13 @@ const LoginPage = () => {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const navigate = useNavigate();
-
+    const { setUser } = useContext(UserContext);
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             await login(email, password);
+            const user = await getCurrentUser();
+            setUser(user);
             navigate("/main");
         } catch (err) {
             setError("Nieprawidłowe dane logowania");
