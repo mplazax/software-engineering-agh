@@ -61,6 +61,7 @@ async def find_and_add_common_availability(
         )
 
         # Add room requirements filtering if specified
+        # TODO: dodac filtrowanie pokoi po wymaganiach pokoju
         if change_request.room_requirements:
             requirements = change_request.room_requirements.lower()
             if "projector" in requirements:
