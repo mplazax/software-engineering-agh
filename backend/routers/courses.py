@@ -1,21 +1,45 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import between, or_, and_
-from sqlalchemy.orm import Session
-from typing import List
 
-from model import Course, UserRole, User, Room, CourseEvent, RoomUnavailability, Group, TimeSlots
 from database import get_db
-from routers.schemas import CourseCreate, CourseResponse, CourseEventResponse, CourseEventCreate, CourseEventUpdate
+from fastapi import APIRouter, Depends, HTTPException
+from model import (
+    Course,
+    CourseEvent,
+    Group,
+    Room,
+    RoomUnavailability,
+    TimeSlots,
+    User,
+    UserRole,
+)
 from routers.auth import get_current_user, role_required
-from starlette.status import HTTP_201_CREATED, HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_204_NO_CONTENT, \
-    HTTP_422_UNPROCESSABLE_ENTITY
+from routers.schemas import (
+    CourseCreate,
+    CourseEventCreate,
+    CourseEventResponse,
+    CourseEventUpdate,
+    CourseResponse,
+)
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+from starlette.status import (
+    HTTP_200_OK,
+    HTTP_201_CREATED,
+    HTTP_204_NO_CONTENT,
+    HTTP_404_NOT_FOUND,
+    HTTP_422_UNPROCESSABLE_ENTITY,
+)
 
 router = APIRouter(prefix="/courses", tags=["courses"])
 
 
 @router.post("/", response_model=CourseResponse, status_code=HTTP_201_CREATED)
-async def create_course(course: CourseCreate, db: Session = Depends(get_db),
-                  current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))):
+async def create_course(
+    course: CourseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY])
+    ),
+):
     teacher = db.query(User).filter(User.id == course.teacher_id).first()
     if not teacher:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Teacher not found")
@@ -25,9 +49,7 @@ async def create_course(course: CourseCreate, db: Session = Depends(get_db),
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
 
     db_course = Course(
-        name=course.name,
-        teacher_id=course.teacher_id,
-        group_id=course.group_id
+        name=course.name, teacher_id=course.teacher_id, group_id=course.group_id
     )
     db.add(db_course)
     db.commit()
@@ -35,14 +57,19 @@ async def create_course(course: CourseCreate, db: Session = Depends(get_db),
     return db_course
 
 
-@router.get("/", response_model=List[CourseResponse], status_code=HTTP_200_OK)
-async def get_courses(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.get("/", response_model=list[CourseResponse], status_code=HTTP_200_OK)
+async def get_courses(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     return db.query(Course).all()
 
 
 @router.get("/{course_id}", response_model=CourseResponse, status_code=HTTP_200_OK)
-async def get_course(course_id: int, db: Session = Depends(get_db),
-               current_user: User = Depends(get_current_user)):
+async def get_course(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
@@ -50,8 +77,11 @@ async def get_course(course_id: int, db: Session = Depends(get_db),
 
 
 @router.delete("/{course_id}", status_code=HTTP_204_NO_CONTENT)
-async def delete_course(course_id: int, db: Session = Depends(get_db),
-                  current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+async def delete_course(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+):
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
@@ -59,9 +89,14 @@ async def delete_course(course_id: int, db: Session = Depends(get_db),
     db.commit()
     return
 
+
 @router.put("/{course_id}", response_model=CourseResponse, status_code=HTTP_200_OK)
-async def update_course(course_id: int, course: CourseCreate, db: Session = Depends(get_db),
-                  current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+async def update_course(
+    course_id: int,
+    course: CourseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+):
     existing_course = db.query(Course).filter(Course.id == course_id).first()
     if not existing_course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -80,82 +115,142 @@ async def update_course(course_id: int, course: CourseCreate, db: Session = Depe
     db.refresh(existing_course)
     return existing_course
 
-@router.post("/events", response_model=CourseEventResponse, status_code=HTTP_201_CREATED)
-async def create_event(event: CourseEventCreate, db: Session = Depends(get_db),
-                 current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))):
+
+@router.post(
+    "/events", response_model=CourseEventResponse, status_code=HTTP_201_CREATED
+)
+async def create_event(
+    event: CourseEventCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(
+        role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY])
+    ),
+):
     course = db.query(Course).filter(Course.id == event.course_id).first()
     if not course:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
 
     db_room = db.query(Room).filter(Room.id == event.room_id).first()
     if not db_room:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room does not exist")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Room does not exist"
+        )
 
-    existing_course_event = db.query(CourseEvent).filter(CourseEvent.room_id == event.room_id,
-        and_(
-            CourseEvent.time_slot_id == event.time_slot_id,
-            CourseEvent.day == event.day,
-        )).first()
+    existing_course_event = (
+        db.query(CourseEvent)
+        .filter(
+            CourseEvent.room_id == event.room_id,
+            and_(
+                CourseEvent.time_slot_id == event.time_slot_id,
+                CourseEvent.day == event.day,
+            ),
+        )
+        .first()
+    )
 
     if existing_course_event:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Event time is taken by another event")
+        raise HTTPException(
+            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Event time is taken by another event",
+        )
 
-    unavailability = db.query(RoomUnavailability).filter(RoomUnavailability.room_id == event.room_id,
-        and_(
-            RoomUnavailability.start_datetime <= event.day,
-            RoomUnavailability.end_datetime >= event.day
-        )).first()
+    unavailability = (
+        db.query(RoomUnavailability)
+        .filter(
+            RoomUnavailability.room_id == event.room_id,
+            and_(
+                RoomUnavailability.start_datetime <= event.day,
+                RoomUnavailability.end_datetime >= event.day,
+            ),
+        )
+        .first()
+    )
 
     if unavailability:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Room unavailable in selected time")
+        raise HTTPException(
+            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Room unavailable in selected time",
+        )
 
     time_slot = db.query(TimeSlots).filter(TimeSlots.id == event.time_slot_id).first()
     if not time_slot:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Time slot does not exist")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Time slot does not exist"
+        )
 
     course_event = CourseEvent(
         course_id=event.course_id,
         room_id=event.room_id,
-        day= event.day,
+        day=event.day,
         time_slot_id=event.time_slot_id,
-        canceled=event.canceled
+        canceled=event.canceled,
     )
     db.add(course_event)
     db.commit()
     db.refresh(course_event)
     return course_event
 
-@router.put("/events/{event_id}", response_model=CourseEventResponse, status_code=HTTP_200_OK)
-async def update_event(event_id: int, event: CourseEventUpdate, db: Session = Depends(get_db),
-                 current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY]))):
+
+@router.put(
+    "/events/{event_id}", response_model=CourseEventResponse, status_code=HTTP_200_OK
+)
+async def update_event(
+    event_id: int,
+    event: CourseEventUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(
+        role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY])
+    ),
+):
     course_event = db.query(CourseEvent).filter(CourseEvent.id == event_id).first()
     if not course_event:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Event not found")
 
     room = db.query(Room).filter(Room.id == event.room_id).first()
     if not room:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room does not exist")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Room does not exist"
+        )
 
     time_slot = db.query(TimeSlots).filter(TimeSlots.id == event.time_slot_id).first()
     if not time_slot:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Time slot does not exist")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Time slot does not exist"
+        )
 
-    existing_course_event = db.query(CourseEvent).filter(CourseEvent.room_id == event.room_id,
-                                                         and_(
-                                                             CourseEvent.time_slot_id == event.time_slot_id,
-                                                             CourseEvent.day == event.day,
-                                                         )).first()
+    existing_course_event = (
+        db.query(CourseEvent)
+        .filter(
+            CourseEvent.room_id == event.room_id,
+            and_(
+                CourseEvent.time_slot_id == event.time_slot_id,
+                CourseEvent.day == event.day,
+            ),
+        )
+        .first()
+    )
 
     if existing_course_event:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="Event time is taken by another event")
+        raise HTTPException(
+            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Event time is taken by another event",
+        )
 
-    unavailability = db.query(RoomUnavailability).filter(RoomUnavailability.room_id == event.room_id,
-                                                         and_(
-                                                             RoomUnavailability.start_datetime <= event.day,
-                                                             RoomUnavailability.end_datetime >= event.day
-                                                         )).first()
+    unavailability = (
+        db.query(RoomUnavailability)
+        .filter(
+            RoomUnavailability.room_id == event.room_id,
+            and_(
+                RoomUnavailability.start_datetime <= event.day,
+                RoomUnavailability.end_datetime >= event.day,
+            ),
+        )
+        .first()
+    )
     if unavailability:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room unavailable in selected time")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Room unavailable in selected time"
+        )
 
     for key, value in event.dict(exclude_unset=True).items():
         setattr(course_event, key, value)
@@ -165,15 +260,34 @@ async def update_event(event_id: int, event: CourseEventUpdate, db: Session = De
     return course_event
 
 
-@router.get("/{course_id}/events", response_model=List[CourseEventResponse], status_code=HTTP_200_OK)
-async def get_events_for_course(course_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+@router.get(
+    "/{course_id}/events",
+    response_model=list[CourseEventResponse],
+    status_code=HTTP_200_OK,
+)
+async def get_events_for_course(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     return db.query(CourseEvent).filter(CourseEvent.course_id == course_id).all()
 
 
-@router.get("/event/{course_event_id}" , response_model=CourseEventResponse, status_code=HTTP_200_OK)
-async def get_course_event(course_event_id: int, db: Session = Depends(get_db),
-                        current_user: User = Depends(get_current_user)):
-        course_event = db.query(CourseEvent).filter(CourseEvent.id == course_event_id).first()
-        if not course_event:
-            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
-        return course_event
+@router.get(
+    "/event/{course_event_id}",
+    response_model=CourseEventResponse,
+    status_code=HTTP_200_OK,
+)
+async def get_course_event(
+    course_event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    course_event = (
+        db.query(CourseEvent).filter(CourseEvent.id == course_event_id).first()
+    )
+    if not course_event:
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Course event not found"
+        )
+    return course_event

@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, text
-from model import Base
 from example_data import add_data
+from model import Base
+from sqlalchemy import create_engine, text
 
 DATABASE_URL = "postgresql+psycopg2://admin:admin@localhost:5433/database"
 

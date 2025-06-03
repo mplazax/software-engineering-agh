@@ -22,6 +22,43 @@ dependencies = [
 [tool.poetry]
 package-mode = false
 
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.11.12"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.ruff]
+select = ["E", "F", "W", "I", "N", "D", "UP", "ANN", "Q"]
+ignore = ["D203", "D212"] # Przykładowe ignorowane
+line-length = 88
+src = ["app"]
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "venv",
+    "backend/.venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "*/migrations/*",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

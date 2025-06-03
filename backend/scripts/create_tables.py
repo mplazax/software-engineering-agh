@@ -1,9 +1,10 @@
-from sqlalchemy import create_engine, text
 from model import Base
+from sqlalchemy import create_engine, text
+
 from .populate_mock_data import populate_mock_data
 
-def main():
 
+def main():
     DATABASE_URL = "postgresql+psycopg2://admin:admin@localhost:5433/database"
 
     engine = create_engine(DATABASE_URL)
@@ -24,9 +25,12 @@ def main():
         Base.metadata.create_all(bind=engine)
         populate_mock_data(DATABASE_URL)
 
+
 if __name__ == "__main__":
-    decision = input("Executing this script will erase all current data, Y to proceed: ")
-    if decision in ['y', 'Y']:
+    decision = input(
+        "Executing this script will erase all current data, Y to proceed: "
+    )
+    if decision in ["y", "Y"]:
         print("Proceeding...")
         main()
     else:
