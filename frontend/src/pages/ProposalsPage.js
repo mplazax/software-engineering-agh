@@ -14,6 +14,7 @@ const ProposalsPage = () => {
   const [userDetails, setUserDetails] = useState({});
   const [currentUserId, setCurrentUserId] = useState("");
   const [courseNames, setCourseNames] = useState({});
+  const [availableChangeRequests, setAvailableChangeRequests] = useState([]);
   const navigate = useNavigate();
 
   // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
@@ -51,22 +52,15 @@ const ProposalsPage = () => {
         await Promise.all(
           data.map(async (proposal) => {
             try {
-              // 1. change_request_id z proposal
               const changeRequestId = proposal.change_request_id;
               if (!changeRequestId) return;
-              // 2. change_request
               const changeRequest = await apiRequest(`/change_requests/${changeRequestId}?request_id=${changeRequestId}`);
-              // 3. course_event_id
               const courseEventId = changeRequest.course_event_id;
               if (!courseEventId) return;
-              // 4. course_event
               const courseEvent = await apiRequest(`/courses/${courseEventId}/events`);
-              // 5. course_id
               const courseId = courseEvent[0].course_id;
               if (!courseId) return;
-              // 6. course
               const course = await apiRequest(`/courses/${courseId}`);
-              // 7. name
               courseNameMap[proposal.id] = course.name || "Nieznany kurs";
             } catch {
               courseNameMap[proposal.id] = "Nieznany kurs";
@@ -74,6 +68,32 @@ const ProposalsPage = () => {
           })
         );
         setCourseNames(courseNameMap);
+
+        // Pobierz unikalne change_request_id z proposals i szczegóły do selecta
+        const uniqueChangeRequestIds = [...new Set(data.map((p) => p.change_request_id))].filter(Boolean);
+        const changeRequestsList = [];
+        await Promise.all(
+          uniqueChangeRequestIds.map(async (id) => {
+            try {
+              const changeRequest = await apiRequest(`/change_requests/${id}?request_id=${id}`);
+              
+              const courseEventId = changeRequest.course_event_id;
+              console.log("courseEventId", courseEventId);
+              if (!courseEventId) return;
+              const courseEvent = await apiRequest(`/courses/event/${courseEventId}`);
+              console.log("courseEvent", courseEvent);
+              // courseEvent: { time_slot_id, day }
+              changeRequestsList.push({
+                id,
+                time_slot_id: courseEvent.time_slot_id,
+                day: courseEvent.day,
+              });
+            } catch {
+              // pomiń błędne
+            }
+          })
+        );
+        setAvailableChangeRequests(changeRequestsList);
       })
       .catch((error) => console.error("Error fetching proposals:", error));
   }, [navigate]);
@@ -219,14 +239,26 @@ const ProposalsPage = () => {
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>Dodaj propozycję</DialogTitle>
         <DialogContent>
+          {/* ZAMIANA: Select z listą change requestów */}
           <TextField
             margin="dense"
-            label="ID zgłoszenia zmiany"
+            label="Change request (dzień, slot)"
             name="change_request_id"
+            select
             fullWidth
             value={formData.change_request_id}
             onChange={handleChange}
-          />
+            InputLabelProps={{ shrink: true }}
+          >
+            {availableChangeRequests.length === 0 && (
+              <MenuItem value="">Brak dostępnych change requestów</MenuItem>
+            )}
+            {availableChangeRequests.map((cr) => (
+              <MenuItem key={cr.id} value={cr.id}>
+                {`ID: ${cr.id} | Dzień: ${cr.day || "?"} | Slot: ${cr.time_slot_id || "?"}`}
+              </MenuItem>
+            ))}
+          </TextField>
           {/* Pole wyboru dnia */}
           <TextField
             margin="dense"
