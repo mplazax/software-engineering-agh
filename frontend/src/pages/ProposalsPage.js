@@ -80,7 +80,7 @@ const ProposalsPage = () => {
               const courseEventId = changeRequest.course_event_id;
               console.log("courseEventId", courseEventId);
               if (!courseEventId) return;
-              const courseEvent = await apiRequest(`/courses/event/${courseEventId}`);
+              const courseEvent = await apiRequest(`/courses/events/${courseEventId}`);
               console.log("courseEvent", courseEvent);
               // courseEvent: { time_slot_id, day }
               changeRequestsList.push({
