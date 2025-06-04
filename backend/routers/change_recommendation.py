@@ -22,8 +22,24 @@ async def find_and_add_common_availability(
     user2_id: int,
     change_request_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Find common availability between two users and generate room change recommendations.
+    
+    Args:
+        user1_id (int): ID of the first user
+        user2_id (int): ID of the second user
+        change_request_id (int): ID of the change request
+        db (Session): Database session
+        current_user (User): Current authenticated user
+        
+    Raises:
+        HTTPException: If change request is not found or no common availability/rooms found
+        
+    Returns:
+        dict: Success message with the number of recommendations added
+    """
     user1_proposals = (
         db.query(AvailabilityProposal)
         .filter(
@@ -125,8 +141,22 @@ async def find_and_add_common_availability(
 async def get_proposals(
     change_request_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> list[ChangeRecomendation]:
+    """
+    Get all recommendations for a specific change request.
+    
+    Args:
+        change_request_id (int): ID of the change request
+        db (Session): Database session
+        current_user (User): Current authenticated user
+        
+    Raises:
+        HTTPException: If change request is not found
+        
+    Returns:
+        list[ChangeRecomendation]: List of change recommendations
+    """
     change_request = (
         db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
     )
@@ -145,8 +175,19 @@ async def get_proposals(
 async def delete_recommendations(
     change_request_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    Delete all recommendations for a specific change request.
+    
+    Args:
+        change_request_id (int): ID of the change request
+        db (Session): Database session
+        current_user (User): Current authenticated user
+        
+    Raises:
+        HTTPException: If change request is not found
+    """
     change_request = (
         db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
     )
