@@ -23,8 +23,20 @@ async def get_rooms(
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> list[Room]:
+    """
+    Retrieve a paginated list of all rooms.
+
+    Args:
+        skip (int, optional): Number of records to skip. Defaults to 0.
+        limit (int, optional): Maximum number of records to return. Defaults to 10.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Returns:
+        list[Room]: List of room objects.
+    """
     rooms = db.query(Room).offset(skip).limit(limit).all()
     return rooms
 
@@ -38,8 +50,25 @@ async def get_available_rooms(
     start: date = Query(..., description="Start of desired interval"),
     end: date = Query(..., description="End of desired interval"),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> list[Room]:
+    """
+    Find all available rooms matching the criteria within a specified time interval.
+
+    Args:
+        seats (int): Minimum number of seats required in the room.
+        room_type (RoomType): Type of room required.
+        start (date): Start date of the desired interval.
+        end (date): End date of the desired interval.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If end time is not greater than start time or if seats is not positive.
+
+    Returns:
+        list[Room]: List of available rooms matching the criteria.
+    """
     if end <= start:
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
@@ -94,8 +123,24 @@ async def get_room_availability(
     start: datetime = Query(..., description="Start of desired interval"),
     end: datetime = Query(..., description="End of desired interval"),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Check if a specific room is available during a given time interval.
+
+    Args:
+        room_id (int): ID of the room to check.
+        start (datetime): Start datetime of the interval.
+        end (datetime): End datetime of the interval.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If end time is not greater than start time or if room is not found.
+
+    Returns:
+        dict: Dictionary with 'available' key indicating room availability.
+    """
     if end <= start:
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
@@ -138,8 +183,22 @@ async def get_room_availability(
 
 @router.get("/{room_id}", status_code=HTTP_200_OK, response_model=RoomResponse)
 async def get_room(
-    room_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)
-):
+    room_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> Room:
+    """
+    Retrieve a single room by its ID.
+
+    Args:
+        room_id (int): ID of the room to retrieve.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If room with the specified ID is not found.
+
+    Returns:
+        Room: The requested room object.
+    """
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
@@ -150,8 +209,22 @@ async def get_room(
 async def create_room(
     room: RoomCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> Room:
+    """
+    Create a new room.
+
+    Args:
+        room (RoomCreate): Room data for creation.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If capacity is not positive, room name already exists, or room type is invalid.
+
+    Returns:
+        Room: The newly created room object.
+    """
     if room.capacity <= 0:
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
@@ -180,8 +253,24 @@ async def update_room(
     room_id: int,
     room: RoomUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> Room:
+    """
+    Update an existing room.
+
+    Args:
+        room_id (int): ID of the room to update.
+        room (RoomUpdate): Updated room data.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If room is not found, capacity is not positive, room name already exists,
+                      or room type is invalid.
+
+    Returns:
+        Room: The updated room object.
+    """
     existing_room = db.query(Room).filter(Room.id == room_id).first()
     if not existing_room:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
@@ -215,8 +304,19 @@ async def update_room(
 async def delete_room(
     room_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> None:
+    """
+    Delete a room by ID.
+
+    Args:
+        room_id (int): ID of the room to delete.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If room with the specified ID is not found.
+    """
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
