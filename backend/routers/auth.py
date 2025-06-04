@@ -27,15 +27,44 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a password against a hash.
+
+    Args:
+        plain_password (str): The plain text password to verify
+        hashed_password (str): The hashed password to verify against
+
+    Returns:
+        bool: True if password matches hash, False otherwise
+    """
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password):
+def get_password_hash(password: str) -> str:
+    """
+    Generate a password hash.
+
+    Args:
+        password (str): The plain text password to hash
+
+    Returns:
+        str: The hashed password
+    """
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """
+    Create a JWT access token.
+
+    Args:
+        data (dict): The data to encode in the token
+        expires_delta (timedelta, optional): Token expiration time delta. Defaults to None.
+
+    Returns:
+        str: Encoded JWT token
+    """
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -48,7 +77,20 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-):
+) -> User:
+    """
+    Get the current authenticated user from the JWT token.
+
+    Args:
+        token (str): JWT token from Authorization header
+        db (Session): Database session
+
+    Raises:
+        HTTPException: If token is invalid or user not found
+
+    Returns:
+        User: The authenticated user
+    """
     credentials_exception = HTTPException(
         status_code=HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -68,8 +110,17 @@ async def get_current_user(
     return user
 
 
-def role_required(allowed_roles: list[UserRole]):
-    def role_checker(current_user=Depends(get_current_user)):
+def role_required(allowed_roles: list[UserRole]) -> callable:
+    """
+    Dependency to check if user has required role(s).
+
+    Args:
+        allowed_roles (list[UserRole]): List of roles that are allowed to access the endpoint
+
+    Returns:
+        callable: Dependency function that checks user's role
+    """
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN,
@@ -83,7 +134,20 @@ def role_required(allowed_roles: list[UserRole]):
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
-):
+) -> dict:
+    """
+    OAuth2 compatible token login, get an access token for future requests.
+
+    Args:
+        form_data (OAuth2PasswordRequestForm): Form data with username and password
+        db (Session): Database session
+
+    Raises:
+        HTTPException: If authentication fails
+
+    Returns:
+        dict: Access token and token type
+    """
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(
@@ -99,7 +163,20 @@ async def login_for_access_token(
 
 
 @router.post("/register", status_code=HTTP_201_CREATED)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+async def register_user(user: UserCreate, db: Session = Depends(get_db)) -> dict:
+    """
+    Register a new user.
+
+    Args:
+        user (UserCreate): User registration data
+        db (Session): Database session
+
+    Raises:
+        HTTPException: If email already exists or group is invalid
+
+    Returns:
+        dict: Success message
+    """
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(
@@ -133,5 +210,14 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-async def read_users_me(current_user: User = Depends(get_current_user)):
+async def read_users_me(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Get current user information.
+
+    Args:
+        current_user (User): The currently authenticated user
+
+    Returns:
+        User: The user object of the authenticated user
+    """
     return current_user

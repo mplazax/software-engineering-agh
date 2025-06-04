@@ -21,8 +21,20 @@ async def get_proposals(
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> list[AvailabilityProposal]:
+    """
+    Retrieve a paginated list of all availability proposals.
+
+    Args:
+        skip (int, optional): Number of records to skip. Defaults to 0.
+        limit (int, optional): Maximum number of records to return. Defaults to 10.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Returns:
+        list[AvailabilityProposal]: List of availability proposals.
+    """
     proposals = db.query(AvailabilityProposal).offset(skip).limit(limit).all()
     return proposals
 
@@ -31,8 +43,22 @@ async def get_proposals(
 async def get_proposal(
     proposal_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> AvailabilityProposal:
+    """
+    Retrieve a specific availability proposal by ID.
+
+    Args:
+        proposal_id (int): ID of the proposal to retrieve.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If proposal with the specified ID is not found.
+
+    Returns:
+        AvailabilityProposal: The requested proposal.
+    """
     proposal = (
         db.query(AvailabilityProposal)
         .filter(AvailabilityProposal.id == proposal_id)
@@ -51,8 +77,22 @@ async def get_proposal(
 async def get_change_request_proposals(
     change_request_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> list[AvailabilityProposal]:
+    """
+    Retrieve all proposals for a specific change request.
+
+    Args:
+        change_request_id (int): ID of the change request.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If no proposals are found for the change request.
+
+    Returns:
+        list[AvailabilityProposal]: List of proposals for the specified change request.
+    """
     proposals = (
         db.query(AvailabilityProposal)
         .filter(AvailabilityProposal.change_request_id == change_request_id)
@@ -69,8 +109,23 @@ async def get_change_request_proposals(
 async def create_proposal(
     proposal: ProposalCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> AvailabilityProposal:
+    """
+    Create a new availability proposal.
+
+    Args:
+        proposal (ProposalCreate): Data for the new proposal.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If change request or user is not found, or if a proposal already exists
+                      for the same user and time slot.
+
+    Returns:
+        AvailabilityProposal: The newly created proposal.
+    """
     change_request = (
         db.query(ChangeRequest)
         .filter(ChangeRequest.id == proposal.change_request_id)
@@ -118,8 +173,23 @@ async def update_proposal(
     proposal_id: int,
     proposal: ProposalUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> AvailabilityProposal:
+    """
+    Update an existing availability proposal.
+
+    Args:
+        proposal_id (int): ID of the proposal to update.
+        proposal (ProposalUpdate): Updated proposal data.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If proposal or user is not found.
+
+    Returns:
+        AvailabilityProposal: The updated proposal.
+    """
     existing_proposal = (
         db.query(AvailabilityProposal)
         .filter(AvailabilityProposal.id == proposal_id)
@@ -143,8 +213,19 @@ async def update_proposal(
 async def delete_proposal(
     proposal_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    Delete an availability proposal.
+
+    Args:
+        proposal_id (int): ID of the proposal to delete.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If proposal is not found.
+    """
     existing_proposal = (
         db.query(AvailabilityProposal)
         .filter(AvailabilityProposal.id == proposal_id)

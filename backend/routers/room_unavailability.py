@@ -23,8 +23,18 @@ router = APIRouter(prefix="/room-unavailability", tags=["room-unavailability"])
 
 @router.get("/", response_model=list[RoomUnavailabilityResponse])
 def get_room_unavailability(
-    db: Session = Depends(get_db), current_user=Depends(get_current_user)
-):
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> list[RoomUnavailability]:
+    """
+    Retrieve a list of all room unavailability periods.
+
+    Args:
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Returns:
+        list[RoomUnavailability]: List of all room unavailability periods.
+    """
     unavailability = db.query(RoomUnavailability).all()
     return unavailability
 
@@ -37,8 +47,22 @@ def get_room_unavailability(
 def get_room_unavailability_by_id(
     unavailability_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> RoomUnavailability:
+    """
+    Retrieve a specific room unavailability period by ID.
+
+    Args:
+        unavailability_id (int): ID of the unavailability period to retrieve.
+        db (Session): Database session.
+        current_user (User): Current authenticated user.
+
+    Raises:
+        HTTPException: If the unavailability period is not found.
+
+    Returns:
+        RoomUnavailability: The requested room unavailability period.
+    """
     unavailability = (
         db.query(RoomUnavailability)
         .filter(RoomUnavailability.id == unavailability_id)
@@ -57,8 +81,23 @@ def get_room_unavailability_by_id(
 def create_room_unavailability(
     unavailability: RoomUnavailabilityCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> RoomUnavailability:
+    """
+    Create a new room unavailability period.
+
+    Args:
+        unavailability (RoomUnavailabilityCreate): Data for the new unavailability period.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If end time is not greater than start time, room is not found,
+                      or the period overlaps with existing unavailability.
+
+    Returns:
+        RoomUnavailability: The newly created room unavailability period.
+    """
     if unavailability.start_datetime > unavailability.end_datetime:
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
@@ -113,8 +152,23 @@ def update_room_unavailability(
     unavailability_id: int,
     unavailability: RoomUnavailabilityUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> RoomUnavailability:
+    """
+    Update an existing room unavailability period.
+
+    Args:
+        unavailability_id (int): ID of the unavailability period to update.
+        unavailability (RoomUnavailabilityUpdate): Updated unavailability data.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If the unavailability period is not found or end time is not greater than start time.
+
+    Returns:
+        RoomUnavailability: The updated room unavailability period.
+    """
     existing_unavailability = (
         db.query(RoomUnavailability)
         .filter(RoomUnavailability.id == unavailability_id)
@@ -142,8 +196,19 @@ def update_room_unavailability(
 def delete_room_unavailability(
     unavailability_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> None:
+    """
+    Delete a room unavailability period by ID.
+
+    Args:
+        unavailability_id (int): ID of the unavailability period to delete.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If the unavailability period is not found.
+    """
     existing_unavailability = (
         db.query(RoomUnavailability)
         .filter(RoomUnavailability.id == unavailability_id)

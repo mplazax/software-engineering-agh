@@ -39,7 +39,21 @@ async def create_course(
     current_user: User = Depends(
         role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY])
     ),
-):
+) -> Course:
+    """
+    Create a new course.
+
+    Args:
+        course (CourseCreate): Course data for creation
+        db (Session): Database session
+        current_user (User): Current authenticated user (must be ADMIN, KOORDYNATOR or PROWADZACY)
+
+    Raises:
+        HTTPException: If teacher or group is not found
+
+    Returns:
+        Course: The created course
+    """
     teacher = db.query(User).filter(User.id == course.teacher_id).first()
     if not teacher:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Teacher not found")
@@ -60,7 +74,17 @@ async def create_course(
 @router.get("/", response_model=list[CourseResponse], status_code=HTTP_200_OK)
 async def get_courses(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-):
+) -> list[Course]:
+    """
+    Get all courses.
+
+    Args:
+        db (Session): Database session
+        current_user (User): Current authenticated user
+
+    Returns:
+        list[Course]: List of all courses
+    """
     return db.query(Course).all()
 
 
@@ -69,7 +93,21 @@ async def get_course(
     course_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> Course:
+    """
+    Get a single course by ID.
+
+    Args:
+        course_id (int): ID of the course to retrieve
+        db (Session): Database session
+        current_user (User): Current authenticated user
+
+    Raises:
+        HTTPException: If course is not found
+
+    Returns:
+        Course: The requested course
+    """
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
@@ -81,7 +119,18 @@ async def delete_course(
     course_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+) -> None:
+    """
+    Delete a course by ID.
+
+    Args:
+        course_id (int): ID of the course to delete
+        db (Session): Database session
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR)
+
+    Raises:
+        HTTPException: If course is not found
+    """
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
@@ -96,7 +145,22 @@ async def update_course(
     course: CourseCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+) -> Course:
+    """
+    Update a course by ID.
+
+    Args:
+        course_id (int): ID of the course to update
+        course (CourseCreate): Updated course data
+        db (Session): Database session
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR)
+
+    Raises:
+        HTTPException: If course, teacher, or group is not found
+
+    Returns:
+        Course: The updated course
+    """
     existing_course = db.query(Course).filter(Course.id == course_id).first()
     if not existing_course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -122,10 +186,24 @@ async def update_course(
 async def create_event(
     event: CourseEventCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(
+    current_user: User = Depends(
         role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY])
     ),
-):
+) -> CourseEvent:
+    """
+    Create a new course event (schedule a class).
+
+    Args:
+        event (CourseEventCreate): Event data for creation
+        db (Session): Database session
+        current_user (User): Current authenticated user (must be ADMIN, KOORDYNATOR or PROWADZACY)
+
+    Raises:
+        HTTPException: If course, room, or time slot is not found, or if time slot is already taken
+
+    Returns:
+        CourseEvent: The created course event
+    """
     course = db.query(Course).filter(Course.id == event.course_id).first()
     if not course:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
@@ -198,10 +276,25 @@ async def update_event(
     event_id: int,
     event: CourseEventUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(
+    current_user: User = Depends(
         role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY])
     ),
-):
+) -> CourseEvent:
+    """
+    Update a course event by ID.
+
+    Args:
+        event_id (int): ID of the event to update
+        event (CourseEventUpdate): Updated event data
+        db (Session): Database session
+        current_user (User): Current authenticated user (must be ADMIN, KOORDYNATOR or PROWADZACY)
+
+    Raises:
+        HTTPException: If event, course, room, or time slot is not found, or if time slot is already taken
+
+    Returns:
+        CourseEvent: The updated course event
+    """
     course_event = db.query(CourseEvent).filter(CourseEvent.id == event_id).first()
     if not course_event:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Event not found")
@@ -268,13 +361,24 @@ async def update_event(
 async def get_events_for_course(
     course_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> list[CourseEvent]:
+    """
+    Get all events for a specific course.
+
+    Args:
+        course_id (int): ID of the course
+        db (Session): Database session
+        current_user (User): Current authenticated user
+
+    Returns:
+        list[CourseEvent]: List of events for the specified course
+    """
     return db.query(CourseEvent).filter(CourseEvent.course_id == course_id).all()
 
 
 @router.get(
-    "/event/{course_event_id}",
+    "/events/{course_event_id}",
     response_model=CourseEventResponse,
     status_code=HTTP_200_OK,
 )
@@ -282,7 +386,21 @@ async def get_course_event(
     course_event_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CourseEvent:
+    """
+    Get a single course event by ID.
+
+    Args:
+        course_event_id (int): ID of the course event
+        db (Session): Database session
+        current_user (User): Current authenticated user
+
+    Raises:
+        HTTPException: If event is not found
+
+    Returns:
+        CourseEvent: The requested course event
+    """
     course_event = (
         db.query(CourseEvent).filter(CourseEvent.id == course_event_id).first()
     )
