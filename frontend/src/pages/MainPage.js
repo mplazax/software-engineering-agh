@@ -8,8 +8,8 @@ import { UserContext } from "../App";
 const MainPage = () => {
   const navigate = useNavigate();
 
-  const user = useContext(UserContext);
-
+  const { user } = useContext(UserContext);
+  console.log("Aktualny użytkownik:", user);
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -27,6 +27,7 @@ const MainPage = () => {
     { title: "Grupy", description: "Przeglądaj grupy.", path: "/groups", allowedRole: ["ADMIN", "KOORDYNATOR"] },
     { title: "Kursy", description: "Przeglądaj kursy.", path: "/courses", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY"] },
   ];
+
 
   const visibleFeatures = features.filter(
     (feature) => user && feature.allowedRole.includes(user.role)
