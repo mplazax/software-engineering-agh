@@ -166,7 +166,7 @@ async def delete_group(
     group_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> dict:
+) -> None:
     """
     Delete a group by ID.
 
@@ -177,13 +177,9 @@ async def delete_group(
 
     Raises:
         HTTPException: If group with the specified ID is not found.
-
-    Returns:
-        dict: Confirmation message.
     """
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
     db.delete(group)
     db.commit()
-    return {"detail": "Group deleted successfully"}

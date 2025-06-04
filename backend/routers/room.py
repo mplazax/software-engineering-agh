@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
-from model import CourseEvent, Room, RoomType, RoomUnavailability, UserRole
+from model import CourseEvent, Room, RoomType, RoomUnavailability, UserRole, User
 from routers.auth import get_current_user, role_required
 from routers.schemas import RoomCreate, RoomResponse, RoomUpdate
 from sqlalchemy import not_, or_

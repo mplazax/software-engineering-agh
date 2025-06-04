@@ -7,6 +7,7 @@ from model import (
     CourseEvent,
     Room,
     RoomUnavailability,
+    User,
 )
 from routers.auth import get_current_user
 from routers.schemas import ChangeRecomendationResponse

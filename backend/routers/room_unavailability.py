@@ -1,7 +1,7 @@
 
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from model import Room, RoomUnavailability, UserRole
+from model import Room, RoomUnavailability, UserRole, User
 from routers.auth import get_current_user, role_required
 from routers.schemas import (
     RoomUnavailabilityCreate,
