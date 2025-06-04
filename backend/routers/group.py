@@ -21,8 +21,20 @@ async def get_groups(
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> list[Group]:
+    """
+    Retrieve a paginated list of all groups.
+
+    Args:
+        skip (int, optional): Number of records to skip. Defaults to 0.
+        limit (int, optional): Maximum number of records to return. Defaults to 10.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Returns:
+        list[Group]: List of group objects.
+    """
     groups = db.query(Group).offset(skip).limit(limit).all()
     return groups
 
@@ -31,8 +43,22 @@ async def get_groups(
 async def get_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> Group:
+    """
+    Retrieve a single group by ID.
+
+    Args:
+        group_id (int): ID of the group to retrieve.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If group with the specified ID is not found.
+
+    Returns:
+        Group: The requested group object.
+    """
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
@@ -43,8 +69,22 @@ async def get_group(
 async def create_group(
     group: GroupCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> Group:
+    """
+    Create a new group.
+
+    Args:
+        group (GroupCreate): Group data for creation.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If user is not found, year is invalid, or leader is not a STAROSTA.
+
+    Returns:
+        Group: The newly created group object.
+    """
     user = db.query(User).filter(User.id == group.leader_id).first()
     if not user:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
@@ -75,8 +115,23 @@ async def update_group(
     group_id: int,
     group: GroupUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> Group:
+    """
+    Update an existing group.
+
+    Args:
+        group_id (int): ID of the group to update.
+        group (GroupUpdate): Updated group data.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If group or user is not found, year is invalid, or leader is not a STAROSTA.
+
+    Returns:
+        Group: The updated group object.
+    """
     existing_group = db.query(Group).filter(Group.id == group_id).first()
     if not existing_group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
@@ -110,8 +165,22 @@ async def update_group(
 async def delete_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+) -> dict:
+    """
+    Delete a group by ID.
+
+    Args:
+        group_id (int): ID of the group to delete.
+        db (Session): Database session.
+        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
+
+    Raises:
+        HTTPException: If group with the specified ID is not found.
+
+    Returns:
+        dict: Confirmation message.
+    """
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
