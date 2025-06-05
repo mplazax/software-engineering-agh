@@ -36,29 +36,29 @@ def add_data(DATABASE_URL):
         admin = User(
             email="admin@example.com",
             password=get_password_hash("admin123"),
-            name="Admin User",
-            surname="",
+            name="Admin",
+            surname="User",
             role=UserRole.ADMIN,
         )
         teacher = User(
             email="teacher@example.com",
             password=get_password_hash("teach123"),
-            name="John Smith",
-            surname="",
+            name="John",
+            surname="Smith",
             role=UserRole.PROWADZACY,
         )
         student = User(
             email="student@example.com",
             password=get_password_hash("stud123"),
-            name="Anna Kowalska",
-            surname="",
+            name="Anna",
+            surname="Kowalska",
             role=UserRole.STAROSTA,
         )
         coordinator = User(
             email="koord@example.com",
             password=get_password_hash("koord123"),
-            name="Coord Person",
-            surname="",
+            name="Coord",
+            surname="Person",
             role=UserRole.KOORDYNATOR,
         )
 
