@@ -184,9 +184,9 @@ async def delete_request(
     return
 
 
-@router.get("/my", status_code=HTTP_200_OK, response_model=list[ChangeRequestResponse])
+@router.get("/my/{xd_id}", response_model=list[ChangeRequestResponse], status_code=HTTP_200_OK)
 async def get_my_requests(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    xd_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> list[ChangeRequest]:
     """
     Retrieve all change requests initiated by the current user.
