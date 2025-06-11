@@ -377,6 +377,32 @@ async def get_events_for_course(
     return db.query(CourseEvent).filter(CourseEvent.course_id == course_id).all()
 
 
+@router.get("/group/{group_id}/events"
+, response_model=list[CourseEventResponse], status_code=HTTP_200_OK)
+async def get_events_for_group(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[CourseEvent]:
+    """
+    Get all events for a specific group.
+
+    Args:
+        group_id (int): ID of the group
+        db (Session): Database session
+        current_user (User): Current authenticated user
+
+    Returns:
+        list[CourseEvent]: List of events for the specified group
+    """
+    return (
+        db.query(CourseEvent)
+        .join(Course)
+        .filter(Course.group_id == group_id)
+        .all()
+    )
+
+
 @router.get(
     "/events/{course_event_id}",
     response_model=CourseEventResponse,
