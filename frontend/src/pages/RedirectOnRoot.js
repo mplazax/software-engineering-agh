@@ -1,18 +1,18 @@
-// frontend/src/pages/RedirectOnRoot.js
-import { useEffect } from "react";
+import { useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserContext } from "../App";
 
 const RedirectOnRoot = () => {
   const navigate = useNavigate();
+  const { user } = useContext(UserContext);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
+    if (user) {
       navigate("/main", { replace: true });
     } else {
       navigate("/login", { replace: true });
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
   return null;
 };

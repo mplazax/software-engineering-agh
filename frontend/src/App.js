@@ -11,6 +11,8 @@ import ProposalsPage from "./pages/ProposalsPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import AvailabilityPage from "./pages/AvailabilityPage";
 import RedirectOnRoot from "./pages/RedirectOnRoot";
+import PrivateRoute from "./components/PrivateRoute";
+
 import { isAuthenticated, getCurrentUser } from "./services/authService";
 
 export const UserContext = createContext(null);
@@ -38,7 +40,11 @@ const App = () => {
             <Routes>
               <Route path="/" element={<RedirectOnRoot />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/main" element={<MainPage />} />
+              <Route path="/main" element={
+                <PrivateRoute>
+                  <MainPage />
+                </PrivateRoute>
+              } />
               <Route path="/rooms" element={<RoomsPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/groups" element={<GroupsPage />} />
