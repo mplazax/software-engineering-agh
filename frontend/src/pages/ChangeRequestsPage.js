@@ -1,5 +1,5 @@
 // frontend/src/pages/ChangeRequestsPage.js
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -35,39 +35,14 @@ const ChangeRequestsPage = () => {
   const [events, setEvents] = useState([]);
   const [eventDetails, setEventDetails] = useState(null);
   const [openEventDialog, setOpenEventDialog] = useState(false);
-  const [openProposalDialog, setOpenProposalDialog] = useState(false);
-  const [formData, setFormData] = useState({ start: "", end: "", reason: "", room_requirements: "" });
+  const [openChangeDialog, setopenChangeDialog] = useState(false);
+  const [formData, setFormData] = useState({ reason: "", room_requirements: "" });
   const [view, setView] = useState(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const navigate = useNavigate();
-  const user = useContext(UserContext);
+  const { user } = useContext(UserContext);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login", { replace: true });
-    }
-    fetchAllEvents();
-  }, [navigate]);
-
-  // Funkcja pomocnicza do wyliczania godzin na podstawie slotu
-  const getSlotTimes = (day, slot) => {
-    const slotTimes = [
-      { start: "08:00", end: "09:30" },
-      { start: "09:45", end: "11:15" },
-      { start: "11:30", end: "13:00" },
-      { start: "13:15", end: "14:45" },
-      { start: "15:00", end: "16:30" },
-      { start: "16:45", end: "18:15" },
-      { start: "18:30", end: "20:00" },
-    ];
-    const { start, end } = slotTimes[slot - 1];
-    const startDate = new Date(`${day}T${start}`);
-    const endDate = new Date(`${day}T${end}`);
-    return { start: startDate, end: endDate };
-  };
-
-  const fetchAllEvents = async () => {
+  const fetchAllEvents = useCallback(async () => {
     try {
       const courses = await apiRequest("/courses");
       const allEvents = [];
@@ -91,6 +66,98 @@ const ChangeRequestsPage = () => {
     } catch (error) {
       console.error("Błąd podczas pobierania wydarzeń:", error);
     }
+  }, []);
+
+  // PROWADZĄCY
+  const fetchTeacherGroupEvents = useCallback(async () => {
+    try {
+      const courses = await apiRequest("/courses");
+      const myCourses = courses.filter(c => c.teacher_id === user.id);
+      const allEvents = [];
+      for (const course of myCourses) {
+        const events = await apiRequest(`/courses/${course.id}/events`);
+        for (const event of events) {
+          const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+          allEvents.push({
+            ...event,
+            id: `${course.id}-${event.id}`,
+            title: `Kurs ${course.name || course.id}`,
+            start,
+            end,
+            time_slot_id: event.time_slot_id,
+            courseId: course.id,
+            courseName: course.name,
+          });
+        }
+      }
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń prowadzonych kursów:", error);
+    }
+  }, [user]);
+
+  // STAROSTA
+  const fetchStarostaGroupEvents = useCallback(async () => {
+    try {
+      const groups = await apiRequest("/groups?limit=1000");
+      const myGroups = groups.filter(g => g.leader_id === user.id);
+      const allEvents = [];
+      for (const group of myGroups) {
+        // Pobierz kurs powiązany z grupą
+        const courses = await apiRequest("/courses");
+        const groupCourses = courses.filter(c => c.group_id === group.id);
+        for (const course of groupCourses) {
+          const events = await apiRequest(`/courses/${course.id}/events`);
+          for (const event of events) {
+            const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+            allEvents.push({
+              ...event,
+              id: `${course.id}-${event.id}`,
+              title: `Kurs ${course.name || course.id}`,
+              start,
+              end,
+              time_slot_id: event.time_slot_id,
+              courseId: course.id,
+              courseName: course.name,
+            });
+          }
+        }
+      }
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń grup starosty:", error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token || !user) {
+      navigate("/login", { replace: true });
+    }
+    if (user.role === "ADMIN" || user.role === "KOORDYNATOR") {
+      fetchAllEvents();
+    } else if (user.role === "PROWADZACY") {
+      fetchTeacherGroupEvents();
+    } else if (user.role === "STAROSTA") {
+      fetchStarostaGroupEvents();
+    }
+  }, [user, navigate, fetchAllEvents, fetchTeacherGroupEvents, fetchStarostaGroupEvents]);
+
+  // Funkcja pomocnicza do wyliczania godzin na podstawie slotu
+  const getSlotTimes = (day, slot) => {
+    const slotTimes = [
+      { start: "08:00", end: "09:30" },
+      { start: "09:45", end: "11:15" },
+      { start: "11:30", end: "13:00" },
+      { start: "13:15", end: "14:45" },
+      { start: "15:00", end: "16:30" },
+      { start: "16:45", end: "18:15" },
+      { start: "18:30", end: "20:00" },
+    ];
+    const { start, end } = slotTimes[slot - 1];
+    const startDate = new Date(`${day}T${start}`);
+    const endDate = new Date(`${day}T${end}`);
+    return { start: startDate, end: endDate };
   };
 
   // Po kliknięciu w wydarzenie pobierz szczegóły i pokaż dialog
@@ -117,14 +184,14 @@ const ChangeRequestsPage = () => {
   };
 
   // Otwórz dialog do zgłoszenia zmiany
-  const handleOpenProposalDialog = () => {
-    setFormData({ start: "", end: "", reason: "", room_requirements: "" });
-    setOpenProposalDialog(true);
+  const handleOpenChangeDialog = () => {
+    setFormData({ reason: "", room_requirements: "" });
+    setopenChangeDialog(true);
   };
 
-  const handleCloseProposalDialog = () => setOpenProposalDialog(false);
+  const handleCloseChangeDialog = () => setopenChangeDialog(false);
 
-  const handleSubmitProposal = async () => {
+  const handleSubmitChange = async () => {
     try {
       if (!user) throw new Error("Brak danych użytkownika");
 
@@ -136,26 +203,13 @@ const ChangeRequestsPage = () => {
         room_requirements: formData.room_requirements,
         created_at: new Date().toISOString(),
       };
-      alert(changeRequestPayload);
-      const newChangeRequest = await apiRequest("/change_requests/", {
+
+      await apiRequest("/change_requests/", {
         method: "POST",
         body: JSON.stringify(changeRequestPayload),
       });
 
-      const proposalPayload = {
-        change_request_id: newChangeRequest.id,
-        user_id: user.id,
-        interval: {
-          start_date: new Date(formData.start).toISOString(),
-          end_date: new Date(formData.end).toISOString(),
-        },
-      };
-      await apiRequest("/proposals/", {
-        method: "POST",
-        body: JSON.stringify(proposalPayload),
-      });
-
-      setOpenProposalDialog(false);
+      setopenChangeDialog(false);
       setOpenEventDialog(false);
       fetchAllEvents();
     } catch (error) {
@@ -199,7 +253,7 @@ const ChangeRequestsPage = () => {
       <Navbar />
       <Box padding={2}>
         <Typography variant="h4" gutterBottom>
-          Zarządzaj zgłoszeniami zmian
+          Twój plan zajęć
         </Typography>
         <Calendar
           localizer={localizer}
@@ -230,7 +284,6 @@ const ChangeRequestsPage = () => {
             today: "Dziś",
             agenda: "Agenda",
             noEventsInRange: "Brak wydarzeń w tym zakresie.",
-            showMore: (total) => `+${total} więcej`,
           }}
         />
       </Box>
@@ -268,35 +321,15 @@ const ChangeRequestsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseEventDialog}>Zamknij</Button>
-          <Button onClick={handleOpenProposalDialog} variant="contained">
-            Zaproponuj zmianę
+          <Button onClick={handleOpenChangeDialog} variant="contained">
+            Zgłoś potrzebę zmiany
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openProposalDialog} onClose={handleCloseProposalDialog}>
-        <DialogTitle>Zaproponuj zmianę terminu</DialogTitle>
+      <Dialog open={openChangeDialog} onClose={handleCloseChangeDialog}>
+        <DialogTitle>Zgłoś potrzebę zmiany</DialogTitle>
         <DialogContent>
-          <TextField
-              margin="dense"
-              label="Nowa data początkowa"
-              name="start"
-              type="datetime-local"
-              fullWidth
-              value={formData.start}
-              InputLabelProps={{ shrink: true }}
-              onChange={handleChange}
-          />
-          <TextField
-              margin="dense"
-              label="Nowa data końcowa"
-              name="end"
-              type="datetime-local"
-              fullWidth
-              value={formData.end}
-              InputLabelProps={{ shrink: true }}
-              onChange={handleChange}
-          />
           <TextField
               margin="dense"
               label="Powód zmiany"
@@ -315,8 +348,8 @@ const ChangeRequestsPage = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseProposalDialog}>Anuluj</Button>
-          <Button onClick={handleSubmitProposal} variant="contained">
+          <Button onClick={handleCloseChangeDialog}>Anuluj</Button>
+          <Button onClick={handleSubmitChange} variant="contained">
             Wyślij propozycję
           </Button>
         </DialogActions>

@@ -25,9 +25,6 @@ const Navbar = () => {
             <Button color="inherit" onClick={() => navigate("/requests")}>
               Zgłoszenia
             </Button>
-            <Button color="inherit" onClick={() => navigate("/availability")}>
-              Dostępność
-            </Button>
             <Button color="inherit" onClick={handleLogout}>
               Wyloguj
             </Button>

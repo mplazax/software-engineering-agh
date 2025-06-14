@@ -2,7 +2,7 @@
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import Group, User, UserRole
-from routers.auth import role_required
+from routers.auth import role_required, get_current_user
 from routers.schemas import GroupCreate, GroupResponse, GroupUpdate
 from sqlalchemy.orm import Session
 from starlette.status import (
@@ -21,7 +21,7 @@ async def get_groups(
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+    current_user: User = Depends(get_current_user),
 ) -> list[Group]:
     """
     Retrieve a paginated list of all groups.
@@ -43,7 +43,7 @@ async def get_groups(
 async def get_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
+    current_user: User = Depends(get_current_user),
 ) -> Group:
     """
     Retrieve a single group by ID.

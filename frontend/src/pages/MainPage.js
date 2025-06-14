@@ -20,7 +20,6 @@ const MainPage = () => {
 
   const features = [
     { title: "Zgłoszenia", description: "Przeglądaj zgłoszenia zmian.", path: "/requests", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
-    { title: "Dostępność", description: "Wskaż swoją dostępność.", path: "/availability", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
     { title: "Propozycje", description: "Przeglądaj propozycje terminów.", path: "/proposals", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
     { title: "Sale", description: "Przeglądaj sale.", path: "/rooms", allowedRole: ["ADMIN", "KOORDYNATOR"] },
     { title: "Użytkownicy", description: "Przeglądaj użytkowników.", path: "/users", allowedRole: ["ADMIN"] },

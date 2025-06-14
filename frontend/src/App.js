@@ -9,7 +9,6 @@ import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
 import ProposalsPage from "./pages/ProposalsPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
-import AvailabilityPage from "./pages/AvailabilityPage";
 import RedirectOnRoot from "./pages/RedirectOnRoot";
 import PrivateRoute from "./components/PrivateRoute";
 
@@ -51,7 +50,6 @@ const App = () => {
               <Route path="/courses" element={<CoursesPage />} />
               <Route path="/proposals" element={<ProposalsPage />} />
               <Route path="/requests" element={<ChangeRequestsPage />} />
-              <Route path="/availability" element={<AvailabilityPage />} />
               <Route path="*" element={<RedirectOnRoot />} />
             </Routes>
           </Box>
