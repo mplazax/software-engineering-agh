@@ -207,11 +207,6 @@ async def update_request(
     db.refresh(existing_request)
     return existing_request
 
-
-
-
-
-
 @router.delete("/{request_id}", status_code=HTTP_204_NO_CONTENT)
 async def delete_request(
     request_id: int,

@@ -225,7 +225,7 @@ class ChangeRecomendationResponse(BaseModel):
     recommended_day: date
     recommended_slot_id: int
     recommended_room_id: int
-    proposals: list[AvailabilityProposalResponse]
+    source_proposal: AvailabilityProposalResponse | None = None
 
     class Config:
         orm_mode = True

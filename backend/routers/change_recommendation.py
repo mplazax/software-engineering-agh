@@ -89,7 +89,7 @@ async def find_and_add_common_availability(
             ~Room.id.in_(
                 db.query(CourseEvent.room_id).filter(
                     CourseEvent.day == day,
-                    CourseEvent.time_slot_id == slot_id.id,
+                    CourseEvent.time_slot_id == slot_id,
                     CourseEvent.canceled == False,
                 )
             ),
@@ -118,12 +118,12 @@ async def find_and_add_common_availability(
 
         for room in available_rooms:
             source_proposal = next(
-                (p for p in user1_proposals if p.time_slot_id == slot_id.id and p.day == day),
+                (p for p in user1_proposals if p.time_slot_id == slot_id and p.day == day),
                 None
             )
             recommendation = ChangeRecomendation(
                 change_request_id=change_request_id,
-                recommended_slot_id=slot_id.id,
+                recommended_slot_id=slot_id,
                 recommended_day=day,
                 recommended_room_id=room.id,
                 source_proposal_id=source_proposal.id if source_proposal else None
