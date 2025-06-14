@@ -177,7 +177,7 @@ def add_data(DATABASE_URL):
             status=ChangeRequestStatus.PENDING,
             reason="Need different time",
             room_requirements="Projector",
-            room_capacity=30,
+            minimum_capacity=30,
             created_at=now,
         )
         req2 = ChangeRequest(
@@ -186,7 +186,7 @@ def add_data(DATABASE_URL):
             status=ChangeRequestStatus.ACCEPTED,
             reason="Room too small",
             room_requirements="Capacity >= 80",
-            room_capacity=80,
+            minimum_capacity=80,
             created_at=now,
         )
 
