@@ -172,7 +172,7 @@ async def create_proposal(
 async def change_status_by_leader(
         proposal_id: int, new_status: bool, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.PROWADZACY]))
 ):
-    proposal = db.query(ChangeRequest).filter(AvailabilityProposal.id == proposal_id).first()
+    proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == proposal_id).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Request not found")
 
@@ -194,7 +194,7 @@ async def change_status_by_leader(
 async def change_status_by_representative(
         proposal_id: int, new_status: bool, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.STAROSTA]))
 ):
-    proposal = db.query(ChangeRequest).filter(AvailabilityProposal.id == proposal_id).first()
+    proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == proposal_id).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Request not found")
 
