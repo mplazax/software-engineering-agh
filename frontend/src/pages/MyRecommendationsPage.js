@@ -11,7 +11,13 @@ import {
     MenuItem,
     FormControl,
     InputLabel,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
 } from "@mui/material";
+
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { UserContext } from "../App";
@@ -32,6 +38,9 @@ const MyRecommendationsPage = () => {
         REJECTED: "Odrzucone",
         CANCELLED: "Anulowane",
     };
+    const [openDialog, setOpenDialog] = useState(false);
+    const [selectedProposal, setSelectedProposal] = useState(null);
+
 
 
     useEffect(() => {
@@ -44,6 +53,10 @@ const MyRecommendationsPage = () => {
             fetchCourses();
         }
     }, [loading, user, navigate, selectedStatus]);
+
+    if (loading) {
+        return;
+    }
 
     const fetchRelatedRequests = async () => {
         try {
@@ -124,6 +137,52 @@ const MyRecommendationsPage = () => {
         setSelectedStatus(e.target.value);
     };
 
+    const handleSelectProposal = (rec) => {
+        setSelectedProposal(rec);
+        setOpenDialog(true);
+    };
+
+    const handleCloseDialog = () => {
+        setOpenDialog(false);
+        setSelectedProposal(null);
+    };
+
+    const handleProposalStatusChange = async (newStatus) => {
+        if (!selectedProposal) return;
+
+        const role = user.role;
+        const baseEndpoint =
+            role === "PROWADZACY"
+                ? "/leader"
+                : role === "STAROSTA"
+                    ? "/representative"
+                    : null;
+
+        if (!baseEndpoint) return;
+
+        // Budujemy poprawny URL z /proposals/{id}/changestatus/{role} oraz parametrem query new_status
+        const endpoint = `/proposals/${selectedProposal.id}/changestatus${baseEndpoint}?new_status=${newStatus}`;
+
+        try {
+            await apiRequest(endpoint, {
+                method: "POST",
+                // usuń body - backend oczekuje parametru w query, więc nie wysyłamy ciała
+            });
+
+            // odśwież rekomendacje po zmianie
+            if (selectedRequestId) {
+                fetchRecommendations(selectedRequestId);
+            }
+
+            handleCloseDialog();
+        } catch (error) {
+            console.error("Błąd podczas zmiany statusu propozycji:", error);
+        }
+    };
+
+
+
+
 
     const formatSlotTime = (slotId) => {
         const slots = [
@@ -182,8 +241,8 @@ const MyRecommendationsPage = () => {
                         <List>
                             {recommendations.map((rec) => (
                                 <React.Fragment key={rec.id}>
-                                    <ListItem>
-                                        <ListItemText
+                                    <ListItem button onClick={() => handleSelectProposal(rec)}>
+                                    <ListItemText
                                             primary={`Data: ${rec.recommended_day}`}
                                             secondary={
                                                 <>
@@ -197,12 +256,47 @@ const MyRecommendationsPage = () => {
                                 </React.Fragment>
                             ))}
                         </List>
-                    </Paper>
-                ) : (
+                    </Paper>) : (
                     selectedRequestId && (
                         <Typography variant="body1">Brak rekomendacji dla wybranego zgłoszenia.</Typography>
                     )
+
                 )}
+                <Dialog open={openDialog} onClose={handleCloseDialog}>
+                    <DialogTitle>Szczegóły propozycji</DialogTitle>
+                    <DialogContent>
+                        {selectedProposal && (
+                            <List>
+                                <ListItem>
+                                    <ListItemText primary="Data" secondary={selectedProposal.recommended_day} />
+                                </ListItem>
+                                <ListItem>
+                                    <ListItemText primary="Slot" secondary={formatSlotTime(selectedProposal.recommended_slot_id)} />
+                                </ListItem>
+                                <ListItem>
+                                    <ListItemText
+                                        primary="Sala"
+                                        secondary={roomNames[selectedProposal.recommended_room_id] || selectedProposal.recommended_room_id}
+                                    />
+                                </ListItem>
+                            </List>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseDialog}>Zamknij</Button>
+                        {["STAROSTA", "PROWADZACY"].includes(user.role) && (
+                            <>
+                                <Button onClick={() => handleProposalStatusChange(false)} color="error" variant="outlined">
+                                    Odrzuć
+                                </Button>
+                                <Button onClick={() => handleProposalStatusChange(true)} color="primary" variant="contained">
+                                    Zaakceptuj
+                                </Button>
+                            </>
+                        )}
+                    </DialogActions>
+                </Dialog>
+
             </Box>
         </Box>
     );
