@@ -1,7 +1,7 @@
 
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from model import ChangeRequest, CourseEvent, User
+from model import ChangeRequest, CourseEvent, User, ChangeRequestStatus
 from routers.auth import get_current_user
 from routers.schemas import (
     ChangeRequestCreate,
@@ -155,6 +155,10 @@ async def update_request(
     db.commit()
     db.refresh(existing_request)
     return existing_request
+
+
+
+
 
 
 @router.delete("/{request_id}", status_code=HTTP_204_NO_CONTENT)

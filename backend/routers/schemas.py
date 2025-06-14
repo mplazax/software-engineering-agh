@@ -165,6 +165,8 @@ class ProposalUpdate(BaseModel):
 class ProposalResponse(BaseModel):
     id: int
     change_request_id: int
+    accepted_by_leader: bool
+    accepted_by_representative: bool
     user_id: int
     day: date
     time_slot_id: int

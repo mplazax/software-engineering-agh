@@ -1,7 +1,7 @@
 
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from model import AvailabilityProposal, ChangeRequest, User
+from model import AvailabilityProposal, ChangeRequest, User, ChangeRequestStatus
 from routers.auth import get_current_user
 from routers.schemas import ProposalCreate, ProposalResponse, ProposalUpdate
 from sqlalchemy.orm import Session
@@ -12,6 +12,9 @@ from starlette.status import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
 )
+
+from backend.model import UserRole
+from backend.routers.auth import role_required
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
@@ -167,6 +170,49 @@ async def create_proposal(
     db.refresh(new_proposal)
     return new_proposal
 
+
+@router.post("/{proposal_id}/changestatus/leader", response_model=ProposalResponse)
+async def change_status_by_leader(
+        proposal_id: int, new_status: bool, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.PROWADZACY]))
+):
+    proposal = db.query(ChangeRequest).filter(AvailabilityProposal.id == proposal_id).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    request = proposal.change_request
+    proposal.accepted_by_leader = new_status
+
+    if new_status == False:
+        request.status = ChangeRequestStatus.REJECTED
+    elif proposal.accepted_by_leader and proposal.accepted_by_representative:
+        request.status = ChangeRequestStatus.ACCEPTED
+
+    db.commit()
+    db.refresh(request)
+    db.refresh(proposal)
+    return proposal
+
+
+@router.post("/{proposal_id}/changestatus/representative", response_model=ProposalResponse)
+async def change_status_by_representative(
+        proposal_id: int, new_status: bool, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.STAROSTA]))
+):
+    proposal = db.query(ChangeRequest).filter(AvailabilityProposal.id == proposal_id).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    request = proposal.change_request
+    proposal.accepted_by_representative = new_status
+
+    if new_status == False:
+        request.status = ChangeRequestStatus.REJECTED
+    elif proposal.accepted_by_leader and proposal.accepted_by_representative:
+        request.status = ChangeRequestStatus.ACCEPTED
+
+    db.commit()
+    db.refresh(request)
+    db.refresh(proposal)
+    return proposal
 
 @router.put("/{proposal_id}", response_model=ProposalResponse, status_code=HTTP_200_OK)
 async def update_proposal(
