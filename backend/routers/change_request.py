@@ -43,6 +43,56 @@ async def get_requests(
     return requests
 
 
+@router.get("/related", response_model=list[ChangeRequestResponse], status_code=HTTP_200_OK)
+async def get_related_requests(
+        status: ChangeRequestStatus | None = Query(default=None, description="Optional status filter"),
+        skip: int = 0,
+        limit: int = 10,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+) -> list[ChangeRequest]:
+    """
+    Get all change requests related to the current user, optionally filtered by status,
+    with pagination.
+    Includes requests:
+    - created by the user
+    - for courses where the user is the teacher
+    - for courses where the user is group leader (starosta)
+    """
+    # kursy, jeśli prowadzący
+    teacher_event_ids = (
+        db.query(CourseEvent.id)
+        .join(Course)
+        .filter(Course.teacher_id == current_user.id)
+        .subquery()
+    )
+
+    # kursy, gdzie jest starostą grupy
+    leader_event_ids = (
+        db.query(CourseEvent.id)
+        .join(Course)
+        .join(Group)
+        .filter(Group.leader_id == current_user.id)
+        .subquery()
+    )
+
+    query = (
+        db.query(ChangeRequest)
+        .filter(
+            or_(
+                ChangeRequest.initiator_id == current_user.id,
+                ChangeRequest.course_event_id.in_(teacher_event_ids),
+                ChangeRequest.course_event_id.in_(leader_event_ids),
+            )
+        )
+    )
+
+    if status:
+        query = query.filter(ChangeRequest.status == status)
+
+    return query.offset(skip).limit(limit).all()
+
+
 @router.get(
     "/{event_id}", response_model=ChangeRequestResponse, status_code=HTTP_200_OK
 )
@@ -187,53 +237,3 @@ async def delete_request(
     db.delete(existing_request)
     db.commit()
     return
-
-
-@router.get("/related", response_model=list[ChangeRequestResponse], status_code=HTTP_200_OK)
-async def get_related_requests(
-        status: ChangeRequestStatus | None = Query(default=None, description="Optional status filter"),
-        skip: int = 0,
-        limit: int = 10,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-) -> list[ChangeRequest]:
-    """
-    Get all change requests related to the current user, optionally filtered by status,
-    with pagination.
-    Includes requests:
-    - created by the user
-    - for courses where the user is the teacher
-    - for courses where the user is group leader (starosta)
-    """
-    # kursy, jeśli prowadzący
-    teacher_event_ids = (
-        db.query(CourseEvent.id)
-        .join(Course)
-        .filter(Course.teacher_id == current_user.id)
-        .subquery()
-    )
-
-    # kursy, gdzie jest starostą grupy
-    leader_event_ids = (
-        db.query(CourseEvent.id)
-        .join(Course)
-        .join(Group)
-        .filter(Group.leader_id == current_user.id)
-        .subquery()
-    )
-
-    query = (
-        db.query(ChangeRequest)
-        .filter(
-            or_(
-                ChangeRequest.initiator_id == current_user.id,
-                ChangeRequest.course_event_id.in_(teacher_event_ids),
-                ChangeRequest.course_event_id.in_(leader_event_ids),
-            )
-        )
-    )
-
-    if status:
-        query = query.filter(ChangeRequest.status == status)
-
-    return query.offset(skip).limit(limit).all()

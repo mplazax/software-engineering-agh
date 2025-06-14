@@ -137,6 +137,7 @@ class ChangeRequestUpdate(BaseModel):
 
 
 class ChangeRequestResponse(BaseModel):
+    id: int
     course_event_id: int
     initiator_id: int
     status: ChangeRequestStatus

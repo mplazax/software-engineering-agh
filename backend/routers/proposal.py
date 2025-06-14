@@ -1,8 +1,8 @@
 
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from model import AvailabilityProposal, ChangeRequest, User, ChangeRequestStatus
-from routers.auth import get_current_user
+from model import AvailabilityProposal, ChangeRequest, User, ChangeRequestStatus, UserRole
+from routers.auth import get_current_user, role_required
 from routers.schemas import ProposalCreate, ProposalResponse, ProposalUpdate
 from sqlalchemy.orm import Session
 from starlette.status import (
@@ -12,9 +12,6 @@ from starlette.status import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
 )
-
-from backend.model import UserRole
-from backend.routers.auth import role_required
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
