@@ -181,6 +181,7 @@ class ChangeRequest(Base):
 
     reason = Column(Text, nullable=False)
     room_requirements = Column(Text, default=False)
+    minimum_capacity = Column(Integer, default=0)
     created_at = Column(DateTime, nullable=False)
 
     course_event = relationship("CourseEvent", back_populates="change_requests")
