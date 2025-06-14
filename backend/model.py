@@ -162,6 +162,8 @@ class ChangeRequest(Base):
         nullable=False,
         default=ChangeRequestStatus.PENDING.value,
     )
+
+
     reason = Column(Text, nullable=False)
     room_requirements = Column(Text, default=False)
     created_at = Column(DateTime, nullable=False)
@@ -190,6 +192,9 @@ class AvailabilityProposal(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     day = Column(Date, nullable=False)
     time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
+
+    accepted_by_leader = Column(Boolean, default=False)
+    accepted_by_representative = Column(Boolean, default=False)
 
     change_request = relationship(
         "ChangeRequest", back_populates="availability_proposals"
