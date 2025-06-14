@@ -221,3 +221,9 @@ class ChangeRecomendation(Base):
     change_request = relationship(
         "ChangeRequest", back_populates="change_to_recommendation"
     )
+
+    source_proposal_id = Column(
+        Integer, ForeignKey("availability_proposals.id"), nullable=True)
+    source_proposal = relationship(
+        "AvailabilityProposal",
+    )

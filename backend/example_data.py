@@ -191,11 +191,17 @@ def add_data(DATABASE_URL):
         proposal2 = AvailabilityProposal(
             change_request=req1,
             user=teacher,
+            time_slot=time_slot_objects[2],
+            day=(now + timedelta(days=2)).date(),
+        )
+        proposal3 = AvailabilityProposal(
+            change_request=req1,
+            user=teacher,
             time_slot=time_slot_objects[3],
             day=(now + timedelta(days=3)).date(),
         )
 
-        session.add_all([proposal1, proposal2])
+        session.add_all([proposal1, proposal2, proposal3])
         session.flush()  # Get IDs for availability proposals
 
         # --- Add Change recommendation ---
@@ -206,6 +212,7 @@ def add_data(DATABASE_URL):
             recommended_day=(now + timedelta(days=2)).date(),
             recommended_interval=time_slot_objects[2],
             recommended_room=room2,
+            source_proposal=proposal1,
         )
 
         session.add_all([recommendation1])

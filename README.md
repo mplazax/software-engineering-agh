@@ -57,7 +57,7 @@ Ten projekt jest częścią zajęć z Inżynierii Oprogramowania na AGH.
 ## Autorzy
 
 - Mateusz Bartnicki - Backend
-- Piotr Andres - Backend
+- Piotr Andres - Backend/Baza
 - Dominik Dróżdż - Frontend/DevOps
-- Maciej Wilewski - Frontend/Baza
+- Maciej Wilewski - Frontend
 - Michał Plaza - Backend/PM

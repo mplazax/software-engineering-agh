@@ -89,7 +89,7 @@ async def find_and_add_common_availability(
             ~Room.id.in_(
                 db.query(CourseEvent.room_id).filter(
                     CourseEvent.day == day,
-                    CourseEvent.time_slot_id == slot_id.id,
+                    CourseEvent.time_slot_id == slot_id,
                     CourseEvent.canceled == False,
                 )
             ),
@@ -117,11 +117,16 @@ async def find_and_add_common_availability(
         available_rooms = available_rooms_query.all()
 
         for room in available_rooms:
+            source_proposal = next(
+                (p for p in user1_proposals if p.time_slot_id == slot_id and p.day == day),
+                None
+            )
             recommendation = ChangeRecomendation(
                 change_request_id=change_request_id,
-                recommended_slot_id=slot_id.id,
+                recommended_slot_id=slot_id,
                 recommended_day=day,
                 recommended_room_id=room.id,
+                source_proposal_id=source_proposal.id if source_proposal else None
             )
             recommendations.append(recommendation)
             db.add(recommendation)
@@ -143,7 +148,7 @@ async def get_proposals(
     change_request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[ChangeRecomendation]:
+) -> list[ChangeRecomendationResponse]:
     """
     Get all recommendations for a specific change request.
     
