@@ -26,6 +26,7 @@ const MainPage = () => {
     { title: "Użytkownicy", description: "Przeglądaj użytkowników.", path: "/users", allowedRole: ["ADMIN"] },
     { title: "Grupy", description: "Przeglądaj grupy.", path: "/groups", allowedRole: ["ADMIN", "KOORDYNATOR"] },
     { title: "Kursy", description: "Przeglądaj kursy.", path: "/courses", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY"] },
+    { title: "Rekomendacje", description: "Sprawdź rekomendacje zmian dla prowadzonych lub zgłoszonych zajęć.",  path: "/recommendations",  allowedRole: ["STAROSTA", "PROWADZACY"] },
   ];
 
 
