@@ -40,7 +40,7 @@ const ChangeRequestsPage = () => {
   const [view, setView] = useState(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const navigate = useNavigate();
-  const { user } = useContext(UserContext);
+  const { user, loading } = useContext(UserContext);
 
   const fetchAllEvents = useCallback(async () => {
     try {
@@ -131,17 +131,23 @@ const ChangeRequestsPage = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token || !user) {
+    if (!token && !loading) {
       navigate("/login", { replace: true });
     }
-    if (user.role === "ADMIN" || user.role === "KOORDYNATOR") {
-      fetchAllEvents();
-    } else if (user.role === "PROWADZACY") {
-      fetchTeacherGroupEvents();
-    } else if (user.role === "STAROSTA") {
-      fetchStarostaGroupEvents();
+    if (!loading && user) {
+      if (user.role === "ADMIN" || user.role === "KOORDYNATOR") {
+        fetchAllEvents();
+      } else if (user.role === "PROWADZACY") {
+        fetchTeacherGroupEvents();
+      } else if (user.role === "STAROSTA") {
+        fetchStarostaGroupEvents();
+      }
     }
-  }, [user, navigate, fetchAllEvents, fetchTeacherGroupEvents, fetchStarostaGroupEvents]);
+  }, [user, loading, navigate, fetchAllEvents, fetchTeacherGroupEvents, fetchStarostaGroupEvents]);
+
+  if (loading) {
+    return;
+  }
 
   // Funkcja pomocnicza do wyliczania godzin na podstawie slotu
   const getSlotTimes = (day, slot) => {

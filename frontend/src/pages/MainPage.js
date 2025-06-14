@@ -12,6 +12,7 @@ const MainPage = () => {
   console.log("Aktualny użytkownik:", user);
   useEffect(() => {
     const token = localStorage.getItem("token");
+    console.log("Token:", token);
     if (!token) {
       navigate("/login", { replace: true });
     }
