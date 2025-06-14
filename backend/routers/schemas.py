@@ -46,7 +46,7 @@ class RoomCreate(BaseModel):
     name: str
     capacity: int
     type: RoomType
-    equipment: str | None
+    equipment_ids: list[int] = []
 
     @validator("capacity")
     def capacity_must_be_positive(cls, value):
@@ -58,20 +58,32 @@ class RoomCreate(BaseModel):
 class RoomUpdate(BaseModel):
     capacity: int | None
     type: RoomType | None
-    equipment: str | None
+    equipment_ids: list[int] | None = None
 
     @validator("capacity")
     def check_capacity(cls, value):
         if value <= 0:
             raise ValueError("Capacity must be greater than zero")
 
+class EquipmentBase(BaseModel):
+    name: str
+
+class EquipmentCreate(EquipmentBase):
+    name: str
+
+class EquipmentResponse(EquipmentBase):
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True
 
 class RoomResponse(BaseModel):
     id: int
     name: str
     capacity: int
     type: RoomType
-    equipment: str | None = None
+    equipment: list[EquipmentResponse] = []
 
     class Config:
         orm_mode = True
@@ -123,7 +135,7 @@ class ChangeRequestCreate(BaseModel):
     status: ChangeRequestStatus
     reason: str
     room_requirements: str
-    room_capacity: int
+    minimum_capacity: int
     created_at: datetime
 
 
@@ -134,7 +146,7 @@ class ChangeRequestUpdate(BaseModel):
     status: ChangeRequestStatus | None
     reason: str | None
     room_requirements: str | None
-    room_capacity: int
+    minimum_capacity: int
     created_at: datetime
 
 
@@ -145,7 +157,7 @@ class ChangeRequestResponse(BaseModel):
     status: ChangeRequestStatus
     reason: str
     room_requirements: str
-    room_capacity: int
+    minimum_capacity: int
     created_at: datetime
 
     class Config:
@@ -250,19 +262,6 @@ class RoomUnavailabilityResponse(BaseModel):
     room_id: int
     start_datetime: date
     end_datetime: date
-
-    class Config:
-        orm_mode = True
-
-class EquipmentBase(BaseModel):
-    name: str
-
-class EquipmentCreate(EquipmentBase):
-    name: str
-
-class EquipmentResponse(EquipmentBase):
-    id: int
-    name: str
 
     class Config:
         orm_mode = True
