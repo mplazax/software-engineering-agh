@@ -16,14 +16,14 @@ const Navbar = () => {
       <Container maxWidth="xl">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            System Zarządzania Zajęciami
+            System Zgłaszania Zmian w Planie Zajęć
           </Typography>
           <Box>
             <Button color="inherit" onClick={() => navigate("/main")}>
               Strona główna
             </Button>
             <Button color="inherit" onClick={() => navigate("/requests")}>
-              Zgłoszenia
+              Plan zajęć
             </Button>
             <Button color="inherit" onClick={handleLogout}>
               Wyloguj
