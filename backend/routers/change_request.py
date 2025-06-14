@@ -50,7 +50,7 @@ async def get_related_requests(
         limit: int = 10,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
-) -> list[ChangeRequest]:
+) -> list[ChangeRequestResponse]:
     """
     Get all change requests related to the current user, optionally filtered by status,
     with pagination.

@@ -123,7 +123,7 @@ class ChangeRequestCreate(BaseModel):
     status: ChangeRequestStatus
     reason: str
     room_requirements: str
-    room_capacity: int
+    minimum_capacity: int
     created_at: datetime
 
 
@@ -134,7 +134,7 @@ class ChangeRequestUpdate(BaseModel):
     status: ChangeRequestStatus | None
     reason: str | None
     room_requirements: str | None
-    room_capacity: int
+    minimum_capacity: int
     created_at: datetime
 
 
@@ -145,7 +145,7 @@ class ChangeRequestResponse(BaseModel):
     status: ChangeRequestStatus
     reason: str
     room_requirements: str
-    room_capacity: int
+    minimum_capacity: int
     created_at: datetime
 
     class Config:
