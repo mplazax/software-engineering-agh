@@ -36,7 +36,12 @@ const ChangeRequestsPage = () => {
   const [eventDetails, setEventDetails] = useState(null);
   const [openEventDialog, setOpenEventDialog] = useState(false);
   const [openChangeDialog, setopenChangeDialog] = useState(false);
-  const [formData, setFormData] = useState({ reason: "", room_requirements: "" });
+  const [formData, setFormData] = useState({
+    reason: "",
+    room_requirements: "",
+    minimum_capacity: "",
+  });
+
   const [view, setView] = useState(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const navigate = useNavigate();
@@ -173,6 +178,7 @@ const ChangeRequestsPage = () => {
       let room = null;
       if (event.room_id) {
         room = await apiRequest(`/rooms/${event.room_id}`);
+        console.log(room);
       }
       setEventDetails({
         ...event,
@@ -207,8 +213,10 @@ const ChangeRequestsPage = () => {
         status: "PENDING",
         reason: formData.reason,
         room_requirements: formData.room_requirements,
+        minimum_capacity: parseInt(formData.minimum_capacity, 10),
         created_at: new Date().toISOString(),
       };
+
 
       await apiRequest("/change_requests/", {
         method: "POST",
@@ -318,8 +326,16 @@ const ChangeRequestsPage = () => {
                     <ListItemText primary="Pojemność" secondary={eventDetails.room.capacity} />
                   </ListItem>
                   <ListItem>
-                    <ListItemText primary="Wyposażenie" secondary={eventDetails.room.equipment || "Brak danych"} />
+                    <ListItemText
+                        primary="Wyposażenie"
+                        secondary={
+                          eventDetails.room.equipment.length > 0
+                              ? eventDetails.room.equipment.map((e) => e.name).join(", ")
+                              : "Brak danych"
+                        }
+                    />
                   </ListItem>
+
                 </>
               )}
             </List>
@@ -352,6 +368,16 @@ const ChangeRequestsPage = () => {
               value={formData.room_requirements}
               onChange={handleChange}
           />
+          <TextField
+              margin="dense"
+              label="Minimalna pojemność sali"
+              name="minimum_capacity"
+              fullWidth
+              type="number"
+              value={formData.minimum_capacity}
+              onChange={handleChange}
+          />
+
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseChangeDialog}>Anuluj</Button>
