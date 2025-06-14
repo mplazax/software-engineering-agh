@@ -25,6 +25,14 @@ const MyRecommendationsPage = () => {
     const [recommendations, setRecommendations] = useState([]);
     const [roomNames, setRoomNames] = useState({});
     const navigate = useNavigate();
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const statusLabels = {
+        PENDING: "Oczekujące",
+        ACCEPTED: "Zaakceptowane",
+        REJECTED: "Odrzucone",
+        CANCELLED: "Anulowane",
+    };
+
 
     useEffect(() => {
         if (!loading && !localStorage.getItem("token")) {
@@ -35,11 +43,16 @@ const MyRecommendationsPage = () => {
             fetchRelatedRequests();
             fetchCourses();
         }
-    }, [loading, user, navigate]);
+    }, [loading, user, navigate, selectedStatus]);
 
     const fetchRelatedRequests = async () => {
         try {
-            const result = await apiRequest("/change_requests/related?limit=1000");
+            const queryParams = new URLSearchParams({ limit: 1000 });
+            if (selectedStatus) {
+                queryParams.append("status", selectedStatus);
+            }
+            const result = await apiRequest(`/change_requests/related?${queryParams.toString()}`);
+
             setChangeRequests(result);
         } catch (error) {
             console.error("Błąd podczas pobierania powiązanych zgłoszeń zmian:", error);
@@ -107,6 +120,11 @@ const MyRecommendationsPage = () => {
         fetchRecommendations(requestId);
     };
 
+    const handleStatusChange = (e) => {
+        setSelectedStatus(e.target.value);
+    };
+
+
     const formatSlotTime = (slotId) => {
         const slots = [
             "08:00 - 09:30",
@@ -127,6 +145,22 @@ const MyRecommendationsPage = () => {
                 <Typography variant="h4" gutterBottom>
                     Rekomendacje dla Twoich zgłoszeń zmian
                 </Typography>
+                <FormControl fullWidth sx={{ marginBottom: 2 }}>
+                    <InputLabel>Status zgłoszenia</InputLabel>
+                    <Select
+                        value={selectedStatus}
+                        onChange={handleStatusChange}
+                        label="Status zgłoszenia"
+                    >
+                        <MenuItem value="">Wszystkie</MenuItem>
+                        {Object.entries(statusLabels).map(([value, label]) => (
+                            <MenuItem key={value} value={value}>
+                                {label}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
 
                 <FormControl fullWidth sx={{ marginBottom: 3 }}>
                     <InputLabel>Wybierz zgłoszenie zmiany</InputLabel>
