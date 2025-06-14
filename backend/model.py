@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    Table,
 )
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -73,6 +74,20 @@ class User(Base):
     initiated_requests = relationship("ChangeRequest", back_populates="initiator")
     availability_proposals = relationship("AvailabilityProposal", back_populates="user")
 
+room_equipment_association = Table(
+    "room_equipment",
+    Base.metadata,
+    Column("room_id", Integer, ForeignKey("rooms.id")),
+    Column("equipment_id", Integer, ForeignKey("equipment.id")),
+)
+
+class Equipment(Base):
+    __tablename__ = "equipment"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+
+    rooms = relationship("Room", secondary=room_equipment_association, back_populates="equipment")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -80,7 +95,7 @@ class Room(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     capacity = Column(Integer, nullable=True)
-    equipment = Column(Text, nullable=True)
+    equipment = relationship("Equipment", secondary=room_equipment_association, back_populates="rooms")
     type = Column(Enum(RoomType), nullable=True)
 
     course_events = relationship("CourseEvent", back_populates="room")

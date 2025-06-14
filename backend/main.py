@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from routers import (
     auth,
     change_recommendation,
@@ -10,6 +11,7 @@ from routers import (
     room,
     room_unavailability,
     user,
+    equipment,
 )
 
 app = FastAPI()
@@ -23,6 +25,7 @@ app.include_router(change_request.router)
 app.include_router(courses.router)
 app.include_router(change_recommendation.router)
 app.include_router(room_unavailability.router)
+app.include_router(equipment.router)
 
 origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

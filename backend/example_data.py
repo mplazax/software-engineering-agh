@@ -14,7 +14,7 @@ from model import (
     RoomUnavailability,
     TimeSlots,
     User,
-    UserRole,
+    UserRole, Equipment,
 )
 
 # Import your password hashing function
@@ -75,19 +75,31 @@ def add_data(DATABASE_URL):
         student.group = group1
         session.flush()  # Ensure student's group_id is updated
 
+        # --- Add Equipment ---
+        projector = Equipment(name="Projector")
+        whiteboard = Equipment(name="Whiteboard")
+        pc_lab = Equipment(name="PC Lab")
+
+        session.add_all([projector, whiteboard, pc_lab])
+        session.flush()
+
         # --- Add Rooms ---
         room1 = Room(
             name="Lab 101",
             capacity=30,
-            equipment="PCs, Projector",
             type=RoomType.LABORATORY,
         )
         room2 = Room(
             name="Hall A",
             capacity=100,
-            equipment="Microphones",
             type=RoomType.LECTURE_HALL,
         )
+
+
+        room1.equipment.append(pc_lab)
+        room1.equipment.append(projector)
+        room2.equipment.append(whiteboard)
+        room2.equipment.append(projector)
 
         session.add_all([room1, room2])
         session.flush()  # Get IDs for rooms

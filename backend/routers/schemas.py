@@ -250,3 +250,15 @@ class RoomUnavailabilityResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class EquipmentBase(BaseModel):
+    name: str
+
+class EquipmentCreate(EquipmentBase):
+    pass
+
+class EquipmentResponse(EquipmentBase):
+    id: int
+
+    class Config:
+        orm_mode = True
