@@ -12,6 +12,7 @@ const MainPage = () => {
   console.log("Aktualny użytkownik:", user);
   useEffect(() => {
     const token = localStorage.getItem("token");
+    console.log("Token:", token);
     if (!token) {
       navigate("/login", { replace: true });
     }
@@ -19,8 +20,7 @@ const MainPage = () => {
 
 
   const features = [
-    { title: "Zgłoszenia", description: "Przeglądaj zgłoszenia zmian.", path: "/requests", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
-    { title: "Dostępność", description: "Wskaż swoją dostępność.", path: "/availability", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
+    { title: "Plan zajęć", description: "Przeglądaj twój plan zajęć i zgłaszaj potrzebę zmiany.", path: "/requests", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
     { title: "Propozycje", description: "Przeglądaj propozycje terminów.", path: "/proposals", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
     { title: "Sale", description: "Przeglądaj sale.", path: "/rooms", allowedRole: ["ADMIN", "KOORDYNATOR"] },
     { title: "Użytkownicy", description: "Przeglądaj użytkowników.", path: "/users", allowedRole: ["ADMIN"] },
@@ -39,7 +39,7 @@ const MainPage = () => {
       <Navbar />
       <Box padding={4}>
         <Typography variant="h4" gutterBottom>
-          Witaj w systemie zarządzania zajęciami!
+          Witaj!
         </Typography>
         <Grid container spacing={3}>
           {visibleFeatures.map((feature) => (

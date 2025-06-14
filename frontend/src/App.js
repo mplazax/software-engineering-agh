@@ -9,9 +9,7 @@ import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
 import ProposalsPage from "./pages/ProposalsPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
-import AvailabilityPage from "./pages/AvailabilityPage";
 import RedirectOnRoot from "./pages/RedirectOnRoot";
-import PrivateRoute from "./components/PrivateRoute";
 
 import { isAuthenticated, getCurrentUser } from "./services/authService";
 
@@ -21,12 +19,17 @@ export const ErrorContext = createContext(null);
 const App = () => {
   const [user, setUser] = useState(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     if (isAuthenticated()) {
       getCurrentUser()
-        .then((data) => setUser(data))
-        .catch(() => setUser(null));
+          .then((data) => setUser(data))
+          .catch(() => setUser(null))
+          .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
   }, []);
 
@@ -34,24 +37,19 @@ const App = () => {
 
   return (
     <ErrorContext.Provider value={setError}>
-      <UserContext.Provider value={{ user, setUser }}>
+      <UserContext.Provider value={{ user, setUser, loading }}>
         <Router>
           <Box sx={{ paddingTop: 8 }}>
             <Routes>
               <Route path="/" element={<RedirectOnRoot />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/main" element={
-                <PrivateRoute>
-                  <MainPage />
-                </PrivateRoute>
-              } />
+              <Route path="/main" element={<MainPage />} />
               <Route path="/rooms" element={<RoomsPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/groups" element={<GroupsPage />} />
               <Route path="/courses" element={<CoursesPage />} />
               <Route path="/proposals" element={<ProposalsPage />} />
               <Route path="/requests" element={<ChangeRequestsPage />} />
-              <Route path="/availability" element={<AvailabilityPage />} />
               <Route path="*" element={<RedirectOnRoot />} />
             </Routes>
           </Box>
