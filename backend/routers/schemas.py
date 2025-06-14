@@ -210,6 +210,14 @@ class CourseEventResponse(CourseEventCreate):
     class Config:
         orm_mode = True
 
+class AvailabilityProposalResponse(BaseModel):
+    id: int
+    user_id: int
+    day: date
+    time_slot_id: int
+
+    class Config:
+        orm_mode = True
 
 class ChangeRecomendationResponse(BaseModel):
     id: int
@@ -217,6 +225,7 @@ class ChangeRecomendationResponse(BaseModel):
     recommended_day: date
     recommended_slot_id: int
     recommended_room_id: int
+    proposals: list[AvailabilityProposalResponse]
 
     class Config:
         orm_mode = True
