@@ -178,7 +178,6 @@ class ChangeRequest(Base):
         default=ChangeRequestStatus.PENDING.value,
     )
 
-
     reason = Column(Text, nullable=False)
     room_requirements = Column(Text, default=False)
     minimum_capacity = Column(Integer, default=0)

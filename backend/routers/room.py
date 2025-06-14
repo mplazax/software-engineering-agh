@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
-from model import CourseEvent, Room, RoomType, RoomUnavailability, UserRole, User
+from model import CourseEvent, Room, RoomType, RoomUnavailability, UserRole, User, Equipment
 from routers.auth import get_current_user, role_required
 from routers.schemas import RoomCreate, RoomResponse, RoomUpdate
 from sqlalchemy import not_, or_
@@ -236,12 +236,17 @@ async def create_room(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Room with this name already exists",
         )
-    if room.type not in RoomType:
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST, detail="Invalid room type"
-        )
 
-    new_room = Room(**room.dict())
+    new_room = Room(
+        name=room.name,
+        capacity=room.capacity,
+        type=room.type,
+    )
+
+    if room.equipment_ids:
+        equipment_objs = db.query(Equipment).filter(Equipment.id.in_(room.equipment_ids)).all()
+        new_room.equipment = equipment_objs
+
     db.add(new_room)
     db.commit()
     db.refresh(new_room)
@@ -274,27 +279,31 @@ async def update_room(
     existing_room = db.query(Room).filter(Room.id == room_id).first()
     if not existing_room:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
+
     if room.capacity is not None and room.capacity <= 0:
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Capacity must be greater than zero",
         )
-    if room.type is not None and room.type not in RoomType:
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST, detail="Invalid room type"
-        )
-    if room.name is not None:
-        existing_name_room = (
-            db.query(Room).filter(Room.name == room.name, Room.id != room_id).first()
-        )
-        if existing_name_room:
-            raise HTTPException(
-                status_code=HTTP_400_BAD_REQUEST,
-                detail="Room with this name already exists",
-            )
 
-    for key, value in room.dict(exclude_unset=True).items():
-        setattr(existing_room, key, value)
+    if room.name:
+        duplicate = db.query(Room).filter(Room.name == room.name, Room.id != room_id).first()
+        if duplicate:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Room with this name already exists")
+        existing_room.name = room.name
+
+    if room.capacity is not None:
+        if room.capacity <= 0:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Capacity must be greater than zero")
+        existing_room.capacity = room.capacity
+
+    if room.type is not None:
+        existing_room.type = room.type
+
+    if room.equipment_ids is not None:
+        equipment_objs = db.query(Equipment).filter(Equipment.id.in_(room.equipment_ids)).all()
+        existing_room.equipment = equipment_objs
+
     db.commit()
     db.refresh(existing_room)
     return existing_room

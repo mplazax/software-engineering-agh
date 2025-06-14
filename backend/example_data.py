@@ -76,9 +76,18 @@ def add_data(DATABASE_URL):
         session.flush()  # Ensure student's group_id is updated
 
         # --- Add Equipment ---
-        projector = Equipment(name="Projector")
-        whiteboard = Equipment(name="Whiteboard")
-        pc_lab = Equipment(name="PC Lab")
+        def get_or_create_equipment(session, name):
+            existing = session.query(Equipment).filter_by(name=name).first()
+            if existing:
+                return existing
+            new_eq = Equipment(name=name)
+            session.add(new_eq)
+            session.flush()  # żeby mieć ID
+            return new_eq
+
+        projector = get_or_create_equipment(session, "Projector")
+        whiteboard = get_or_create_equipment(session, "Whiteboard")
+        pc_lab = get_or_create_equipment(session, "PC Lab")
 
         session.add_all([projector, whiteboard, pc_lab])
         session.flush()
