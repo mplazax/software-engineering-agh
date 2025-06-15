@@ -184,6 +184,14 @@ async def change_status_by_leader(
     elif proposal.accepted_by_leader and proposal.accepted_by_representative:
         request.status = ChangeRequestStatus.ACCEPTED
 
+        course_event = request.course_event
+        recommendation = request.change_to_recommendation[0] if request.change_to_recommendation else None
+
+        if course_event and recommendation:
+            course_event.day = recommendation.recommended_day
+            course_event.time_slot_id = recommendation.recommended_slot_id
+            course_event.room_id = recommendation.recommended_room_id
+
     db.commit()
     db.refresh(request)
     db.refresh(proposal)
@@ -205,6 +213,14 @@ async def change_status_by_representative(
         request.status = ChangeRequestStatus.REJECTED
     elif proposal.accepted_by_leader and proposal.accepted_by_representative:
         request.status = ChangeRequestStatus.ACCEPTED
+
+        course_event = request.course_event
+        recommendation = request.change_to_recommendation[0] if request.change_to_recommendation else None
+
+        if course_event and recommendation:
+            course_event.day = recommendation.recommended_day
+            course_event.time_slot_id = recommendation.recommended_slot_id
+            course_event.room_id = recommendation.recommended_room_id
 
     db.commit()
     db.refresh(request)
