@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, MenuItem } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Card, CardContent, CardActionArea, Snackbar, Alert } from "@mui/material";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
-import { pl } from "date-fns/locale";
 
 const ProposalsPage = () => {
   const [proposals, setProposals] = useState([]);
@@ -14,7 +11,8 @@ const ProposalsPage = () => {
   const [userDetails, setUserDetails] = useState({});
   const [currentUserId, setCurrentUserId] = useState("");
   const [courseNames, setCourseNames] = useState({});
-  const [availableChangeRequests, setAvailableChangeRequests] = useState([]);
+  const [availableChangeRequests] = useState([]);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const navigate = useNavigate();
 
   // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
@@ -26,12 +24,13 @@ const ProposalsPage = () => {
     const userId = localStorage.getItem("user_id");
     setCurrentUserId(userId || "");
 
-    apiRequest("/proposals")
+    // Zamiast proposals pobieraj change_requests/related
+    apiRequest("/change_requests/related")
       .then(async (data) => {
-        setProposals(data);
+        setProposals(data); // Możesz zmienić nazwę setProposals na setChangeRequests jeśli chcesz
 
-        // Pobierz dane użytkowników tylko dla unikalnych user_id z proposals
-        const uniqueUserIds = [...new Set(data.map((p) => p.user_id))];
+        // Pobierz dane użytkowników tylko dla unikalnych user_id z change_requests
+        const uniqueUserIds = [...new Set(data.map((cr) => cr.user_id))];
         const userMap = {};
         await Promise.all(
           uniqueUserIds.map(async (id) => {
@@ -47,55 +46,26 @@ const ProposalsPage = () => {
         );
         setUserDetails(userMap);
 
-        // Pobierz nazwy kursów dla każdej propozycji
+        // Pobierz nazwy kursów dla każdego change_requesta
         const courseNameMap = {};
         await Promise.all(
-          data.map(async (proposal) => {
+          data.map(async (cr) => {
             try {
-              const changeRequestId = proposal.change_request_id;
-              if (!changeRequestId) return;
-              const changeRequest = await apiRequest(`/change_requests/${changeRequestId}?request_id=${changeRequestId}`);
-              const courseEventId = changeRequest.course_event_id;
+              const courseEventId = cr.course_event_id;
               if (!courseEventId) return;
               const courseEvent = await apiRequest(`/courses/${courseEventId}/events`);
               const courseId = courseEvent[0].course_id;
               if (!courseId) return;
               const course = await apiRequest(`/courses/${courseId}`);
-              courseNameMap[proposal.id] = course.name || "Nieznany kurs";
+              courseNameMap[cr.id] = course.name || "Nieznany kurs";
             } catch {
-              courseNameMap[proposal.id] = "Nieznany kurs";
+              courseNameMap[cr.id] = "Nieznany kurs";
             }
           })
         );
         setCourseNames(courseNameMap);
-
-        // Pobierz unikalne change_request_id z proposals i szczegóły do selecta
-        const uniqueChangeRequestIds = [...new Set(data.map((p) => p.change_request_id))].filter(Boolean);
-        const changeRequestsList = [];
-        await Promise.all(
-          uniqueChangeRequestIds.map(async (id) => {
-            try {
-              const changeRequest = await apiRequest(`/change_requests/${id}?request_id=${id}`);
-              
-              const courseEventId = changeRequest.course_event_id;
-              console.log("courseEventId", courseEventId);
-              if (!courseEventId) return;
-              const courseEvent = await apiRequest(`/courses/events/${courseEventId}`);
-              console.log("courseEvent", courseEvent);
-              // courseEvent: { time_slot_id, day }
-              changeRequestsList.push({
-                id,
-                time_slot_id: courseEvent.time_slot_id,
-                day: courseEvent.day,
-              });
-            } catch {
-              // pomiń błędne
-            }
-          })
-        );
-        setAvailableChangeRequests(changeRequestsList);
       })
-      .catch((error) => console.error("Error fetching proposals:", error));
+      .catch((error) => console.error("Error fetching change requests:", error));
   }, [navigate]);
 
   const handleOpen = async () => {
@@ -144,96 +114,79 @@ const ProposalsPage = () => {
       .catch((error) => console.error("Error adding proposal:", error));
   };
 
-  // Usuwanie propozycji
-  const handleDelete = (proposalId) => {
-    // Optimistycznie usuń z UI
-    setProposals((prev) => prev.filter((proposal) => proposal.id !== proposalId));
+  // Funkcja do obsługi kliknięcia na change request
+  const handleCardClick = () => {
+    setSnackbarOpen(true);
+  };
 
-    // Wyślij żądanie DELETE do backendu
-    apiRequest(`/proposals/${proposalId}`, { method: "DELETE" })
-      .catch((error) => {
-        console.error("Error deleting proposal:", error);
-        // Przy błędzie pobierz ponownie listę
-        apiRequest("/proposals")
-          .then((data) => setProposals(data))
-          .catch(() => {});
-      });
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
   };
 
   return (
     <Box>
       <Navbar />
       <Box padding={2}>
-        {/* Dodaj poniżej */}
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Twoje proposals ID:{" "}
-          {proposals
-            .filter((p) => String(p.user_id) === String(currentUserId))
-            .map((p) => p.id)
-            .join(", ") || "Brak"}
-        </Typography>
-        <Typography variant="h4">Zarządzaj propozycjami</Typography>
-        <List>
-          {proposals.map((proposal) => {
-            const user = userDetails[proposal.user_id];
-            const courseName = courseNames[proposal.id];
+        <Typography variant="h4">Change Requests</Typography>
+        <Box display="flex" flexWrap="wrap" gap={2}>
+          {proposals.map((cr) => {
+            const user = userDetails[cr.initiator_id];
+            const courseName = courseNames[cr.id];
 
-            // Funkcja do tłumaczenia numeru slotu na zakres godzin
-            const timeSlotMap = {
-              1: "8:00-9:30",
-              2: "9:45-11:15",
-              3: "11:30-13:00",
-              4: "13:15-14:45",
-              5: "15:00-16:30",
-              6: "16:45-18:15",
-              7: "18:30-20:00",
-            };
-
-            // Formatowanie daty
-            const formatDay = (dateStr) => {
+            const formatDateTime = (dateStr) => {
               if (!dateStr) return "";
-              try {
-                return format(new Date(dateStr), "d MMMM yyyy", { locale: pl });
-              } catch {
-                return dateStr;
-              }
+              const d = new Date(dateStr);
+              return d.toLocaleString();
             };
 
             return (
-              <ListItem
-                key={proposal.id}
-                secondaryAction={
-                  <IconButton edge="end" onClick={() => handleDelete(proposal.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                }
+              <Card
+                key={cr.id}
+                sx={{ width: 340, minHeight: 220, display: "flex", flexDirection: "column" }}
+                variant="outlined"
               >
-                <ListItemText
-                  primary={
-                    <>
-                      <Typography variant="h6">
-                        {courseName ? `Kurs: ${courseName}` : "Kurs: [ładowanie...]"}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {user
-                          ? `Od: ${user.name} (${user.email})`
-                          : `Od: [ładowanie...]`}
-                      </Typography>
-                    </>
-                  }
-                  secondary={
-                    proposal.day && proposal.time_slot_id
-                      ? `Dzień: ${formatDay(proposal.day)}, Slot: ${timeSlotMap[proposal.time_slot_id] || "nieznany"}`
-                      : "Brak danych o terminie"
-                  }
-                />
-              </ListItem>
+                <CardActionArea onClick={handleCardClick}>
+                  <CardContent>
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      Change Request ID: {cr.id}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Status: {cr.status}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Kurs (course_event_id): {cr.course_event_id} {courseName ? `(${courseName})` : ""}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Inicjator (initiator_id): {cr.initiator_id} {user ? `(${user.name} - ${user.email})` : ""}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Powód: {cr.reason}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Wymagania sali: {cr.room_requirements}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Minimalna pojemność: {cr.minimum_capacity}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Utworzono: {formatDateTime(cr.created_at)}
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
             );
           })}
-        </List>
-        <Button variant="contained" onClick={handleOpen}>
-          Dodaj propozycję
-        </Button>
+        </Box>
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={2000}
+          onClose={handleSnackbarClose}
+          anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        >
+          <Alert onClose={handleSnackbarClose} severity="info" sx={{ width: "100%" }}>
+            WIP
+          </Alert>
+        </Snackbar>
       </Box>
 
       <Dialog open={open} onClose={handleClose}>
