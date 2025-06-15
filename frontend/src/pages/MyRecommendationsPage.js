@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, {useCallback, useContext, useEffect, useState} from "react";
 import {
     Box,
     Typography,
@@ -40,37 +40,73 @@ const MyRecommendationsPage = () => {
     };
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState(null);
+    const [hasInitialized, setHasInitialized] = useState(false);
 
 
+    const fetchAndTriggerCommonAvailability = useCallback(async (requests) => {
+        for (const req of requests) {
+            try {
+                const event = await apiRequest(`/courses/events/${req.course_event_id}`);
+                const course = await apiRequest(`/courses/${event.course_id}`);
+                const group = await apiRequest(`/groups/${course.group_id}`);
 
-    useEffect(() => {
-        if (!loading && !localStorage.getItem("token")) {
-            navigate("/login", { replace: true });
+                const user1_id = user.id;
+                let user2_id = null;
+
+                if (user.role === "PROWADZACY") {
+                    user2_id = group.leader_id;
+                } else if (user.role === "STAROSTA") {
+                    user2_id = course.teacher_id;
+                }
+
+                if (user2_id) {
+                    await apiRequest(
+                        `/change_recommendation/common-availability?user1_id=${user1_id}&user2_id=${user2_id}&change_request_id=${req.id}`,
+                        { method: "POST" }
+                    );
+                }
+            } catch (err) {
+                console.warn(`Nie udało się wywołać common-availability dla requestu ${req.id}`, err);
+            }
         }
+    }, [user]);
 
-        if (!loading && user) {
-            fetchRelatedRequests();
-            fetchCourses();
-        }
-    }, [loading, user, navigate, selectedStatus]);
 
-    if (loading) {
-        return;
-    }
-
-    const fetchRelatedRequests = async () => {
+    const fetchRelatedRequests = useCallback(async () => {
         try {
             const queryParams = new URLSearchParams({ limit: 1000 });
             if (selectedStatus) {
                 queryParams.append("status", selectedStatus);
             }
             const result = await apiRequest(`/change_requests/related?${queryParams.toString()}`);
-
             setChangeRequests(result);
+            await fetchAndTriggerCommonAvailability(result);
         } catch (error) {
             console.error("Błąd podczas pobierania powiązanych zgłoszeń zmian:", error);
         }
-    };
+    }, [selectedStatus, fetchAndTriggerCommonAvailability]);
+
+    useEffect(() => {
+        if (!loading && !localStorage.getItem("token")) {
+            navigate("/login", { replace: true });
+        }
+
+        if (!loading && user && !hasInitialized) {
+            fetchRelatedRequests();
+            fetchCourses();
+            setHasInitialized(true);
+        }
+    }, [loading, user, navigate, hasInitialized, fetchRelatedRequests]);
+
+    useEffect(() => {
+        if (hasInitialized) {
+            fetchRelatedRequests();
+        }
+    }, [selectedStatus, hasInitialized, fetchRelatedRequests]);
+
+    if (loading) {
+        return;
+    }
 
     const fetchCourses = async () => {
         try {
