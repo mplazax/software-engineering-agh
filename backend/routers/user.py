@@ -2,8 +2,8 @@
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import User, UserRole
-from routers.auth import get_password_hash, role_required
-from routers.schemas import UserCreate, UserResponse
+from routers.auth import get_password_hash, role_required, get_current_user
+from routers.schemas import UserCreate, UserResponse, UserPublicResponse
 from sqlalchemy.orm import Session
 from starlette.status import (
     HTTP_200_OK,
@@ -12,7 +12,6 @@ from starlette.status import (
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
 )
-
 router = APIRouter(prefix="/users", tags=["users"])
 
 
@@ -178,3 +177,26 @@ async def delete_user(
     db.delete(db_user)
     db.commit()
     return
+
+
+@router.get("/public/{user_id}", response_model=UserPublicResponse, status_code=HTTP_200_OK)
+async def get_public_user_info(
+        user_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Retrieve limited public info about a user.
+
+    Args:
+        user_id (int): ID of the user.
+        db (Session): Database session.
+
+    Returns:
+        UserPublicResponse: Limited user data.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
+
+    return user
