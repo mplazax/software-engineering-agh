@@ -166,7 +166,7 @@ const ProposalsPage = () => {
                       Status: {cr.status}
                     </Typography> */}
                     <Typography variant="body2" color="text.secondary">
-                      Kurs (course_event_id): {cr.course_event_id} {courseName ? `(${courseName})` : ""}
+                      {courseName ? `${courseName}` : ""}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Inicjator (initiator_id): {cr.initiator_id} {user ? `(${user.name} - ${user.email})` : ""}
