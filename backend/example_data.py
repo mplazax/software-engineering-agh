@@ -1,7 +1,11 @@
+# example_data.py
+
 from datetime import datetime, time, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+# POPRAWKA 1: Upewnij się, że wszystkie potrzebne modele są importowane
 from model import (
+    Equipment,  # Upewnij się, że ten import istnieje
     User, Group, Room, Course, CourseEvent, ChangeRequest, AvailabilityProposal,
     UserRole, RoomType, ChangeRequestStatus, TimeSlots
 )
@@ -30,13 +34,10 @@ def add_data(DATABASE_URL):
         session.flush()
 
         # --- 2. Users (more of them) ---
-        # Existing users (credentials unchanged)
         admin = User(email="admin@example.com", password=get_password_hash("admin123"), name="Admin", surname="Systemu", role=UserRole.ADMIN)
         teacher1 = User(email="teacher@example.com", password=get_password_hash("teach123"), name="Jan", surname="Kowalski", role=UserRole.PROWADZACY)
         student1 = User(email="student@example.com", password=get_password_hash("stud123"), name="Anna", surname="Nowak", role=UserRole.STAROSTA)
         coordinator = User(email="koord@example.com", password=get_password_hash("koord123"), name="Barbara", surname="Koordynator", role=UserRole.KOORDYNATOR)
-
-        # New users
         teacher2 = User(email="p.zielinski@example.com", password=get_password_hash("pass123"), name="Piotr", surname="Zieliński", role=UserRole.PROWADZACY)
         teacher3 = User(email="m.wisniewska@example.com", password=get_password_hash("pass123"), name="Maria", surname="Wiśniewska", role=UserRole.PROWADZACY)
         student2 = User(email="k.wojcik@example.com", password=get_password_hash("pass123"), name="Kamil", surname="Wójcik", role=UserRole.STAROSTA)
@@ -56,19 +57,29 @@ def add_data(DATABASE_URL):
         groups_list = [group1, group2, group3, group4]
         session.add_all(groups_list)
         
-        # Link back groups to students
         student1.led_group = group1
         student2.led_group = group2
         student3.led_group = group3
         student4.led_group = group4
         session.flush()
 
-        # --- 4. Rooms ---
-        room1 = Room(name="Lab 101", capacity=30, equipment="Komputery, Rzutnik", type=RoomType.LABORATORY)
-        room2 = Room(name="Aula A", capacity=120, equipment="Mikrofony, Rzutnik", type=RoomType.LECTURE_HALL)
-        room3 = Room(name="Sala 205", capacity=25, equipment="Rzutnik, Tablica", type=RoomType.SEMINAR_ROOM)
-        room4 = Room(name="Sala 310", capacity=40, equipment="Rzutnik", type=RoomType.LECTURE_HALL)
-        room5 = Room(name="Sala konferencyjna Dziekana", capacity=15, equipment="Stół konferencyjny, Rzutnik, Wideokonferencja", type=RoomType.CONFERENCE_ROOM)
+        # --- 4. Rooms and Equipment ---
+        # First, create equipment items
+        eq_komputery = Equipment(name="Komputery")
+        eq_rzutnik = Equipment(name="Rzutnik")
+        eq_mikrofon = Equipment(name="Mikrofon")
+        eq_stol_konferencyjny = Equipment(name="Stół konferencyjny")
+        eq_wideokonferencja = Equipment(name="Wideokonferencja")
+        session.add_all([eq_komputery, eq_rzutnik, eq_mikrofon, eq_stol_konferencyjny, eq_wideokonferencja])
+        session.flush()
+
+        # POPRAWKA 2: Przypisz obiekty 'Equipment' do listy, a nie string.
+        # Now, create rooms and associate equipment
+        room1 = Room(name="Lab 101", capacity=30, equipment=[eq_komputery, eq_rzutnik], type=RoomType.LABORATORY)
+        room2 = Room(name="Sala Wykładowa A", capacity=150, equipment=[eq_rzutnik, eq_mikrofon], type=RoomType.LECTURE_HALL)
+        room3 = Room(name="Sala seminaryjna 203", capacity=25, equipment=[eq_rzutnik], type=RoomType.SEMINAR_ROOM)
+        room4 = Room(name="Laboratorium B", capacity=40, equipment=[eq_komputery], type=RoomType.LABORATORY)
+        room5 = Room(name="Sala konferencyjna Dziekana", capacity=15, equipment=[eq_stol_konferencyjny, eq_rzutnik, eq_wideokonferencja], type=RoomType.CONFERENCE_ROOM)
         
         rooms_list = [room1, room2, room3, room4, room5]
         session.add_all(rooms_list)
@@ -78,7 +89,7 @@ def add_data(DATABASE_URL):
         course1 = Course(name="Podstawy Zarządzania", teacher=teacher1, group=group1)
         course2 = Course(name="Wprowadzenie do Marketingu", teacher=teacher2, group=group3)
         course3 = Course(name="Analiza Finansowa", teacher=teacher3, group=group4)
-        course4 = Course(name="Podstawy Zarządzania (gr B)", teacher=teacher1, group=group2) # The same course for another group
+        course4 = Course(name="Podstawy Zarządzania (gr B)", teacher=teacher1, group=group2)
         course5 = Course(name="Ekonometria", teacher=teacher3, group=group4)
         
         courses_list = [course1, course2, course3, course4, course5]
@@ -96,32 +107,24 @@ def add_data(DATABASE_URL):
         session.add_all(events_list)
         session.flush()
 
-        # --- 7. Change Requests and Proposals (for testing various scenarios) ---
-        
-        # Scenario 1: Teacher wants to change, nobody proposed yet
-        # Prowadzący (teacher2) chce zmienić termin kursu (course2)
+        # --- 7. Change Requests and Proposals ---
         req1 = ChangeRequest(course_event=event2, initiator=teacher2, status=ChangeRequestStatus.PENDING, reason="Wyjazd służbowy", created_at=now)
         session.add(req1)
         
-        # Scenario 2: Student wants to change, only student proposed availability
-        # Starosta (student1) chce zmienić termin kursu (course1)
         req2 = ChangeRequest(course_event=event1, initiator=student1, status=ChangeRequestStatus.PENDING, reason="Kolizja z innym ważnym wydarzeniem", created_at=now)
         session.add(req2)
-        session.flush() # need ID for proposal
+        session.flush()
         prop2_stud = AvailabilityProposal(change_request=req2, user=student1, day=(now + timedelta(days=10)).date(), time_slot=time_slot_objects[0])
         session.add(prop2_stud)
 
-        # Scenario 3: Teacher wants to change, both sides proposed, there are common slots
-        # Prowadzący (teacher3) chce zmienić termin kursu (course3)
         req3 = ChangeRequest(course_event=event3, initiator=teacher3, status=ChangeRequestStatus.PENDING, reason="Ważne spotkanie naukowe", created_at=now)
         session.add(req3)
-        session.flush() # need ID for proposals
+        session.flush()
         prop3_teach = AvailabilityProposal(change_request=req3, user=teacher3, day=(now + timedelta(days=12)).date(), time_slot=time_slot_objects[2])
-        prop3_stud = AvailabilityProposal(change_request=req3, user=student3, day=(now + timedelta(days=12)).date(), time_slot=time_slot_objects[2]) # common
-        prop3_stud2 = AvailabilityProposal(change_request=req3, user=student3, day=(now + timedelta(days=13)).date(), time_slot=time_slot_objects[3]) # not common
+        prop3_stud = AvailabilityProposal(change_request=req3, user=student3, day=(now + timedelta(days=12)).date(), time_slot=time_slot_objects[2])
+        prop3_stud2 = AvailabilityProposal(change_request=req3, user=student3, day=(now + timedelta(days=13)).date(), time_slot=time_slot_objects[3])
         session.add_all([prop3_teach, prop3_stud, prop3_stud2])
 
-        # Scenario 4: Already accepted request
         req4 = ChangeRequest(course_event=event4, initiator=teacher1, status=ChangeRequestStatus.ACCEPTED, reason="Poprzednio zaakceptowane", created_at=now - timedelta(days=5))
         session.add(req4)
 
