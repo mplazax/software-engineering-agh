@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, {useCallback, useContext, useEffect, useState} from "react";
 import {
     Box,
     Typography,
@@ -40,64 +40,95 @@ const MyRecommendationsPage = () => {
     };
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState(null);
+    const [hasInitialized, setHasInitialized] = useState(false);
+    const [eventInfoMap, setEventInfoMap] = useState({}); // eventId → { courseId, day }
 
 
 
-    useEffect(() => {
-        if (!loading && !localStorage.getItem("token")) {
-            navigate("/login", { replace: true });
+    const fetchAndTriggerCommonAvailability = useCallback(async (requests) => {
+        for (const req of requests) {
+            try {
+                const event = await apiRequest(`/courses/events/${req.course_event_id}`);
+                const course = await apiRequest(`/courses/${event.course_id}`);
+                const group = await apiRequest(`/groups/${course.group_id}`);
+
+                const user1_id = user.id;
+                let user2_id = null;
+
+                if (user.role === "PROWADZACY") {
+                    user2_id = group.leader_id;
+                } else if (user.role === "STAROSTA") {
+                    user2_id = course.teacher_id;
+                }
+
+                if (user2_id) {
+                    await apiRequest(
+                        `/change_recommendation/common-availability?user1_id=${user1_id}&user2_id=${user2_id}&change_request_id=${req.id}`,
+                        { method: "POST" }
+                    );
+                }
+            } catch (err) {
+                console.warn(`Nie udało się wywołać common-availability dla requestu ${req.id}`, err);
+            }
         }
+    }, [user]);
 
-        if (!loading && user) {
-            fetchRelatedRequests();
-            fetchCourses();
-        }
-    }, [loading, user, navigate, selectedStatus]);
 
-    if (loading) {
-        return;
-    }
-
-    const fetchRelatedRequests = async () => {
+    const fetchRelatedRequests = useCallback(async () => {
         try {
             const queryParams = new URLSearchParams({ limit: 1000 });
             if (selectedStatus) {
                 queryParams.append("status", selectedStatus);
             }
             const result = await apiRequest(`/change_requests/related?${queryParams.toString()}`);
-
             setChangeRequests(result);
+            await fetchAndTriggerCommonAvailability(result);
         } catch (error) {
             console.error("Błąd podczas pobierania powiązanych zgłoszeń zmian:", error);
         }
-    };
+    }, [selectedStatus, fetchAndTriggerCommonAvailability]);
+
+    useEffect(() => {
+        if (!loading && !localStorage.getItem("token")) {
+            navigate("/login", { replace: true });
+        }
+
+        if (!loading && user && !hasInitialized) {
+            fetchRelatedRequests();
+            fetchCourses();
+            setHasInitialized(true);
+        }
+    }, [loading, user, navigate, hasInitialized, fetchRelatedRequests]);
+
+    useEffect(() => {
+        if (hasInitialized) {
+            fetchRelatedRequests();
+        }
+    }, [selectedStatus, hasInitialized, fetchRelatedRequests]);
+
+    if (loading) {
+        return;
+    }
 
     const fetchCourses = async () => {
         try {
             const courses = await apiRequest("/courses/");
             const newCoursesMap = {};
-            const eventToCourseMap = {};
-            const eventDayMap = {};
+            const newEventInfoMap = {};
 
             for (const course of courses) {
                 newCoursesMap[course.id] = course.name || `Kurs ${course.id}`;
                 const events = await apiRequest(`/courses/${course.id}/events`);
-
                 for (const event of events) {
-                    eventToCourseMap[event.id] = course.id;
-                    eventDayMap[event.id] = event.day;
+                    newEventInfoMap[event.id] = {
+                        courseId: course.id,
+                        eventDay: event.day,
+                    };
                 }
             }
 
             setCoursesMap(newCoursesMap);
-
-            setChangeRequests(prev =>
-                prev.map((req) => ({
-                    ...req,
-                    course_id: eventToCourseMap[req.course_event_id] || null,
-                    event_day: eventDayMap[req.course_event_id] || null,
-                }))
-            );
+            setEventInfoMap(newEventInfoMap);
         } catch (error) {
             console.error("Błąd podczas pobierania kursów i wydarzeń:", error);
         }
@@ -230,7 +261,7 @@ const MyRecommendationsPage = () => {
                     >
                         {changeRequests.map((request) => (
                             <MenuItem key={request.id} value={request.id}>
-                                {`${coursesMap[request.course_id] || "Nieznany kurs"}: ${request.reason} (${request.event_day ? new Date(request.event_day).toLocaleDateString() : "brak daty"})`}
+                                {`${coursesMap[eventInfoMap[request.course_event_id]?.courseId] || "Nieznany kurs"}: ${request.reason} (${eventInfoMap[request.course_event_id]?.eventDay ? new Date(eventInfoMap[request.course_event_id].eventDay).toLocaleDateString() : "brak daty"})`}
                             </MenuItem>
                         ))}
                     </Select>
