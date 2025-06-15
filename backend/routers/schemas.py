@@ -16,6 +16,13 @@ class UserResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class UserPublicResponse(BaseModel):
+    id: int
+    name: str
+    surname: str
+
+    class Config:
+        orm_mode = True
 
 class UserCreate(BaseModel):
     name: str
