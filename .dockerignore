@@ -1,0 +1,23 @@
+# Git
+.git
+.gitignore
+
+# Node
+**/node_modules
+**/npm-debug.log
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/*-venv
+**/pip-cache
+**/.ruff_cache
+
+# IDE
+**/.idea
+**/.vscode
+
+# Docker
+.dockerignore
+docker-compose.yml
