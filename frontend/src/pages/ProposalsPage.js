@@ -139,10 +139,22 @@ const ProposalsPage = () => {
               return d.toLocaleString();
             };
 
+            // Ustal kolor tła na podstawie statusu
+            let cardBg = "#fff";
+            if (cr.status === "ACCEPTED") cardBg = "#c8e6c9"; // zielony
+            if (cr.status === "PENDING") cardBg = "#fff9c4";  // żółty
+
             return (
               <Card
                 key={cr.id}
-                sx={{ width: 340, minHeight: 220, display: "flex", flexDirection: "column" }}
+                sx={{
+                  width: 340,
+                  minHeight: 220,
+                  display: "flex",
+                  flexDirection: "column",
+                  backgroundColor: cardBg,
+                  border: "1px solid #ddd"
+                }}
                 variant="outlined"
               >
                 <CardActionArea onClick={handleCardClick}>
@@ -150,9 +162,9 @@ const ProposalsPage = () => {
                     <Typography variant="subtitle1" fontWeight="bold">
                       Change Request ID: {cr.id}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    {/* <Typography variant="body2" color="text.secondary">
                       Status: {cr.status}
-                    </Typography>
+                    </Typography> */}
                     <Typography variant="body2" color="text.secondary">
                       Kurs (course_event_id): {cr.course_event_id} {courseName ? `(${courseName})` : ""}
                     </Typography>
