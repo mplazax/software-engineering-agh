@@ -70,7 +70,7 @@ async def get_proposal(
 
 
 @router.get(
-    "/{change_request_id}",
+    "/by-change-id/{change_request_id}",
     response_model=list[ProposalResponse],
     status_code=HTTP_200_OK,
 )
