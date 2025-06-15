@@ -26,5 +26,11 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Proceeding to create tables and populate data...")
-    main()
+    decision = input(
+        "Executing this script will erase all current data, Y to proceed: "
+    )
+    if decision in ["y", "Y"]:
+        print("Proceeding...")
+        main()
+    else:
+        print("Execution stopped")
