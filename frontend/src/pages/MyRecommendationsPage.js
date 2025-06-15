@@ -41,6 +41,8 @@ const MyRecommendationsPage = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState(null);
     const [hasInitialized, setHasInitialized] = useState(false);
+    const [eventInfoMap, setEventInfoMap] = useState({}); // eventId → { courseId, day }
+
 
 
     const fetchAndTriggerCommonAvailability = useCallback(async (requests) => {
@@ -112,28 +114,21 @@ const MyRecommendationsPage = () => {
         try {
             const courses = await apiRequest("/courses/");
             const newCoursesMap = {};
-            const eventToCourseMap = {};
-            const eventDayMap = {};
+            const newEventInfoMap = {};
 
             for (const course of courses) {
                 newCoursesMap[course.id] = course.name || `Kurs ${course.id}`;
                 const events = await apiRequest(`/courses/${course.id}/events`);
-
                 for (const event of events) {
-                    eventToCourseMap[event.id] = course.id;
-                    eventDayMap[event.id] = event.day;
+                    newEventInfoMap[event.id] = {
+                        courseId: course.id,
+                        eventDay: event.day,
+                    };
                 }
             }
 
             setCoursesMap(newCoursesMap);
-
-            setChangeRequests(prev =>
-                prev.map((req) => ({
-                    ...req,
-                    course_id: eventToCourseMap[req.course_event_id] || null,
-                    event_day: eventDayMap[req.course_event_id] || null,
-                }))
-            );
+            setEventInfoMap(newEventInfoMap);
         } catch (error) {
             console.error("Błąd podczas pobierania kursów i wydarzeń:", error);
         }
@@ -266,7 +261,7 @@ const MyRecommendationsPage = () => {
                     >
                         {changeRequests.map((request) => (
                             <MenuItem key={request.id} value={request.id}>
-                                {`${coursesMap[request.course_id] || "Nieznany kurs"}: ${request.reason} (${request.event_day ? new Date(request.event_day).toLocaleDateString() : "brak daty"})`}
+                                {`${coursesMap[eventInfoMap[request.course_event_id]?.courseId] || "Nieznany kurs"}: ${request.reason} (${eventInfoMap[request.course_event_id]?.eventDay ? new Date(eventInfoMap[request.course_event_id].eventDay).toLocaleDateString() : "brak daty"})`}
                             </MenuItem>
                         ))}
                     </Select>
