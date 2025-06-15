@@ -1,139 +1,107 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Card, CardContent, CardActionArea, Snackbar, Alert, IconButton } from "@mui/material";
+import {
+  Box, Typography, Button, Dialog, DialogTitle, DialogContent,
+  DialogActions, TextField, MenuItem, Card, CardContent, CardActionArea,
+  IconButton, List, ListItem, ListItemText
+} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { useNavigate } from "react-router-dom";
 
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleString();
+};
+
 const ProposalsPage = () => {
-  const [proposals, setProposals] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ change_request_id: "", user_id: "", day: "", time_slot_id: "" });
+  const [changeRequests, setChangeRequests] = useState([]);
   const [userDetails, setUserDetails] = useState({});
-  const [currentUserId, setCurrentUserId] = useState("");
   const [courseNames, setCourseNames] = useState({});
-  const [availableChangeRequests] = useState([]);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
+  const [selectedCR, setSelectedCR] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [proposals, setProposals] = useState([]);
+  const [newProposal, setNewProposal] = useState({ day: "", time_slot_id: "" });
   const navigate = useNavigate();
 
-  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login", { replace: true });
-    }
-    const userId = localStorage.getItem("user_id");
-    setCurrentUserId(userId || "");
+    if (!token) return navigate("/login", { replace: true });
 
-    // Zamiast proposals pobieraj change_requests/related
-    apiRequest("/change_requests/related")
-      .then(async (data) => {
-        setProposals(data); // Możesz zmienić nazwę setProposals na setChangeRequests jeśli chcesz
+    apiRequest("/change_requests/related").then(async (data) => {
+      setChangeRequests(data);
 
-        // Pobierz dane użytkowników tylko dla unikalnych user_id z change_requests
-        const uniqueUserIds = [...new Set(data.map((cr) => cr.user_id))];
-        const userMap = {};
-        await Promise.all(
-          uniqueUserIds.map(async (id) => {
-            if (id) {
-              try {
-                const user = await apiRequest(`/users/${id}`);
-                userMap[id] = user;
-              } catch (e) {
-                userMap[id] = { name: "Nieznany", email: "" };
-              }
-            }
-          })
-        );
-        setUserDetails(userMap);
+      const userMap = {};
+      const uniqueUserIds = [...new Set(data.map((cr) => cr.user_id))];
+      await Promise.all(uniqueUserIds.map(async (id) => {
+        try {
+          const user = await apiRequest(`/users/${id}`);
+          userMap[id] = user;
+        } catch {
+          userMap[id] = { name: "Nieznany", email: "" };
+        }
+      }));
+      setUserDetails(userMap);
 
-        // Pobierz nazwy kursów dla każdego change_requesta
-        const courseNameMap = {};
-        await Promise.all(
-          data.map(async (cr) => {
-            try {
-              const courseEventId = cr.course_event_id;
-              if (!courseEventId) return;
-              const courseEvent = await apiRequest(`/courses/${courseEventId}/events`);
-              const courseId = courseEvent[0].course_id;
-              if (!courseId) return;
-              const course = await apiRequest(`/courses/${courseId}`);
-              courseNameMap[cr.id] = course.name || "Nieznany kurs";
-            } catch {
-              courseNameMap[cr.id] = "Nieznany kurs";
-            }
-          })
-        );
-        setCourseNames(courseNameMap);
-      })
-      .catch((error) => console.error("Error fetching change requests:", error));
+      const courseMap = {};
+      await Promise.all(data.map(async (cr) => {
+        try {
+          const event = await apiRequest(`/courses/${cr.course_event_id}/events`);
+          const course = await apiRequest(`/courses/${event[0]?.course_id}`);
+          courseMap[cr.id] = course?.name || "Nieznany kurs";
+        } catch {
+          courseMap[cr.id] = "Nieznany kurs";
+        }
+      }));
+      setCourseNames(courseMap);
+    });
   }, [navigate]);
 
-  const handleOpen = async () => {
-    // Pobierz user_id z /auth/me
+  const openDialogForChangeRequest = async (cr) => {
+    setSelectedCR(cr);
+    setDialogOpen(true);
+    try {
+      const data = await apiRequest(`/proposals/by-change-id/${cr.id}`);
+      setProposals(data);
+    } catch (e) {
+      console.error("Error loading proposals:", e);
+      setProposals([]);
+    }
+  };
+
+  const handleAddProposal = async () => {
     try {
       const user = await apiRequest("/auth/me");
-      setFormData((prev) => ({
-        ...prev,
-        user_id: user.id || "",
-      }));
-    } catch {
-      setFormData((prev) => ({
-        ...prev,
-        user_id: "",
-      }));
+      const payload = {
+        user_id: user.id,
+        change_request_id: selectedCR.id,
+        day: newProposal.day,
+        time_slot_id: Number(newProposal.time_slot_id),
+      };
+      const created = await apiRequest("/proposals", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setProposals(prev => [...prev, created]);
+      setNewProposal({ day: "", time_slot_id: "" });
+    } catch (e) {
+      console.error("Error creating proposal", e);
     }
-    setOpen(true);
-  };
-  const handleClose = () => setOpen(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = () => {
-    apiRequest("/proposals", {
-      method: "POST",
-      body: JSON.stringify({
-      change_request_id: formData.change_request_id,
-      user_id: formData.user_id,
-      day: formData.day,
-      time_slot_id: Number(formData.time_slot_id),
-}),
-    })
-      .then((newProposal) => {
-        setProposals((prev) => [...prev, newProposal]);
-        handleClose();
-        // Opcjonalnie pobierz dane użytkownika dla nowej propozycji
-        if (newProposal.user_id && !userDetails[newProposal.user_id]) {
-          apiRequest(`/users/${newProposal.user_id}`)
-            .then((user) => setUserDetails((prev) => ({ ...prev, [newProposal.user_id]: user })))
-            .catch(() => {});
-        }
-      })
-      .catch((error) => console.error("Error adding proposal:", error));
-  };
-
-  // Funkcja do obsługi kliknięcia na change request
-  const handleCardClick = () => {
-    setCalendarOpen(true);
-    setSelectedDate(null);
-    setSelectedTimeSlot("");
-  };
-
-  const handleCalendarClose = () => {
-    setCalendarOpen(false);
-    setSelectedDate(null);
-  };
-
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
+  const handleDecision = async (proposalId, decision) => {
+    try {
+      await apiRequest(`/proposals/${proposalId}/${decision.toLowerCase()}`, {
+        method: "POST",
+      });
+      setProposals(prev =>
+        prev.map(p =>
+          p.id === proposalId ? { ...p, status: decision.toUpperCase() } : p
+        )
+      );
+    } catch (e) {
+      console.error(`Error ${decision.toLowerCase()}ing proposal:`, e);
+    }
   };
 
   return (
@@ -142,176 +110,120 @@ const ProposalsPage = () => {
       <Box padding={2}>
         <Typography variant="h4">Propozycje zmian</Typography>
         <Box display="flex" flexWrap="wrap" gap={2}>
-          {proposals.map((cr) => {
+          {changeRequests.map((cr) => {
             const user = userDetails[cr.initiator_id];
             const courseName = courseNames[cr.id];
-
-            const formatDateTime = (dateStr) => {
-              if (!dateStr) return "";
-              const d = new Date(dateStr);
-              return d.toLocaleString();
-            };
-
-            // Ustal kolor tła na podstawie statusu
-            let cardBg = "#fff";
-            if (cr.status === "ACCEPTED") cardBg = "#c8e6c9"; // zielony
-            if (cr.status === "PENDING") cardBg = "#fff9c4";  // żółty
+            const cardBg = cr.status === "ACCEPTED"
+              ? "#c8e6c9"
+              : cr.status === "PENDING"
+              ? "#fff9c4"
+              : "#fff";
 
             return (
               <Card
                 key={cr.id}
-                sx={{
-                  width: 340,
-                  minHeight: 220,
-                  display: "flex",
-                  flexDirection: "column",
-                  backgroundColor: cardBg,
-                  border: "1px solid #ddd"
-                }}
+                sx={{ width: 340, minHeight: 220, backgroundColor: cardBg, border: "1px solid #ddd" }}
                 variant="outlined"
               >
-                <CardActionArea onClick={handleCardClick}>
+                <CardActionArea onClick={() => openDialogForChangeRequest(cr)}>
                   <CardContent>
                     <Typography variant="subtitle1" fontWeight="bold">
                       Change Request ID: {cr.id}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Kurs (course_event_id): {cr.course_event_id} {courseName ? `(${courseName})` : ""}
+                    <Typography variant="body2">
+                      Kurs: {cr.course_event_id} ({courseName})
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Inicjator (initiator_id): {cr.initiator_id} {user ? `(${user.name} - ${user.email})` : ""}
+                    <Typography variant="body2">
+                      Inicjator: {cr.initiator_id} ({user?.name} - {user?.email})
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Powód: {cr.reason}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Wymagania sali: {cr.room_requirements}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Minimalna pojemność: {cr.minimum_capacity}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Utworzono: {formatDateTime(cr.created_at)}
-                    </Typography>
+                    <Typography variant="body2">Powód: {cr.reason}</Typography>
+                    <Typography variant="body2">Sala: {cr.room_requirements}</Typography>
+                    <Typography variant="body2">Pojemność: {cr.minimum_capacity}</Typography>
+                    <Typography variant="body2">Utworzono: {formatDateTime(cr.created_at)}</Typography>
                   </CardContent>
                 </CardActionArea>
               </Card>
             );
           })}
         </Box>
-        {/* Kalendarz w oknie dialogowym */}
-        <Dialog
-          open={calendarOpen}
-          onClose={handleCalendarClose}
-          PaperProps={{
-            sx: { minWidth: 380, minHeight: 220, width: 420 }, // jeszcze większa szerokość i wysokość
-          }}
-        >
-          <DialogTitle>
-            Wybierz dzień i slot czasowy
-            <IconButton
-              aria-label="close"
-              onClick={handleCalendarClose}
-              sx={{
-                position: 'absolute',
-                right: 8,
-                top: 8,
-                color: (theme) => theme.palette.grey[500],
-              }}
-              size="large">
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent sx={{ pt: 2 }}>
-            <Box sx={{ mb: 2, mt: 3 }}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="Dzień"
-                  value={selectedDate}
-                  onChange={(newValue) => setSelectedDate(newValue)}
-                  slotProps={{ textField: { fullWidth: true, size: "medium" } }}
-                />
-              </LocalizationProvider>
-            </Box>
-            <TextField
-              select
-              label="Slot czasowy"
-              value={selectedTimeSlot}
-              onChange={(e) => setSelectedTimeSlot(e.target.value)}
-              fullWidth
-              margin="normal"
-            >
-              <MenuItem value={1}>8:00 - 9:30</MenuItem>
-              <MenuItem value={2}>9:45 - 11:15</MenuItem>
-              <MenuItem value={3}>11:30 - 13:00</MenuItem>
-              <MenuItem value={4}>13:15 - 14:45</MenuItem>
-              <MenuItem value={5}>15:00 - 16:30</MenuItem>
-              <MenuItem value={6}>16:45 - 18:15</MenuItem>
-              <MenuItem value={7}>18:30 - 20:00</MenuItem>
-            </TextField>
-          </DialogContent>
-        </Dialog>
       </Box>
 
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Dodaj propozycję</DialogTitle>
-        <DialogContent>
-          {/* ZAMIANA: Select z listą change requestów */}
-          <TextField
-            margin="dense"
-            label="Change request (dzień, slot)"
-            name="change_request_id"
-            select
-            fullWidth
-            value={formData.change_request_id}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth>
+        <DialogTitle>
+          Propozycje dla requesta #{selectedCR?.id}
+          <IconButton
+            aria-label="close"
+            onClick={() => setDialogOpen(false)}
+            sx={{ position: "absolute", right: 8, top: 8 }}
+            size="large"
           >
-            {availableChangeRequests.length === 0 && (
-              <MenuItem value="">Brak dostępnych change requestów</MenuItem>
-            )}
-            {availableChangeRequests.map((cr) => (
-              <MenuItem key={cr.id} value={cr.id}>
-                {`ID: ${cr.id} | Dzień: ${cr.day || "?"} | Slot: ${cr.time_slot_id || "?"}`}
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="subtitle1">Istniejące propozycje:</Typography>
+          <List>
+            {proposals.map(p => (
+              <ListItem
+                key={p.id}
+                secondaryAction={
+                  <>
+                    <Button
+                      onClick={() => handleDecision(p.id, "ACCEPTED")}
+                      color="success"
+                      size="small"
+                      disabled={p.status === "ACCEPTED"}
+                    >
+                      Akceptuj
+                    </Button>
+                    <Button
+                      onClick={() => handleDecision(p.id, "REJECTED")}
+                      color="error"
+                      size="small"
+                      disabled={p.status === "REJECTED"}
+                      sx={{ ml: 1 }}
+                    >
+                      Odrzuć
+                    </Button>
+                  </>
+                }
+              >
+                <ListItemText
+                  primary={`Dzień: ${p.day} — Slot ${p.time_slot_id}`}
+                  secondary={`Status: ${p.status || "NIEOKREŚLONY"}`}
+                />
+              </ListItem>
+            ))}
+          </List>
+
+          <Typography variant="subtitle2" mt={2}>Dodaj nową propozycję:</Typography>
+          <TextField
+            fullWidth
+            label="Dzień"
+            type="date"
+            value={newProposal.day}
+            onChange={(e) => setNewProposal(prev => ({ ...prev, day: e.target.value }))}
+            InputLabelProps={{ shrink: true }}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            select
+            label="Slot czasowy"
+            value={newProposal.time_slot_id}
+            onChange={(e) => setNewProposal(prev => ({ ...prev, time_slot_id: e.target.value }))}
+            margin="normal"
+          >
+            {[1,2,3,4,5,6,7].map(i => (
+              <MenuItem key={i} value={i}>
+                {[ "8:00-9:30", "9:45-11:15", "11:30-13:00", "13:15-14:45", "15:00-16:30", "16:45-18:15", "18:30-20:00" ][i - 1]}
               </MenuItem>
             ))}
           </TextField>
-          {/* Pole wyboru dnia */}
-          <TextField
-            margin="dense"
-            name="day"
-            label="Dzień"
-            type="date"
-            fullWidth
-            value={formData.day || ""}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
-          />
-          {/* Pole wyboru slotu czasowego */}
-          <TextField
-            margin="dense"
-            name="time_slot_id"
-            label="Slot czasowy"
-            select
-            fullWidth
-            value={formData.time_slot_id || ""}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
-          >
-            <MenuItem value={1}>8:00-9:30</MenuItem>
-            <MenuItem value={2}>9:45-11:15</MenuItem>
-            <MenuItem value={3}>11:30-13:00</MenuItem>
-            <MenuItem value={4}>13:15-14:45</MenuItem>
-            <MenuItem value={5}>15:00-16:30</MenuItem>
-            <MenuItem value={6}>16:45-18:15</MenuItem>
-            <MenuItem value={7}>18:30-20:00</MenuItem>
-          </TextField>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Anuluj</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            Dodaj
-          </Button>
+          <Button onClick={() => setDialogOpen(false)}>Zamknij</Button>
+          <Button onClick={handleAddProposal} variant="contained">Dodaj</Button>
         </DialogActions>
       </Dialog>
     </Box>
