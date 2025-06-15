@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Card, CardContent, CardActionArea, Snackbar, Alert } from "@mui/material";
+import { Box, Typography, Button, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Card, CardContent, CardActionArea, Snackbar, Alert, IconButton } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import Navbar from "../components/Navbar";
 import { apiRequest } from "../services/apiService";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +16,9 @@ const ProposalsPage = () => {
   const [courseNames, setCourseNames] = useState({});
   const [availableChangeRequests] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const navigate = useNavigate();
 
   // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
@@ -116,7 +122,14 @@ const ProposalsPage = () => {
 
   // Funkcja do obsługi kliknięcia na change request
   const handleCardClick = () => {
-    setSnackbarOpen(true);
+    setCalendarOpen(true);
+    setSelectedDate(null);
+    setSelectedTimeSlot("");
+  };
+
+  const handleCalendarClose = () => {
+    setCalendarOpen(false);
+    setSelectedDate(null);
   };
 
   const handleSnackbarClose = () => {
@@ -162,11 +175,8 @@ const ProposalsPage = () => {
                     <Typography variant="subtitle1" fontWeight="bold">
                       Change Request ID: {cr.id}
                     </Typography>
-                    {/* <Typography variant="body2" color="text.secondary">
-                      Status: {cr.status}
-                    </Typography> */}
                     <Typography variant="body2" color="text.secondary">
-                      {courseName ? `${courseName}` : ""}
+                      Kurs (course_event_id): {cr.course_event_id} {courseName ? `(${courseName})` : ""}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Inicjator (initiator_id): {cr.initiator_id} {user ? `(${user.name} - ${user.email})` : ""}
@@ -189,16 +199,58 @@ const ProposalsPage = () => {
             );
           })}
         </Box>
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={2000}
-          onClose={handleSnackbarClose}
-          anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        {/* Kalendarz w oknie dialogowym */}
+        <Dialog
+          open={calendarOpen}
+          onClose={handleCalendarClose}
+          PaperProps={{
+            sx: { minWidth: 380, minHeight: 220, width: 420 }, // jeszcze większa szerokość i wysokość
+          }}
         >
-          <Alert onClose={handleSnackbarClose} severity="info" sx={{ width: "100%" }}>
-            WIP
-          </Alert>
-        </Snackbar>
+          <DialogTitle>
+            Wybierz dzień i slot czasowy
+            <IconButton
+              aria-label="close"
+              onClick={handleCalendarClose}
+              sx={{
+                position: 'absolute',
+                right: 8,
+                top: 8,
+                color: (theme) => theme.palette.grey[500],
+              }}
+              size="large">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 2 }}>
+            <Box sx={{ mb: 2, mt: 3 }}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Dzień"
+                  value={selectedDate}
+                  onChange={(newValue) => setSelectedDate(newValue)}
+                  slotProps={{ textField: { fullWidth: true, size: "medium" } }}
+                />
+              </LocalizationProvider>
+            </Box>
+            <TextField
+              select
+              label="Slot czasowy"
+              value={selectedTimeSlot}
+              onChange={(e) => setSelectedTimeSlot(e.target.value)}
+              fullWidth
+              margin="normal"
+            >
+              <MenuItem value={1}>8:00 - 9:30</MenuItem>
+              <MenuItem value={2}>9:45 - 11:15</MenuItem>
+              <MenuItem value={3}>11:30 - 13:00</MenuItem>
+              <MenuItem value={4}>13:15 - 14:45</MenuItem>
+              <MenuItem value={5}>15:00 - 16:30</MenuItem>
+              <MenuItem value={6}>16:45 - 18:15</MenuItem>
+              <MenuItem value={7}>18:30 - 20:00</MenuItem>
+            </TextField>
+          </DialogContent>
+        </Dialog>
       </Box>
 
       <Dialog open={open} onClose={handleClose}>
