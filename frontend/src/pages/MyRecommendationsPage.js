@@ -1,24 +1,19 @@
-import React, {useCallback, useContext, useEffect, useState} from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import {
-    Box,
-    Typography,
-    List,
-    ListItem,
-    ListItemText,
-    Divider,
-    Paper,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
+  Box,
+  Typography,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  Paper,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
-
 import Navbar from "../components/Navbar";
+import ProposalDetailsDialog from "../components/ProposalDetailsDialog";
 import { apiRequest } from "../services/apiService";
 import { UserContext } from "../App";
 import { useNavigate } from "react-router-dom";
@@ -293,44 +288,17 @@ const MyRecommendationsPage = () => {
                     )
 
                 )}
-                <Dialog open={openDialog} onClose={handleCloseDialog}>
-                    <DialogTitle>Szczegóły propozycji</DialogTitle>
-                    <DialogContent>
-                        {selectedProposal && (
-                            <List>
-                                <ListItem>
-                                    <ListItemText primary="Data" secondary={selectedProposal.recommended_day} />
-                                </ListItem>
-                                <ListItem>
-                                    <ListItemText primary="Slot" secondary={formatSlotTime(selectedProposal.recommended_slot_id)} />
-                                </ListItem>
-                                <ListItem>
-                                    <ListItemText
-                                        primary="Sala"
-                                        secondary={roomNames[selectedProposal.recommended_room_id] || selectedProposal.recommended_room_id}
-                                    />
-                                </ListItem>
-                            </List>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCloseDialog}>Zamknij</Button>
-                        {["STAROSTA", "PROWADZACY"].includes(user.role) && (
-                            <>
-                                <Button onClick={() => handleProposalStatusChange(false)} color="error" variant="outlined">
-                                    Odrzuć
-                                </Button>
-                                <Button onClick={() => handleProposalStatusChange(true)} color="primary" variant="contained">
-                                    Zaakceptuj
-                                </Button>
-                            </>
-                        )}
-                    </DialogActions>
-                </Dialog>
-
-            </Box>
-        </Box>
-    );
+                <ProposalDetailsDialog
+          open={openDialog}
+          onClose={handleCloseDialog}
+          proposal={selectedProposal}
+          roomNames={roomNames}
+          userRole={user?.role}
+          onStatusChange={handleProposalStatusChange}
+        />
+      </Box>
+    </Box>
+  );
 };
 
 export default MyRecommendationsPage;
