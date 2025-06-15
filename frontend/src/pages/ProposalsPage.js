@@ -140,7 +140,7 @@ const ProposalsPage = () => {
     <Box>
       <Navbar />
       <Box padding={2}>
-        <Typography variant="h4">Change Requests</Typography>
+        <Typography variant="h4">Propozycje zmian</Typography>
         <Box display="flex" flexWrap="wrap" gap={2}>
           {proposals.map((cr) => {
             const user = userDetails[cr.initiator_id];
