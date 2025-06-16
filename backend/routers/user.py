@@ -15,7 +15,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.get("", response_model=List[UserResponse])
 @router.get("/", response_model=List[UserResponse], include_in_schema=False)
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
-    return db.query(User).all()
+    return db.query(User).filter(User.active).all()
 
 @router.post("", response_model=UserResponse, status_code=HTTP_201_CREATED)
 @router.post("/", response_model=UserResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
@@ -62,6 +62,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Użytkownik nie znaleziony.")
     if db_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Nie możesz usunąć własnego konta.")
-    db.delete(db_user)
+    db_user.active = False
     db.commit()
+    db.refresh(db_user)
     return None

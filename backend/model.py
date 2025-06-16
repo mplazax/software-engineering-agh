@@ -51,6 +51,7 @@ class User(Base):
     name = Column(String(100), nullable=False)
     surname = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
+    active = Column(Boolean, default=True)
     led_group = relationship("Group", back_populates="leader", uselist=False)
     taught_courses = relationship("Course", back_populates="teacher")
     initiated_requests = relationship("ChangeRequest", back_populates="initiator")
