@@ -128,6 +128,7 @@ class ChangeRequest(Base):
     reason = Column(Text, nullable=False)
     room_requirements = Column(Text, nullable=True)
     minimum_capacity = Column(Integer, default=0)
+    cyclical = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     course_event = relationship("CourseEvent", back_populates="change_requests", lazy="joined")
     initiator = relationship("User", back_populates="initiated_requests")
