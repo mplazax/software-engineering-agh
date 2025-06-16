@@ -22,7 +22,18 @@ const ProposalsPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [newProposal, setNewProposal] = useState({ day: "", time_slot_id: "" });
+  const [eventDays, setEventDays] = useState({});
   const navigate = useNavigate();
+
+  const TIME_SLOTS = [
+    "8:00-9:30",
+    "9:45-11:15",
+    "11:30-13:00",
+    "13:15-14:45",
+    "15:00-16:30",
+    "16:45-18:15",
+    "18:30-20:00",
+  ];
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -54,6 +65,18 @@ const ProposalsPage = () => {
         }
       }));
       setCourseNames(courseMap);
+
+      const eventDayMap = {};
+      await Promise.all(data.map(async (cr) => {
+        try {
+          const event = await apiRequest(`/courses/events/${cr.course_event_id}`);
+          eventDayMap[cr.course_event_id] = event.day;
+        } catch {
+          eventDayMap[cr.course_event_id] = null;
+        }
+      }));
+      setEventDays(eventDayMap);
+
     });
   }, [navigate]);
 
@@ -89,21 +112,6 @@ const ProposalsPage = () => {
     }
   };
 
-  const handleDecision = async (proposalId, decision) => {
-    try {
-      await apiRequest(`/proposals/${proposalId}/${decision.toLowerCase()}`, {
-        method: "POST",
-      });
-      setProposals(prev =>
-        prev.map(p =>
-          p.id === proposalId ? { ...p, status: decision.toUpperCase() } : p
-        )
-      );
-    } catch (e) {
-      console.error(`Error ${decision.toLowerCase()}ing proposal:`, e);
-    }
-  };
-
   return (
     <Box>
       <Navbar />
@@ -122,22 +130,19 @@ const ProposalsPage = () => {
             return (
               <Card
                 key={cr.id}
-                sx={{ width: 340, minHeight: 220, backgroundColor: cardBg, border: "1px solid #ddd" }}
+                sx={{padding: "1rem", backgroundColor: cardBg, border: "1px solid #ddd" }}
                 variant="outlined"
               >
                 <CardActionArea onClick={() => openDialogForChangeRequest(cr)}>
                   <CardContent>
                     <Typography variant="subtitle1" fontWeight="bold">
-                      Change Request ID: {cr.id}
+                      Kurs: {courseName}
                     </Typography>
                     <Typography variant="body2">
-                      Kurs: {cr.course_event_id} ({courseName})
-                    </Typography>
-                    <Typography variant="body2">
-                      Inicjator: {cr.initiator_id} ({user?.name} - {user?.email})
+                      Data oryginalna: {eventDays[cr.course_event_id] ? new Date(eventDays[cr.course_event_id]).toLocaleDateString() : "brak"}
                     </Typography>
                     <Typography variant="body2">Powód: {cr.reason}</Typography>
-                    <Typography variant="body2">Sala: {cr.room_requirements}</Typography>
+                    <Typography variant="body2">Wymagania sali: {cr.room_requirements}</Typography>
                     <Typography variant="body2">Pojemność: {cr.minimum_capacity}</Typography>
                     <Typography variant="body2">Utworzono: {formatDateTime(cr.created_at)}</Typography>
                   </CardContent>
@@ -150,7 +155,7 @@ const ProposalsPage = () => {
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth>
         <DialogTitle>
-          Propozycje dla requesta #{selectedCR?.id}
+          Propozycje zmiany terminu
           <IconButton
             aria-label="close"
             onClick={() => setDialogOpen(false)}
@@ -166,31 +171,9 @@ const ProposalsPage = () => {
             {proposals.map(p => (
               <ListItem
                 key={p.id}
-                secondaryAction={
-                  <>
-                    <Button
-                      onClick={() => handleDecision(p.id, "ACCEPTED")}
-                      color="success"
-                      size="small"
-                      disabled={p.status === "ACCEPTED"}
-                    >
-                      Akceptuj
-                    </Button>
-                    <Button
-                      onClick={() => handleDecision(p.id, "REJECTED")}
-                      color="error"
-                      size="small"
-                      disabled={p.status === "REJECTED"}
-                      sx={{ ml: 1 }}
-                    >
-                      Odrzuć
-                    </Button>
-                  </>
-                }
               >
                 <ListItemText
-                  primary={`Dzień: ${p.day} — Slot ${p.time_slot_id}`}
-                  secondary={`Status: ${p.status || "NIEOKREŚLONY"}`}
+                    primary={`Dzień: ${p.day} — ${TIME_SLOTS[(p.time_slot_id || 1) - 1]}`}
                 />
               </ListItem>
             ))}

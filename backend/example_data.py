@@ -137,6 +137,8 @@ def add_data(DATABASE_URL):
             (time(11, 30), time(13, 0)),
             (time(13, 15), time(14, 45)),
             (time(15, 0), time(16, 30)),
+            (time(16, 45), time(18, 15)),
+            (time(18, 30), time(20, 00)),
         ]
         # Create TimeSlots objects and store them for later reference
         time_slot_objects = []
