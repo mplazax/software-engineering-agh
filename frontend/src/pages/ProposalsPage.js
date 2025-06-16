@@ -39,7 +39,7 @@ const ProposalsPage = () => {
     const token = localStorage.getItem("token");
     if (!token) return navigate("/login", { replace: true });
 
-    apiRequest("/change_requests/related").then(async (data) => {
+    apiRequest("/change_requests/related?status=PENDING").then(async (data) => {
       setChangeRequests(data);
 
       const userMap = {};
@@ -121,9 +121,7 @@ const ProposalsPage = () => {
           {changeRequests.map((cr) => {
             const user = userDetails[cr.initiator_id];
             const courseName = courseNames[cr.id];
-            const cardBg = cr.status === "ACCEPTED"
-              ? "#c8e6c9"
-              : cr.status === "PENDING"
+            const cardBg = cr.status === "PENDING"
               ? "#fff9c4"
               : "#fff";
 
