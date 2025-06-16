@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,6 +10,8 @@ from model import (
     User,
     Room,
     Equipment,
+    Course,
+    ChangeRecomendation,
 )
 from routers.auth import get_current_user
 # POPRAWKA 1: Dodajemy brakujące importy
@@ -18,14 +21,14 @@ from routers.schemas import (
     ChangeRequestResponse, # <-- BRAKUJĄCY IMPORT
 )
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, extract
 from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
     HTTP_400_BAD_REQUEST,
     HTTP_403_FORBIDDEN,
-    HTTP_404_NOT_FOUND,
+    HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
 )
 
 router = APIRouter(prefix="/proposals", tags=["Availability Proposals"])
@@ -88,6 +91,11 @@ def create_proposal(
     db.refresh(new_proposal)
     return new_proposal
 
+def shift_to_weekday(original_date: date, target_weekday: int) -> date:
+    """Zwraca datę z tego samego tygodnia co `original_date`, ale z podmienionym dniem tygodnia (0=pon, 6=niedz)."""
+    current_weekday = original_date.weekday()
+    return original_date + timedelta(days=(target_weekday - current_weekday))
+
 # POPRAWKA 2: Zmieniamy logikę akceptacji
 # Teraz endpoint przyjmuje ID rekomendacji, a nie propozycji.
 # Ale żeby nie zmieniać frontendu, zmodyfikujemy logikę, aby działała z ID propozycji.
@@ -117,19 +125,71 @@ def accept_proposal(
         
     change_request.status = ChangeRequestStatus.ACCEPTED
     original_event.canceled = True
-    
-    # Utwórz nowe wydarzenie na podstawie DANYCH Z REKOMENDACJI
-    new_event = CourseEvent(
-        course_id=original_event.course_id,
-        room_id=recommendation_query.recommended_room_id, # Użyj sali z rekomendacji
-        day=recommendation_query.recommended_day, # Użyj dnia z rekomendacji
-        time_slot_id=recommendation_query.recommended_slot_id, # Użyj slotu z rekomendacji
-        canceled=False
-    )
-    db.add(new_event)
-    
-    # Opcjonalnie: Usuń wszystkie propozycje związane z tym zgłoszeniem
-    db.query(AvailabilityProposal).filter(AvailabilityProposal.change_request_id == change_request.id).delete()
+
+    if change_request.cyclical:
+        original_weekday = original_event.day.weekday()
+        target_weekday = recommendation_query.recommended_day.weekday()
+
+        related_events = db.query(CourseEvent).filter(
+            CourseEvent.course_id == original_event.course_id,
+            extract('dow', CourseEvent.day) == original_weekday,
+            CourseEvent.time_slot_id == original_event.time_slot_id,
+            CourseEvent.canceled == False
+        ).all()
+
+        for event in related_events:
+            new_day = shift_to_weekday(event.day, target_weekday)
+            new_event = CourseEvent(
+                course_id=event.course_id,
+                room_id=recommendation_query.recommended_room_id,
+                day=new_day,
+                time_slot_id=recommendation_query.recommended_slot_id,
+                canceled=False
+            )
+            conflict = db.query(CourseEvent).filter(
+                CourseEvent.room_id == new_event.room_id,
+                CourseEvent.day == new_event.day,
+                CourseEvent.time_slot_id == new_event.time_slot_id,
+                CourseEvent.canceled == False,
+            ).first()
+
+            if conflict:
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+
+            conflict = db.query(CourseEvent).join(Course).filter(
+                Course.group_id == group.id,
+                CourseEvent.time_slot_id == new_event.time_slot_id,
+                CourseEvent.day == new_event.day,
+                CourseEvent.canceled == False,
+            ).first()
+
+            if conflict:
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Group has other event")
+
+            db.add(new_event)
+            event.canceled = True
+    else:
+        new_event = CourseEvent(
+            course_id=original_event.course_id,
+            room_id=recommendation_query.recommended_room_id,
+            day=recommendation_query.recommended_day,
+            time_slot_id=recommendation_query.recommended_slot_id,
+            canceled=False
+        )
+        conflict = db.query(CourseEvent).filter(
+            CourseEvent.room_id == new_event.room_id,
+            CourseEvent.day == new_event.day,
+            CourseEvent.time_slot_id == new_event.time_slot_id,
+            CourseEvent.canceled == False,
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+        db.add(new_event)
+
+    # Usuń propozycje związane z tym zgłoszeniem
+    db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.change_request_id == change_request.id
+    ).delete()
 
     db.commit()
     db.refresh(change_request)
