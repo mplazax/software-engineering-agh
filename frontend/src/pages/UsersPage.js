@@ -1,168 +1,142 @@
-import React, { useEffect, useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-} from "@mui/material";
+import React, { useState, useMemo, useCallback } from "react";
+import { Container, Stack, IconButton, Avatar } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import Navbar from "../components/Navbar";
-import { apiRequest } from "../services/apiService";
-import {useNavigate} from "react-router-dom";
+import EditIcon from "@mui/icons-material/Edit";
+import PersonIcon from "@mui/icons-material/Person";
+
+import { useCrud } from "../hooks/useCrud";
+import AdminDataGrid from "../features/Admin/AdminDataGrid";
+import UserFormDialog from "../features/Admin/UserFormDialog";
+
+const roleTranslations = {
+  ADMIN: "Administrator",
+  KOORDYNATOR: "Koordynator",
+  PROWADZACY: "Prowadzący",
+  STAROSTA: "Starosta",
+};
 
 const UsersPage = () => {
-  const [users, setUsers] = useState([]);
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "ADMIN", group_id: "" });
+  const {
+    items: users,
+    isLoading,
+    isError,
+    error,
+    createItem,
+    updateItem,
+    deleteItem,
+  } = useCrud("users", "/users");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const navigate = useNavigate();
+  const handleAdd = () => {
+    setCurrentUser(null);
+    setDialogOpen(true);
+  };
 
-  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login", { replace: true });
+  const handleEdit = useCallback((user) => {
+    setCurrentUser(user);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (id) => {
+      if (window.confirm("Czy na pewno chcesz usunąć tego użytkownika?")) {
+        try {
+          await deleteItem(id);
+        } catch (e) {
+          alert(`Błąd: ${e.message}`);
+        }
+      }
+    },
+    [deleteItem]
+  );
+
+  const handleSave = async (userData) => {
+    try {
+      if (currentUser) {
+        const payload = { ...userData };
+        if (!payload.password) {
+          delete payload.password;
+        }
+        await updateItem({ id: currentUser.id, updatedItem: payload });
+      } else {
+        await createItem(userData, { endpoint: "/users/create" });
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      console.error("Save failed", e);
+      return e;
     }
-    fetchUsers();
-    fetchCurrentUser();
-  }, [navigate]);
-  
-
-  const fetchUsers = () => {
-    apiRequest("/users")
-      .then((data) => setUsers(data))
-      .catch((error) => console.error("Error fetching users:", error));
   };
 
-  const fetchCurrentUser = () => {
-    apiRequest("/users/me")
-      .then((data) => setCurrentUserId(data.id))
-      .catch((error) => console.error("Error fetching current user:", error));
-  };
-
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = () => {
-    apiRequest("/users/create", {
-      method: "POST",
-      body: JSON.stringify(formData),
-    })
-      .then((newUser) => {
-        setUsers((prev) => [...prev, newUser]);
-        handleClose();
-      })
-      .catch((error) => console.error("Error adding user:", error));
-  };
-
-  const handleDelete = (userId) => {
-    // Optimistically update the UI
-    setUsers((prev) => prev.filter((user) => user.id !== userId));
-
-    // Send the delete request to the backend
-    apiRequest(`/users/${userId}`, { method: "DELETE" })
-      .catch((error) => {
-        console.error("Error deleting user:", error);
-        // Revert the UI update if the request fails
-        fetchUsers();
-      });
-  };
+  const columns = useMemo(
+    () => [
+      { field: "id", headerName: "ID", width: 90 },
+      {
+        field: "avatar",
+        headerName: "Avatar",
+        width: 70,
+        renderCell: () => (
+          <Avatar>
+            <PersonIcon />
+          </Avatar>
+        ),
+        sortable: false,
+      },
+      { field: "name", headerName: "Imię", width: 150 },
+      { field: "surname", headerName: "Nazwisko", width: 150 },
+      { field: "email", headerName: "Email", flex: 1 },
+      {
+        field: "role",
+        headerName: "Rola",
+        width: 150,
+        valueGetter: (value) => roleTranslations[value] || value,
+      },
+      {
+        field: "actions",
+        headerName: "Akcje",
+        width: 120,
+        sortable: false,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={1}>
+            <IconButton size="small" onClick={() => handleEdit(params.row)}>
+              <EditIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => handleDelete(params.row.id)}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Stack>
+        ),
+      },
+    ],
+    [handleEdit, handleDelete]
+  );
 
   return (
-    <Box>
-      <Navbar />
-      <Box padding={2}>
-        <Typography variant="h4">Zarządzaj użytkownikami</Typography>
-        <List>
-          {users.map((user) => (
-            <ListItem
-              key={user.id}
-              secondaryAction={
-                <IconButton
-                  edge="end"
-                  onClick={() => handleDelete(user.id)}
-                  disabled={user.id === currentUserId} // Disable button for current user
-                >
-                  <DeleteIcon />
-                </IconButton>
-              }
-            >
-              <ListItemText primary={`${user.name} - ${user.email}`} />
-            </ListItem>
-          ))}
-        </List>
-        <Button variant="contained" onClick={handleOpen}>
-          Dodaj użytkownika
-        </Button>
-      </Box>
-
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Dodaj użytkownika</DialogTitle>
-        <DialogContent>
-          <TextField
-            margin="dense"
-            label="Imię i nazwisko"
-            name="name"
-            fullWidth
-            value={formData.name}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            label="Email"
-            name="email"
-            fullWidth
-            value={formData.email}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            label="Hasło"
-            name="password"
-            type="password"
-            fullWidth
-            value={formData.password}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            label="Rola"
-            name="role"
-            fullWidth
-            value={formData.role}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            label="ID grupy"
-            name="group_id"
-            fullWidth
-            value={formData.group_id}
-            onChange={handleChange}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Anuluj</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            Dodaj
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+    <Container maxWidth="lg" sx={{ p: "0 !important" }}>
+      <AdminDataGrid
+        columns={columns}
+        rows={users}
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
+        onAddItem={handleAdd}
+        toolbarConfig={{
+          searchPlaceholder: "Szukaj po imieniu, nazwisku, emailu...",
+          addLabel: "Dodaj użytkownika",
+        }}
+      />
+      <UserFormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+        user={currentUser}
+      />
+    </Container>
   );
 };
 

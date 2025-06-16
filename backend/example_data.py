@@ -1,254 +1,130 @@
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
-# TODO: add room requirements
+from database import SessionLocal
 from model import (
     AvailabilityProposal,
-    ChangeRecomendation,
     ChangeRequest,
-    ChangeRequestStatus,
     Course,
     CourseEvent,
+    Equipment,
     Group,
     Room,
     RoomType,
-    RoomUnavailability,
     TimeSlots,
     User,
-    UserRole, Equipment,
+    UserRole,
 )
-
-# Import your password hashing function
 from routers.auth import get_password_hash
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
-def add_data(DATABASE_URL):
-    """Adds example data to the database. Assumes tables are already created."""
-    engine = create_engine(DATABASE_URL, echo=True)  # echo=True shows SQL logs
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-
-    now = datetime.now()
-
+def populate_db():
+    db = SessionLocal()
     try:
-        # --- Add Users ---
-        admin = User(
-            email="admin@example.com",
-            password=get_password_hash("admin123"),
-            name="Admin",
-            surname="User",
-            role=UserRole.ADMIN,
-        )
-        teacher = User(
-            email="teacher@example.com",
-            password=get_password_hash("teach123"),
-            name="John",
-            surname="Smith",
-            role=UserRole.PROWADZACY,
-        )
-        student = User(
-            email="student@example.com",
-            password=get_password_hash("stud123"),
-            name="Anna",
-            surname="Kowalska",
-            role=UserRole.STAROSTA,
-        )
-        coordinator = User(
-            email="koord@example.com",
-            password=get_password_hash("koord123"),
-            name="Coord",
-            surname="Person",
-            role=UserRole.KOORDYNATOR,
-        )
+        if db.query(User).first():
+            print("Database already contains data. Aborting population.")
+            return
 
-        session.add_all([admin, teacher, student, coordinator])
-        session.flush()  # Get IDs for users before referencing them
-
-        # --- Add Groups ---
-        # Use relationship for leader
-        group1 = Group(name="Group A", year=1, leader=student)
-        session.add(group1)
-        session.flush()  # Get ID for group before referencing it
-
-        # Link the group back to the student (Starosta)
-        student.group = group1
-        session.flush()  # Ensure student's group_id is updated
-
-        # --- Add Equipment ---
-        def get_or_create_equipment(session, name):
-            existing = session.query(Equipment).filter_by(name=name).first()
-            if existing:
-                return existing
-            new_eq = Equipment(name=name)
-            session.add(new_eq)
-            session.flush()  # żeby mieć ID
-            return new_eq
-
-        projector = get_or_create_equipment(session, "Projector")
-        whiteboard = get_or_create_equipment(session, "Whiteboard")
-        pc_lab = get_or_create_equipment(session, "PC Lab")
-
-        session.add_all([projector, whiteboard, pc_lab])
-        session.flush()
-
-        # --- Add Rooms ---
-        room1 = Room(
-            name="Lab 101",
-            capacity=30,
-            type=RoomType.LABORATORY,
-        )
-        room2 = Room(
-            name="Hall A",
-            capacity=100,
-            type=RoomType.LECTURE_HALL,
-        )
-
-
-        room1.equipment.append(pc_lab)
-        room1.equipment.append(projector)
-        room2.equipment.append(whiteboard)
-        room2.equipment.append(projector)
-
-        session.add_all([room1, room2])
-        session.flush()  # Get IDs for rooms
-
-        # --- Add Room unavailability ---
-        # Use relationships for rooms and .date() for Date columns
-        unavailable1 = RoomUnavailability(
-            room=room1,
-            start_datetime=(now + timedelta(days=3)).date(),
-            end_datetime=(now + timedelta(days=3, hours=2)).date(),
-        )
-        unavailable2 = RoomUnavailability(
-            room=room2,
-            start_datetime=(now + timedelta(days=5)).date(),
-            end_datetime=(now + timedelta(days=5, hours=4)).date(),
-        )
-
-        session.add_all([unavailable1, unavailable2])
-        session.flush()  # Get IDs for unavailability entries
-
-        # --- Add Time Slots ---
-        # Define example time slots (adjust times as needed)
+        # --- 1. Time Slots ---
+        print("Creating time slots...")
         time_slots_data = [
-            (time(8, 0), time(9, 30)),
-            (time(9, 45), time(11, 15)),
-            (time(11, 30), time(13, 0)),
-            (time(13, 15), time(14, 45)),
-            (time(15, 0), time(16, 30)),
+            ("08:00", "09:30"), ("09:45", "11:15"), ("11:30", "13:00"),
+            ("13:15", "14:45"), ("15:00", "16:30"), ("16:45", "18:15"),
+            ("18:30", "20:00")
         ]
-        # Create TimeSlots objects and store them for later reference
-        time_slot_objects = []
+        time_slots = []
         for start_t, end_t in time_slots_data:
-            ts = TimeSlots(start_time=start_t, end_time=end_t)
-            session.add(ts)
-            time_slot_objects.append(ts)
+            ts = TimeSlots(start_time=time.fromisoformat(start_t), end_time=time.fromisoformat(end_t))
+            db.add(ts)
+            time_slots.append(ts)
+        db.commit()
 
-        session.flush()  # <-- CRITICAL: Flush here to ensure time_slot_objects have IDs before used in FKs
+        # --- 2. Users ---
+        print("Creating users...")
+        users = {
+            'admin': User(email="admin@example.com", password=get_password_hash("admin123"), name="Admin", surname="Systemu", role=UserRole.ADMIN),
+            'koordynator': User(email="koord@example.com", password=get_password_hash("koord123"), name="Barbara", surname="Koordynator", role=UserRole.KOORDYNATOR),
+            'teacher1': User(email="j.kowalski@example.com", password=get_password_hash("teach123"), name="Jan", surname="Kowalski", role=UserRole.PROWADZACY),
+            'teacher2': User(email="p.zielinski@example.com", password=get_password_hash("teach123"), name="Piotr", surname="Zieliński", role=UserRole.PROWADZACY),
+            'starosta1': User(email="a.nowak@example.com", password=get_password_hash("stud123"), name="Anna", surname="Nowak", role=UserRole.STAROSTA),
+            'starosta2': User(email="k.wojcik@example.com", password=get_password_hash("stud123"), name="Kamil", surname="Wójcik", role=UserRole.STAROSTA),
+        }
+        db.add_all(users.values())
+        db.commit()
 
-        # --- Add Courses ---
-        # Use relationships for teacher and group
-        course1 = Course(name="Python 101", teacher=teacher, group=group1)
-        course2 = Course(name="Databases", teacher=teacher, group=group1)
+        # --- 3. Groups ---
+        print("Creating groups...")
+        groups = {
+            'g1': Group(name="Zarządzanie, Rok 1, Grupa A", year=1, leader_id=users['starosta1'].id),
+            'g2': Group(name="Zarządzanie, Rok 2, Grupa C", year=2, leader_id=users['starosta2'].id),
+        }
+        db.add_all(groups.values())
+        db.commit()
+        
+        # --- 4. Equipment ---
+        print("Creating equipment...")
+        equipments = {
+            'proj': Equipment(name="Rzutnik"),
+            'whiteboard': Equipment(name="Tablica interaktywna"),
+            'pc_lab': Equipment(name="Pracownia komputerowa"),
+        }
+        db.add_all(equipments.values())
+        db.commit()
+        
+        # --- 5. Rooms ---
+        print("Creating rooms...")
+        rooms = {
+            'r101': Room(name="Sala 101", capacity=30, type=RoomType.LABORATORY, equipment=[equipments['proj'], equipments['pc_lab']]),
+            'r205': Room(name="Sala 205", capacity=25, type=RoomType.SEMINAR_ROOM, equipment=[equipments['proj'], equipments['whiteboard']]),
+            'aula_a': Room(name="Aula A", capacity=120, type=RoomType.LECTURE_HALL, equipment=[equipments['proj']]),
+        }
+        db.add_all(rooms.values())
+        db.commit()
 
-        session.add_all([course1, course2])
-        session.flush()  # Get IDs for courses
+        # --- 6. Courses ---
+        print("Creating courses...")
+        courses = {
+            'c1': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g1'].id),
+            'c2': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g2'].id),
+        }
+        db.add_all(courses.values())
+        db.commit()
+        
+        # --- 7. Course Events ---
+        print("Creating course events...")
+        today = date.today()
+        events = {
+            'e1': CourseEvent(course_id=courses['c1'].id, room_id=rooms['r205'].id, day=today + timedelta(days=1), time_slot_id=time_slots[1].id),
+            'e2': CourseEvent(course_id=courses['c2'].id, room_id=rooms['r101'].id, day=today + timedelta(days=2), time_slot_id=time_slots[3].id),
+        }
+        db.add_all(events.values())
+        db.commit()
 
-        # --- Add Course events ---
-        # Use relationships for course, room, and time_slot
-        # Reference the time_slot_objects created and flushed earlier
-        # Use index 0 for the first time slot (8:00-9:30) and index 1 for the second (9:45-11:15)
-        # Use 'slot_id' keyword for the relationship
-        event1 = CourseEvent(
-            course=course1,
-            room=room1,
-            slot_id=time_slot_objects[0],
-            day=(now + timedelta(days=1)).date(),
-            canceled=False,
+        # --- 8. Change Request Scenario ---
+        print("Creating change request scenario...")
+        change_req = ChangeRequest(
+            course_event_id=events['e1'].id,
+            initiator_id=users['starosta1'].id,
+            reason="Konflikt z innym wydarzeniem uczelnianym",
+            minimum_capacity=20,
+            room_requirements="Rzutnik",
+            created_at=datetime.utcnow()
         )
-        event2 = CourseEvent(
-            course=course2,
-            room=room2,
-            slot_id=time_slot_objects[1],
-            day=(now + timedelta(days=2)).date(),
-            canceled=False,
-        )
+        db.add(change_req)
+        db.commit()
+        
+        # --- 9. Availability Proposals ---
+        print("Creating availability proposals...")
+        prop1 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['starosta1'].id, day=today + timedelta(days=8), time_slot_id=time_slots[2].id)
+        prop2 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['starosta1'].id, day=today + timedelta(days=8), time_slot_id=time_slots[3].id)
+        prop3 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['teacher1'].id, day=today + timedelta(days=8), time_slot_id=time_slots[3].id)
+        prop4 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['teacher1'].id, day=today + timedelta(days=9), time_slot_id=time_slots[4].id)
+        db.add_all([prop1, prop2, prop3, prop4])
+        db.commit()
 
-        session.add_all([event1, event2])
-        session.flush()  # Get IDs for course events
-
-        # --- Add Change requests ---
-        # Use relationships for course_event and initiator
-        req1 = ChangeRequest(
-            course_event=event1,
-            initiator=student,
-            status=ChangeRequestStatus.PENDING,
-            reason="Need different time",
-            room_requirements="Projector",
-            minimum_capacity=30,
-            created_at=now,
-        )
-        req2 = ChangeRequest(
-            course_event=event2,
-            initiator=teacher,
-            status=ChangeRequestStatus.ACCEPTED,
-            reason="Room too small",
-            room_requirements="Capacity >= 80",
-            minimum_capacity=80,
-            created_at=now,
-        )
-
-        session.add_all([req1, req2])
-        session.flush()  # Get IDs for change requests
-
-        # --- Add Availability proposals ---
-        # Use relationships for change_request, user, and time_slot
-        # Reference time_slot_objects - proposing slot 3 (index 2) and slot 4 (index 3)
-        proposal1 = AvailabilityProposal(
-            change_request=req1,
-            user=student,
-            time_slot=time_slot_objects[2],
-            day=(now + timedelta(days=2)).date(),
-        )
-        proposal2 = AvailabilityProposal(
-            change_request=req1,
-            user=teacher,
-            time_slot=time_slot_objects[2],
-            day=(now + timedelta(days=2)).date(),
-        )
-        proposal3 = AvailabilityProposal(
-            change_request=req1,
-            user=teacher,
-            time_slot=time_slot_objects[3],
-            day=(now + timedelta(days=3)).date(),
-        )
-
-        session.add_all([proposal1, proposal2, proposal3])
-        session.flush()  # Get IDs for availability proposals
-
-        # --- Add Change recommendation ---
-        # Use relationships for change_request, recommended_interval, and recommended_room
-        # Reference time_slot_objects - recommending slot 3 (index 2) and room2
-        recommendation1 = ChangeRecomendation(
-            change_request=req1,
-            recommended_day=(now + timedelta(days=2)).date(),
-            recommended_interval=time_slot_objects[2],
-            recommended_room=room2,
-            source_proposal=proposal1,
-        )
-
-        session.add_all([recommendation1])
-        # No need to flush here if this is the last set of adds before commit
-        # session.flush()
-
-        # --- Commit Transaction ---
-        session.commit()
-        print("DB has been populated with mock data.")
+        print("Database populated successfully!")
 
     except Exception as e:
-        session.rollback()  # Rollback the transaction on error
-        print(f"An error occurred during data population: {e}")
+        print(f"An error occurred: {e}")
+        db.rollback()
     finally:
-        # --- Close Session ---
-        session.close()
+        db.close()

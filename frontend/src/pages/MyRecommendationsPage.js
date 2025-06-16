@@ -1,336 +1,284 @@
-import React, {useCallback, useContext, useEffect, useState} from "react";
+import React, { useState, useMemo, useContext } from "react";
 import {
-    Box,
-    Typography,
-    List,
-    ListItem,
-    ListItemText,
-    Divider,
-    Paper,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
+  Box,
+  Typography,
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  CircularProgress,
+  Alert,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
 } from "@mui/material";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "../api/apiService";
+import { format } from "date-fns";
+import { pl } from "date-fns/locale";
+import { AuthContext } from "../contexts/AuthContext";
+import AvailabilitySelector from "../features/Proposals/AvailabilitySelector";
 
-import Navbar from "../components/Navbar";
-import { apiRequest } from "../services/apiService";
-import { UserContext } from "../App";
-import { useNavigate } from "react-router-dom";
+const statusLabels = {
+  PENDING: "Oczekujące",
+  ACCEPTED: "Zaakceptowane",
+  REJECTED: "Odrzucone",
+  CANCELLED: "Anulowane",
+};
+
+const timeSlotMap = {
+  1: "08:00-09:30",
+  2: "09:45-11:15",
+  3: "11:30-13:00",
+  4: "13:15-14:45",
+  5: "15:00-16:30",
+  6: "16:45-18:15",
+  7: "18:30-20:00",
+};
+
+const useRelatedRequests = (status) => {
+  return useQuery({
+    queryKey: ["related-requests", { status }],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: 1000 });
+      if (status) params.append("status", status);
+      return apiRequest(`/change-requests/related?${params.toString()}`);
+    },
+    select: (data) =>
+      data.map((req) => ({
+        ...req,
+        course_event: req.course_event || {},
+      })),
+  });
+};
+
+const useCoursesMap = () => {
+  const { data: courses = [] } = useQuery({
+    queryKey: ["courses"],
+    queryFn: () => apiRequest("/courses"),
+  });
+  return useMemo(() => new Map(courses.map((c) => [c.id, c.name])), [courses]);
+};
 
 const MyRecommendationsPage = () => {
-    const { user, loading } = useContext(UserContext);
-    const [changeRequests, setChangeRequests] = useState([]);
-    const [coursesMap, setCoursesMap] = useState({});
-    const [selectedRequestId, setSelectedRequestId] = useState(null);
-    const [recommendations, setRecommendations] = useState([]);
-    const [roomNames, setRoomNames] = useState({});
-    const navigate = useNavigate();
-    const [selectedStatus, setSelectedStatus] = useState("");
-    const statusLabels = {
-        PENDING: "Oczekujące",
-        ACCEPTED: "Zaakceptowane",
-        REJECTED: "Odrzucone",
-        CANCELLED: "Anulowane",
-    };
-    const [openDialog, setOpenDialog] = useState(false);
-    const [selectedProposal, setSelectedProposal] = useState(null);
-    const [hasInitialized, setHasInitialized] = useState(false);
-    const [eventInfoMap, setEventInfoMap] = useState({}); // eventId → { courseId, day }
+  const queryClient = useQueryClient();
+  const { user } = useContext(AuthContext);
+  const [selectedStatus, setSelectedStatus] = useState("PENDING");
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [selectedProposal, setSelectedProposal] = useState(null);
 
+  const { data: requests = [], isLoading: isLoadingRequests } =
+    useRelatedRequests(selectedStatus);
+  const coursesMap = useCoursesMap();
 
+  const selectedRequest = useMemo(() => {
+    return requests.find((req) => req.id === selectedRequestId) || null;
+  }, [requests, selectedRequestId]);
 
-    const fetchAndTriggerCommonAvailability = useCallback(async (requests) => {
-        for (const req of requests) {
-            try {
-                const event = await apiRequest(`/courses/events/${req.course_event_id}`);
-                const course = await apiRequest(`/courses/${event.course_id}`);
-                const group = await apiRequest(`/groups/${course.group_id}`);
+  const { data: recommendations = [], isLoading: isLoadingRecommendations } =
+    useQuery({
+      queryKey: ["recommendations", selectedRequestId],
+      queryFn: () => apiRequest(`/recommendations/${selectedRequestId}`),
+      enabled: !!selectedRequestId,
+    });
 
-                const user1_id = user.id;
-                let user2_id = null;
+  const acceptMutation = useMutation({
+    mutationFn: (proposalId) =>
+      apiRequest(`/proposals/${proposalId}/accept`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["related-requests"] });
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedRequestId],
+      });
+      setSelectedProposal(null);
+    },
+  });
 
-                if (user.role === "PROWADZACY") {
-                    user2_id = group.leader_id;
-                } else if (user.role === "STAROSTA") {
-                    user2_id = course.teacher_id;
-                }
+  const rejectMutation = useMutation({
+    mutationFn: (proposalId) =>
+      apiRequest(`/proposals/${proposalId}/reject`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["related-requests"] });
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedRequestId],
+      });
+      setSelectedProposal(null);
+    },
+  });
 
-                if (user2_id) {
-                    await apiRequest(
-                        `/change_recommendation/common-availability?user1_id=${user1_id}&user2_id=${user2_id}&change_request_id=${req.id}`,
-                        { method: "POST" }
-                    );
-                }
-            } catch (err) {
-                console.warn(`Nie udało się wywołać common-availability dla requestu ${req.id}`, err);
+  const getRequestDisplayLabel = (req) => {
+    const courseName =
+      coursesMap.get(req.course_event?.course_id) || "Nieznany kurs";
+    const eventDate = req.course_event?.day
+      ? format(new Date(req.course_event.day), "dd.MM.yyyy", { locale: pl })
+      : "Brak daty";
+    return `${courseName} z dnia ${eventDate} - ${req.reason}`;
+  };
+
+  return (
+    <Box>
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth>
+              <InputLabel>Status zgłoszenia</InputLabel>
+              <Select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                label="Status zgłoszenia"
+              >
+                <MenuItem value="">Wszystkie</MenuItem>
+                {Object.entries(statusLabels).map(([val, lab]) => (
+                  <MenuItem key={val} value={val}>
+                    {lab}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth>
+              <InputLabel>Wybierz zgłoszenie</InputLabel>
+              <Select
+                value={selectedRequestId}
+                onChange={(e) => setSelectedRequestId(e.target.value)}
+                label="Wybierz zgłoszenie"
+                disabled={isLoadingRequests}
+              >
+                {requests.map((req) => (
+                  <MenuItem key={req.id} value={req.id}>
+                    {getRequestDisplayLabel(req)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          {selectedRequest && selectedRequest.status === "PENDING" && (
+            <AvailabilitySelector changeRequestId={selectedRequestId} />
+          )}
+          {selectedRequestId && selectedRequest?.status !== "PENDING" && (
+            <Alert severity="info">
+              To zgłoszenie zostało już przetworzone (
+              {statusLabels[selectedRequest.status]}). Nie możesz już proponować
+              terminów.
+            </Alert>
+          )}
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Rekomendowane Terminy</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Poniżej znajdują się terminy pasujące obu stronom.
+            </Typography>
+            {isLoadingRecommendations && <CircularProgress />}
+            {!isLoadingRecommendations &&
+              selectedRequestId &&
+              recommendations.length === 0 && (
+                <Alert severity="info">
+                  Brak wspólnych terminów. Upewnij się, że obie strony wskazały
+                  swoją dostępność.
+                </Alert>
+              )}
+            {recommendations.length > 0 && (
+              <List>
+                {recommendations.map((rec) => (
+                  <React.Fragment key={rec.id}>
+                    <ListItem button onClick={() => setSelectedProposal(rec)}>
+                      <ListItemText
+                        primary={`Data: ${format(
+                          new Date(rec.recommended_day),
+                          "EEEE, dd.MM.yyyy",
+                          { locale: pl }
+                        )}`}
+                        secondary={
+                          <>{`Slot: ${
+                            timeSlotMap[rec.recommended_slot_id]
+                          } / Sala: ${rec.recommended_room?.name}`}</>
+                        }
+                      />
+                    </ListItem>
+                    <Divider />
+                  </React.Fragment>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Dialog
+        open={!!selectedProposal}
+        onClose={() => setSelectedProposal(null)}
+      >
+        <DialogTitle>Szczegóły propozycji</DialogTitle>
+        <DialogContent>
+          {selectedProposal && (
+            <List>
+              <ListItem>
+                <ListItemText
+                  primary="Data"
+                  secondary={format(
+                    new Date(selectedProposal.recommended_day),
+                    "EEEE, dd.MM.yyyy",
+                    { locale: pl }
+                  )}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary="Slot"
+                  secondary={timeSlotMap[selectedProposal.recommended_slot_id]}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary="Sala"
+                  secondary={selectedProposal.recommended_room?.name}
+                />
+              </ListItem>
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedProposal(null)}>Anuluj</Button>
+          <Button
+            onClick={() =>
+              rejectMutation.mutate(selectedProposal.source_proposal_id)
             }
-        }
-    }, [user]);
-
-
-    const fetchRelatedRequests = useCallback(async () => {
-        try {
-            const queryParams = new URLSearchParams({ limit: 1000 });
-            if (selectedStatus) {
-                queryParams.append("status", selectedStatus);
+            color="error"
+            variant="outlined"
+            disabled={rejectMutation.isPending}
+          >
+            Odrzuć
+          </Button>
+          <Button
+            onClick={() =>
+              acceptMutation.mutate(selectedProposal.source_proposal_id)
             }
-            const result = await apiRequest(`/change_requests/related?${queryParams.toString()}`);
-            setChangeRequests(result);
-            await fetchAndTriggerCommonAvailability(result);
-        } catch (error) {
-            console.error("Błąd podczas pobierania powiązanych zgłoszeń zmian:", error);
-        }
-    }, [selectedStatus, fetchAndTriggerCommonAvailability]);
-
-    useEffect(() => {
-        if (!loading && !localStorage.getItem("token")) {
-            navigate("/login", { replace: true });
-        }
-
-        if (!loading && user && !hasInitialized) {
-            fetchRelatedRequests();
-            fetchCourses();
-            setHasInitialized(true);
-        }
-    }, [loading, user, navigate, hasInitialized, fetchRelatedRequests]);
-
-    useEffect(() => {
-        if (hasInitialized) {
-            fetchRelatedRequests();
-        }
-    }, [selectedStatus, hasInitialized, fetchRelatedRequests]);
-
-    if (loading) {
-        return;
-    }
-
-    const fetchCourses = async () => {
-        try {
-            const courses = await apiRequest("/courses/");
-            const newCoursesMap = {};
-            const newEventInfoMap = {};
-
-            for (const course of courses) {
-                newCoursesMap[course.id] = course.name || `Kurs ${course.id}`;
-                const events = await apiRequest(`/courses/${course.id}/events`);
-                for (const event of events) {
-                    newEventInfoMap[event.id] = {
-                        courseId: course.id,
-                        eventDay: event.day,
-                    };
-                }
-            }
-
-            setCoursesMap(newCoursesMap);
-            setEventInfoMap(newEventInfoMap);
-        } catch (error) {
-            console.error("Błąd podczas pobierania kursów i wydarzeń:", error);
-        }
-    };
-
-
-
-    const fetchRecommendations = async (changeRequestId) => {
-        try {
-            const result = await apiRequest(`/change_recommendation/${changeRequestId}/recommendations`);
-            setRecommendations(result);
-
-            // Pobierz nazwy sal jeśli jeszcze nieznane
-            const uniqueRoomIds = [...new Set(result.map(r => r.recommended_room_id))];
-            for (const roomId of uniqueRoomIds) {
-                if (!roomNames[roomId]) {
-                    try {
-                        const room = await apiRequest(`/rooms/${roomId}`);
-                        setRoomNames(prev => ({ ...prev, [roomId]: room.name }));
-                    } catch (e) {
-                        console.warn(`Nie udało się pobrać sali ${roomId}`);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Błąd podczas pobierania rekomendacji:", error);
-        }
-    };
-
-    const handleSelectChangeRequest = (e) => {
-        const requestId = e.target.value;
-        setSelectedRequestId(requestId);
-        fetchRecommendations(requestId);
-    };
-
-    const handleStatusChange = (e) => {
-        setSelectedStatus(e.target.value);
-    };
-
-    const handleSelectProposal = (rec) => {
-        setSelectedProposal(rec);
-        setOpenDialog(true);
-    };
-
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
-        setSelectedProposal(null);
-    };
-
-    const handleProposalStatusChange = async (newStatus) => {
-        if (!selectedProposal) return;
-
-        const role = user.role;
-        const baseEndpoint =
-            role === "PROWADZACY"
-                ? "/leader"
-                : role === "STAROSTA"
-                    ? "/representative"
-                    : null;
-
-        if (!baseEndpoint) return;
-
-        // Budujemy poprawny URL z /proposals/{id}/changestatus/{role} oraz parametrem query new_status
-        const endpoint = `/proposals/${selectedProposal.id}/changestatus${baseEndpoint}?new_status=${newStatus}`;
-
-        try {
-            await apiRequest(endpoint, {
-                method: "POST",
-                // usuń body - backend oczekuje parametru w query, więc nie wysyłamy ciała
-            });
-
-            // odśwież rekomendacje po zmianie
-            if (selectedRequestId) {
-                fetchRecommendations(selectedRequestId);
-            }
-
-            handleCloseDialog();
-        } catch (error) {
-            console.error("Błąd podczas zmiany statusu propozycji:", error);
-        }
-    };
-
-
-
-
-
-    const formatSlotTime = (slotId) => {
-        const slots = [
-            "08:00 - 09:30",
-            "09:45 - 11:15",
-            "11:30 - 13:00",
-            "13:15 - 14:45",
-            "15:00 - 16:30",
-            "16:45 - 18:15",
-            "18:30 - 20:00",
-        ];
-        return slots[slotId - 1] || `Slot ${slotId}`;
-    };
-
-    return (
-        <Box>
-            <Navbar />
-            <Box padding={4}>
-                <Typography variant="h4" gutterBottom>
-                    Rekomendacje dla Twoich zgłoszeń zmian
-                </Typography>
-                <FormControl fullWidth sx={{ marginBottom: 2 }}>
-                    <InputLabel>Status zgłoszenia</InputLabel>
-                    <Select
-                        value={selectedStatus}
-                        onChange={handleStatusChange}
-                        label="Status zgłoszenia"
-                    >
-                        <MenuItem value="">Wszystkie</MenuItem>
-                        {Object.entries(statusLabels).map(([value, label]) => (
-                            <MenuItem key={value} value={value}>
-                                {label}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-
-                <FormControl fullWidth sx={{ marginBottom: 3 }}>
-                    <InputLabel>Wybierz zgłoszenie zmiany</InputLabel>
-                    <Select
-                        value={selectedRequestId || ""}
-                        onChange={handleSelectChangeRequest}
-                        label="Wybierz zgłoszenie zmiany"
-                    >
-                        {changeRequests.map((request) => (
-                            <MenuItem key={request.id} value={request.id}>
-                                {`${coursesMap[eventInfoMap[request.course_event_id]?.courseId] || "Nieznany kurs"}: ${request.reason} (${eventInfoMap[request.course_event_id]?.eventDay ? new Date(eventInfoMap[request.course_event_id].eventDay).toLocaleDateString() : "brak daty"})`}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-                {recommendations.length > 0 ? (
-                    <Paper elevation={3}>
-                        <List>
-                            {recommendations.map((rec) => (
-                                <React.Fragment key={rec.id}>
-                                    <ListItem button onClick={() => handleSelectProposal(rec)}>
-                                    <ListItemText
-                                            primary={`Data: ${rec.recommended_day}`}
-                                            secondary={
-                                                <>
-                                                    <div>Slot: {formatSlotTime(rec.recommended_slot_id)}</div>
-                                                    <div>Sala: {roomNames[rec.recommended_room_id] || rec.recommended_room_id}</div>
-                                                </>
-                                            }
-                                        />
-                                    </ListItem>
-                                    <Divider />
-                                </React.Fragment>
-                            ))}
-                        </List>
-                    </Paper>) : (
-                    selectedRequestId && (
-                        <Typography variant="body1">Brak rekomendacji dla wybranego zgłoszenia.</Typography>
-                    )
-
-                )}
-                <Dialog open={openDialog} onClose={handleCloseDialog}>
-                    <DialogTitle>Szczegóły propozycji</DialogTitle>
-                    <DialogContent>
-                        {selectedProposal && (
-                            <List>
-                                <ListItem>
-                                    <ListItemText primary="Data" secondary={selectedProposal.recommended_day} />
-                                </ListItem>
-                                <ListItem>
-                                    <ListItemText primary="Slot" secondary={formatSlotTime(selectedProposal.recommended_slot_id)} />
-                                </ListItem>
-                                <ListItem>
-                                    <ListItemText
-                                        primary="Sala"
-                                        secondary={roomNames[selectedProposal.recommended_room_id] || selectedProposal.recommended_room_id}
-                                    />
-                                </ListItem>
-                            </List>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCloseDialog}>Zamknij</Button>
-                        {["STAROSTA", "PROWADZACY"].includes(user.role) && (
-                            <>
-                                <Button onClick={() => handleProposalStatusChange(false)} color="error" variant="outlined">
-                                    Odrzuć
-                                </Button>
-                                <Button onClick={() => handleProposalStatusChange(true)} color="primary" variant="contained">
-                                    Zaakceptuj
-                                </Button>
-                            </>
-                        )}
-                    </DialogActions>
-                </Dialog>
-
-            </Box>
-        </Box>
-    );
+            color="primary"
+            variant="contained"
+            disabled={acceptMutation.isPending}
+          >
+            Zaakceptuj
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
 };
 
 export default MyRecommendationsPage;

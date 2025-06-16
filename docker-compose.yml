@@ -1,18 +1,50 @@
-version: '3.8'
-
 services:
+  # Serwis Bazy Danych
   db:
-    image: postgres:15
-    container_name: software-engeneering-db
+    image: postgres:15-alpine
+    container_name: booking_system_db
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: database
-    ports:
-      - "5433:5432"
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=database
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+      - postgres_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d database"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Serwis Backendu
+  backend:
+    container_name: booking_system_backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    # ZMIANA: Tymczasowo wystawiamy port 8000
+    ports:
+      - "8000:8000"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://admin:admin@db:5432/database
+      - SECRET_KEY=twoj_bardzo_bezpieczny_sekretny_klucz_zmien_to_koniecznie
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Serwis Frontendu z Nginx
+  frontend:
+    container_name: booking_system_frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

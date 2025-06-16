@@ -1,234 +1,93 @@
-from fastapi import Query
+from datetime import datetime
+from typing import List, Optional
+
 from database import get_db
-from fastapi import APIRouter, Depends, HTTPException
-from model import ChangeRequest, CourseEvent, User, ChangeRequestStatus, Course, Group
+from fastapi import APIRouter, Depends, HTTPException, Query
+from model import ChangeRequest, Course, CourseEvent, Group, User, ChangeRequestStatus, UserRole
 from routers.auth import get_current_user
-from routers.schemas import (
-    ChangeRequestCreate,
-    ChangeRequestResponse,
-    ChangeRequestUpdate,
-)
+from routers.schemas import ChangeRequestCreate, ChangeRequestResponse, ChangeRequestUpdate
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
-from starlette.status import (
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_204_NO_CONTENT,
-    HTTP_404_NOT_FOUND,
-)
+from sqlalchemy.orm import Session, joinedload
+from starlette.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 
-router = APIRouter(prefix="/change_requests", tags=["change_requests"])
+router = APIRouter(prefix="/change-requests", tags=["Change Requests"])
 
-
-@router.get("/", response_model=list[ChangeRequestResponse], status_code=HTTP_200_OK)
-async def get_requests(
-    skip: int = 0,
-    limit: int = 10,
+@router.get("/related", response_model=List[ChangeRequestResponse], status_code=HTTP_200_OK)
+def get_related_requests(
+    status: Optional[ChangeRequestStatus] = Query(None, description="Optional status filter"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[ChangeRequest]:
-    """
-    Retrieve a paginated list of all change requests.
+) -> List[ChangeRequestResponse]:
+    # POPRAWKA: Używamy .scalar_subquery() aby uniknąć ostrzeżeń SAWarning
+    teacher_course_ids = db.query(Course.id).filter(Course.teacher_id == current_user.id).scalar_subquery()
+    
+    leader_group_ids = db.query(Group.id).filter(Group.leader_id == current_user.id).scalar_subquery()
+    leader_course_ids = db.query(Course.id).filter(Course.group_id.in_(leader_group_ids)).scalar_subquery()
 
-    Args:
-        skip (int, optional): Number of records to skip. Defaults to 0.
-        limit (int, optional): Maximum number of records to return. Defaults to 10.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
+    related_course_ids = db.query(Course.id).filter(
+        or_(Course.id.in_(teacher_course_ids), Course.id.in_(leader_course_ids))
+    ).scalar_subquery()
+    
+    related_event_ids = db.query(CourseEvent.id).filter(CourseEvent.course_id.in_(related_course_ids)).scalar_subquery()
 
-    Returns:
-        list[ChangeRequest]: List of change requests.
-    """
-    requests = db.query(ChangeRequest).offset(skip).limit(limit).all()
-    return requests
-
-
-@router.get("/related", response_model=list[ChangeRequestResponse], status_code=HTTP_200_OK)
-async def get_related_requests(
-        status: ChangeRequestStatus | None = Query(default=None, description="Optional status filter"),
-        skip: int = 0,
-        limit: int = 10,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-) -> list[ChangeRequestResponse]:
-    """
-    Get all change requests related to the current user, optionally filtered by status,
-    with pagination.
-    Includes requests:
-    - created by the user
-    - for courses where the user is the teacher
-    - for courses where the user is group leader (starosta)
-    """
-    # kursy, jeśli prowadzący
-    teacher_event_ids = (
-        db.query(CourseEvent.id)
-        .join(Course)
-        .filter(Course.teacher_id == current_user.id)
-        .subquery()
-    )
-
-    # kursy, gdzie jest starostą grupy
-    leader_event_ids = (
-        db.query(CourseEvent.id)
-        .join(Course)
-        .join(Group)
-        .filter(Group.leader_id == current_user.id)
-        .subquery()
-    )
-
-    query = (
-        db.query(ChangeRequest)
-        .filter(
-            or_(
-                ChangeRequest.initiator_id == current_user.id,
-                ChangeRequest.course_event_id.in_(teacher_event_ids),
-                ChangeRequest.course_event_id.in_(leader_event_ids),
-            )
+    query = db.query(ChangeRequest).filter(
+        or_(
+            ChangeRequest.initiator_id == current_user.id,
+            ChangeRequest.course_event_id.in_(related_event_ids),
         )
-    )
+    ).options(joinedload(ChangeRequest.course_event))
 
     if status:
         query = query.filter(ChangeRequest.status == status)
 
-    return query.offset(skip).limit(limit).all()
-
-
-@router.get(
-    "/{event_id}", response_model=ChangeRequestResponse, status_code=HTTP_200_OK
-)
-async def get_request_by_id(
-    request_id: int, 
-    db: Session = Depends(get_db)
-) -> ChangeRequest:
-    """
-    Retrieve a specific change request by ID.
-
-    Args:
-        request_id (int): ID of the change request to retrieve.
-        db (Session): Database session.
-
-    Raises:
-        HTTPException: If change request with the specified ID is not found.
-
-    Returns:
-        ChangeRequest: The requested change request.
-    """
-    request = db.query(ChangeRequest).filter(ChangeRequest.id == request_id).first()
-    if not request:
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND, detail="Change request not found"
-        )
-    return request
-
+    return query.order_by(ChangeRequest.created_at.desc()).all()
 
 @router.post("/", response_model=ChangeRequestResponse, status_code=HTTP_201_CREATED)
-async def create_request(
-    request: ChangeRequestCreate,
+def create_request(
+    request_data: ChangeRequestCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ChangeRequest:
-    """
-    Create a new change request.
-
-    Args:
-        request (ChangeRequestCreate): Data for the new change request.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
-
-    Raises:
-        HTTPException: If course event or user is not found.
-
-    Returns:
-        ChangeRequest: The newly created change request.
-    """
-    course_event = (
-        db.query(CourseEvent).filter(CourseEvent.id == request.course_event_id).first()
-    )
+    course_event = db.query(CourseEvent).filter(CourseEvent.id == request_data.course_event_id).first()
     if not course_event:
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND, detail="Course event not found"
-        )
-    user = db.query(User).filter(User.id == request.initiator_id).first()
-    if not user:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
 
-    new_request = ChangeRequest(**request.dict())
+    new_request = ChangeRequest(
+        **request_data.dict(exclude={"created_at"}),
+        initiator_id=current_user.id,
+        status=ChangeRequestStatus.PENDING,
+        created_at=datetime.utcnow()
+    )
     db.add(new_request)
     db.commit()
     db.refresh(new_request)
     return new_request
 
+@router.get("/{request_id}", response_model=ChangeRequestResponse, status_code=HTTP_200_OK)
+def get_request_by_id(request_id: int, db: Session = Depends(get_db)) -> ChangeRequest:
+    request = db.query(ChangeRequest).filter(ChangeRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Change request not found")
+    return request
 
-@router.put(
-    "/{request_id}", response_model=ChangeRequestResponse, status_code=HTTP_200_OK
-)
-async def update_request(
-    request: ChangeRequestUpdate,
+@router.put("/{request_id}", response_model=ChangeRequestResponse, status_code=HTTP_200_OK)
+def update_request(
+    request_id: int,
+    request_data: ChangeRequestUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ChangeRequest:
-    """
-    Update an existing change request.
-
-    Args:
-        request (ChangeRequestUpdate): Updated change request data.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
-
-    Raises:
-        HTTPException: If change request, course event, or user is not found.
-
-    Returns:
-        ChangeRequest: The updated change request.
-    """
-    existing_request = (
-        db.query(ChangeRequest)
-        .filter(ChangeRequest.id == request.change_request_id)
-        .first()
-    )
-    if existing_request is None:
+    db_request = db.query(ChangeRequest).filter(ChangeRequest.id == request_id).first()
+    if db_request is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Request not found")
 
-    course_event = (
-        db.query(CourseEvent).filter(CourseEvent.id == request.course_event_id).first()
-    )
-    if not course_event:
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND, detail="Course event not found"
-        )
-
-    user = db.query(User).filter(User.id == request.initiator_id).first()
-    if not user:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
-
-    for key, value in request.dict(exclude_unset=True).items():
-        setattr(existing_request, key, value)
+    if db_request.initiator_id != current_user.id and current_user.role not in [UserRole.ADMIN, UserRole.KOORDYNATOR]:
+        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authorized to update this request")
+        
+    update_data = request_data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_request, key, value)
+        
     db.commit()
-    db.refresh(existing_request)
-    return existing_request
-
-@router.delete("/{request_id}", status_code=HTTP_204_NO_CONTENT)
-async def delete_request(
-    request_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """
-    Delete a change request by ID.
-
-    Args:
-        request_id (int): ID of the change request to delete.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
-
-    Raises:
-        HTTPException: If change request with the specified ID is not found.
-    """
-    existing_request = (
-        db.query(ChangeRequest).filter(ChangeRequest.id == request_id).first()
-    )
-    if existing_request is None:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Request not found")
-    db.delete(existing_request)
-    db.commit()
-    return
+    db.refresh(db_request)
+    return db_request

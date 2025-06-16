@@ -1,8 +1,8 @@
-
+from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import Group, User, UserRole
-from routers.auth import role_required, get_current_user
+from routers.auth import get_current_user, role_required
 from routers.schemas import GroupCreate, GroupResponse, GroupUpdate
 from sqlalchemy.orm import Session
 from starlette.status import (
@@ -10,176 +10,90 @@ from starlette.status import (
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
     HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
     HTTP_422_UNPROCESSABLE_ENTITY,
 )
 
-router = APIRouter(prefix="/groups", tags=["groups"])
+router = APIRouter(prefix="/groups", tags=["Groups"])
 
-
-@router.get("/", response_model=list[GroupResponse], status_code=HTTP_200_OK)
-async def get_groups(
-    skip: int = 0,
-    limit: int = 10,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[Group]:
-    """
-    Retrieve a paginated list of all groups.
-
-    Args:
-        skip (int, optional): Number of records to skip. Defaults to 0.
-        limit (int, optional): Maximum number of records to return. Defaults to 10.
-        db (Session): Database session.
-        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
-
-    Returns:
-        list[Group]: List of group objects.
-    """
-    groups = db.query(Group).offset(skip).limit(limit).all()
-    return groups
-
+@router.get("", response_model=List[GroupResponse])
+@router.get("/", response_model=List[GroupResponse], include_in_schema=False)
+def get_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(Group).all()
 
 @router.get("/{group_id}", status_code=HTTP_200_OK, response_model=GroupResponse)
-async def get_group(
-    group_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> Group:
-    """
-    Retrieve a single group by ID.
-
-    Args:
-        group_id (int): ID of the group to retrieve.
-        db (Session): Database session.
-        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
-
-    Raises:
-        HTTPException: If group with the specified ID is not found.
-
-    Returns:
-        Group: The requested group object.
-    """
+def get_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Group:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
     return group
 
-
-@router.post("/", status_code=HTTP_201_CREATED, response_model=GroupResponse)
-async def create_group(
-    group: GroupCreate,
+@router.post("", response_model=GroupResponse, status_code=HTTP_201_CREATED)
+@router.post("/", response_model=GroupResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
+def create_group(
+    group_data: GroupCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
 ) -> Group:
-    """
-    Create a new group.
-
-    Args:
-        group (GroupCreate): Group data for creation.
-        db (Session): Database session.
-        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
-
-    Raises:
-        HTTPException: If user is not found, year is invalid, or leader is not a STAROSTA.
-
-    Returns:
-        Group: The newly created group object.
-    """
-    user = db.query(User).filter(User.id == group.leader_id).first()
-    if not user:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
-
-    if group.year is not None and (group.year < 1 or group.year > 5):
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Year must be between 1 and 6",
-        )
-
-    leader = db.query(User).filter(User.id == group.leader_id).first()
-
+    leader = db.query(User).filter(User.id == group_data.leader_id).first()
+    if not leader:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Leader user not found")
     if leader.role != UserRole.STAROSTA:
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="User must not be a student",
-        )
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="The assigned leader must have the 'STAROSTA' role.")
+    if db.query(Group).filter(Group.name == group_data.name).first():
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Group with this name already exists")
+    if db.query(Group).filter(Group.leader_id == group_data.leader_id).first():
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="This user is already a leader of another group")
 
-    new_group = Group(**group.dict())
+    new_group = Group(**group_data.dict())
     db.add(new_group)
     db.commit()
     db.refresh(new_group)
     return new_group
 
-
 @router.put("/{group_id}", status_code=HTTP_200_OK, response_model=GroupResponse)
-async def update_group(
+def update_group(
     group_id: int,
-    group: GroupUpdate,
+    group_data: GroupUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
 ) -> Group:
-    """
-    Update an existing group.
-
-    Args:
-        group_id (int): ID of the group to update.
-        group (GroupUpdate): Updated group data.
-        db (Session): Database session.
-        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
-
-    Raises:
-        HTTPException: If group or user is not found, year is invalid, or leader is not a STAROSTA.
-
-    Returns:
-        Group: The updated group object.
-    """
-    existing_group = db.query(Group).filter(Group.id == group_id).first()
-    if not existing_group:
+    db_group = db.query(Group).filter(Group.id == group_id).first()
+    if not db_group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
 
-    user = db.query(User).filter(User.id == group.leader_id).first()
-    if not user:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
+    update_data = group_data.dict(exclude_unset=True)
 
-    if group.year is not None and (group.year < 1 or group.year > 5):
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Year must be between 1 and 6",
-        )
+    if "leader_id" in update_data and update_data["leader_id"] is not None:
+        leader = db.query(User).filter(User.id == update_data["leader_id"]).first()
+        if not leader:
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Leader user not found")
+        if leader.role != UserRole.STAROSTA:
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="The assigned leader must have the 'STAROSTA' role.")
+        existing_leadership = db.query(Group).filter(Group.leader_id == update_data["leader_id"], Group.id != group_id).first()
+        if existing_leadership:
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="This user is already a leader of another group")
 
-    leader = db.query(User).filter(User.id == group.leader_id).first()
-
-    if leader.role != UserRole.STAROSTA:
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="User must not be a student",
-        )
-
-    for key, value in group.dict(exclude_unset=True).items():
-        setattr(existing_group, key, value)
+    if "name" in update_data and update_data["name"] != db_group.name:
+        if db.query(Group).filter(Group.name == update_data["name"]).first():
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Group with this name already exists")
+            
+    for key, value in update_data.items():
+        setattr(db_group, key, value)
+        
     db.commit()
-    db.refresh(existing_group)
-    return existing_group
-
+    db.refresh(db_group)
+    return db_group
 
 @router.delete("/{group_id}", status_code=HTTP_204_NO_CONTENT)
-async def delete_group(
+def delete_group(
     group_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
 ) -> None:
-    """
-    Delete a group by ID.
-
-    Args:
-        group_id (int): ID of the group to delete.
-        db (Session): Database session.
-        current_user (User): Current authenticated user (must be ADMIN or KOORDYNATOR).
-
-    Raises:
-        HTTPException: If group with the specified ID is not found.
-    """
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
     db.delete(group)
     db.commit()
+    return None

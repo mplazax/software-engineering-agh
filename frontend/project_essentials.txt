@@ -1,0 +1,3463 @@
+--- FILE: ./package.json ---
+
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@date-io/date-fns": "^3.0.0",
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
+    "@fontsource/inter": "^5.0.18",
+    "@mui/icons-material": "^5.15.19",
+    "@mui/lab": "^5.0.0-alpha.170",
+    "@mui/material": "^5.15.19",
+    "@mui/x-data-grid": "^7.6.2",
+    "@mui/x-date-pickers": "^7.6.2",
+    "axios": "^1.7.2",
+    "date-fns": "^3.6.0",
+    "react": "^18.3.1",
+    "react-big-calendar": "^1.12.2",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^4.0.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
+
+
+--- FILE: ./src/index.js ---
+
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./App.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+
+--- FILE: ./src/theme.js ---
+
+import { createTheme } from "@mui/material/styles";
+
+const theme = createTheme({
+  palette: {
+    primary: { main: "#1E5E3A" },
+    secondary: { main: "#424242" },
+    background: { default: "#f4f6f8", paper: "#ffffff" },
+    text: { primary: "#171717", secondary: "#5f6c7a" },
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h4: { fontWeight: 700, color: "#171717" },
+    h5: { fontWeight: 600 },
+    h6: { fontWeight: 600 },
+    button: { textTransform: "none", fontWeight: 600 },
+  },
+  shape: { borderRadius: 8 },
+  components: {
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#ffffff",
+          color: "#171717",
+          boxShadow: "0px 1px 4px rgba(0, 0, 0, 0.1)",
+        },
+      },
+    },
+    MuiButton: {
+      defaultProps: { disableElevation: true },
+      styleOverrides: { root: { borderRadius: 8, padding: "10px 22px" } },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.05)",
+          backgroundImage: "none",
+        },
+      },
+    },
+    MuiDataGrid: {
+      styleOverrides: {
+        root: { border: "none" },
+        cell: { borderBottom: "1px solid #f0f0f0" },
+        columnHeaders: {
+          backgroundColor: "#f4f6f8",
+          borderBottom: "1px solid #e0e0e0",
+        },
+      },
+    },
+  },
+});
+
+export default theme;
+
+
+--- FILE: ./src/components/PublicRoute.js ---
+
+import React, { useContext } from "react";
+import { Navigate, Outlet } from "react-router-dom";
+import { UserContext } from "../App";
+import { Box, CircularProgress } from "@mui/material";
+
+const PublicRoute = () => {
+  const { user, loading } = useContext(UserContext);
+
+  if (loading) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/main" replace />;
+  }
+
+  return <Outlet />;
+};
+
+export default PublicRoute;
+
+
+--- FILE: ./src/components/Navbar.js ---
+
+import React, { useContext } from "react";
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  Box,
+  IconButton,
+  Avatar,
+  Menu,
+  MenuItem,
+  Tooltip,
+  Divider,
+  ListItemIcon,
+  Badge,
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { UserContext } from "../App";
+import SchoolIcon from "@mui/icons-material/School";
+import Logout from "@mui/icons-material/Logout";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+
+const Navbar = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useContext(UserContext);
+  const [anchorEl, setAnchorEl] = React.useState(null);
+  const open = Boolean(anchorEl);
+
+  const handleMenu = (event) => setAnchorEl(event.currentTarget);
+  const handleClose = () => setAnchorEl(null);
+
+  const handleLogoutClick = () => {
+    handleClose();
+    logout();
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "";
+    const parts = name.split(" ");
+    if (parts.length > 1 && parts[1])
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const roleTranslations = {
+    ADMIN: "Administrator",
+    KOORDYNATOR: "Koordynator",
+    PROWADZACY: "Prowadzący",
+    STAROSTA: "Starosta",
+  };
+
+  return (
+    <AppBar position="fixed" color="default">
+      <Toolbar>
+        <SchoolIcon sx={{ mr: 2, color: "primary.main", fontSize: 32 }} />
+        <Typography
+          variant="h6"
+          component="div"
+          sx={{ flexGrow: 1, cursor: "pointer", fontWeight: 700 }}
+          onClick={() => navigate("/main")}
+        >
+          System Rezerwacji Sal
+        </Typography>
+
+        <Box sx={{ display: { xs: "none", md: "block" } }}>
+          <Button color="inherit" onClick={() => navigate("/main")}>
+            Dashboard
+          </Button>
+          <Button color="inherit" onClick={() => navigate("/requests")}>
+            Kalendarz
+          </Button>
+        </Box>
+
+        <Box
+          sx={{
+            flexGrow: 0,
+            ml: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Tooltip title="Powiadomienia">
+            <IconButton onClick={() => navigate("/main")} color="inherit">
+              <Badge color="error" variant="dot" invisible={true}>
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Opcje użytkownika">
+            <IconButton onClick={handleMenu} sx={{ p: 0 }}>
+              <Avatar sx={{ bgcolor: "primary.main" }}>
+                {getInitials(user?.name)}
+              </Avatar>
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={anchorEl}
+            open={open}
+            onClose={handleClose}
+            PaperProps={{
+              elevation: 0,
+              sx: {
+                overflow: "visible",
+                filter: "drop-shadow(0px 2px 8px rgba(0,0,0,0.32))",
+                mt: 1.5,
+              },
+            }}
+            transformOrigin={{ horizontal: "right", vertical: "top" }}
+            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+          >
+            <Box sx={{ px: 2, py: 1, minWidth: 220 }}>
+              <Typography variant="subtitle1" noWrap>
+                {user?.name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {roleTranslations[user?.role] || user?.role}
+              </Typography>
+            </Box>
+            <Divider />
+            <MenuItem onClick={handleLogoutClick}>
+              <ListItemIcon>
+                <Logout fontSize="small" />
+              </ListItemIcon>
+              Wyloguj
+            </MenuItem>
+          </Menu>
+        </Box>
+      </Toolbar>
+    </AppBar>
+  );
+};
+
+export default Navbar;
+
+
+--- FILE: ./src/components/PrivateRoute.js ---
+
+import React, { useContext } from "react";
+import { Navigate, Outlet } from "react-router-dom";
+import { UserContext } from "../App";
+import { Box, CircularProgress } from "@mui/material";
+import Navbar from "./Navbar";
+
+const PrivateRoute = () => {
+  const { user, loading } = useContext(UserContext);
+
+  if (loading) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <>
+      <Navbar />
+      <Box
+        component="main"
+        sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, mt: "64px" }}
+      >
+        <Outlet />
+      </Box>
+    </>
+  );
+};
+
+export default PrivateRoute;
+
+
+--- FILE: ./src/pages/LoginPage.js ---
+
+import React, { useState, useContext } from "react";
+import { UserContext } from "../App";
+import { getCurrentUser, login } from "../services/authService";
+import { useNavigate } from "react-router-dom";
+import {
+  TextField,
+  Button,
+  Box,
+  Typography,
+  Alert,
+  Container,
+  Paper,
+  Avatar,
+} from "@mui/material";
+import SchoolIcon from "@mui/icons-material/School";
+
+const LoginPage = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { setUser } = useContext(UserContext);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      await login(email, password);
+      const user = await getCurrentUser();
+      setUser(user);
+      navigate("/main");
+    } catch (err) {
+      setError("Nieprawidłowy email lub hasło. Spróbuj ponownie.");
+    }
+  };
+
+  return (
+    <Container component="main" maxWidth="xs">
+      <Paper
+        elevation={6}
+        sx={{
+          marginTop: 8,
+          p: 4,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <Avatar sx={{ m: 1, bgcolor: "primary.main", width: 56, height: 56 }}>
+          <SchoolIcon />
+        </Avatar>
+        <Typography component="h1" variant="h5">
+          System Rezerwacji Sal
+        </Typography>
+        <Typography
+          component="p"
+          variant="body2"
+          color="text.secondary"
+          sx={{ mt: 1 }}
+        >
+          Wydział Zarządzania AGH
+        </Typography>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3 }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Adres Email"
+            name="email"
+            autoComplete="email"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Hasło"
+            type="password"
+            id="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {error && (
+            <Alert severity="error" sx={{ mt: 2, width: "100%" }}>
+              {error}
+            </Alert>
+          )}
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2, py: 1.5 }}
+          >
+            Zaloguj się
+          </Button>
+        </Box>
+      </Paper>
+    </Container>
+  );
+};
+
+export default LoginPage;
+
+
+--- FILE: ./src/pages/CoursesPage.js ---
+
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Paper,
+  Container,
+  Toolbar,
+  Stack,
+  IconButton,
+  MenuItem,
+} from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
+import SchoolIcon from "@mui/icons-material/School";
+import { apiRequest } from "../services/apiService";
+
+const CoursesPage = () => {
+  const [courses, setCourses] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    id: null,
+    name: "",
+    teacher_id: "",
+    group_id: "",
+  });
+  const [editMode, setEditMode] = useState(false);
+  const [searchText, setSearchText] = useState("");
+
+  useEffect(() => {
+    fetchCourses();
+    fetchUsers();
+    fetchGroups();
+  }, []);
+
+  const fetchCourses = () =>
+    apiRequest("/courses").then(setCourses).catch(console.error);
+  const fetchUsers = () =>
+    apiRequest("/users").then(setUsers).catch(console.error);
+  const fetchGroups = () =>
+    apiRequest("/groups").then(setGroups).catch(console.error);
+
+  const handleOpen = (course = null) => {
+    if (course) {
+      setFormData({
+        id: course.id,
+        name: course.name,
+        teacher_id: course.teacher_id,
+        group_id: course.group_id,
+      });
+      setEditMode(true);
+    } else {
+      setFormData({ id: null, name: "", teacher_id: "", group_id: "" });
+      setEditMode(false);
+    }
+    setOpen(true);
+  };
+  const handleClose = () => setOpen(false);
+
+  const handleChange = (e) =>
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSubmit = () => {
+    const payload = {
+      ...formData,
+      teacher_id: parseInt(formData.teacher_id, 10),
+      group_id: parseInt(formData.group_id, 10),
+    };
+
+    const request = editMode
+      ? apiRequest(`/courses/${formData.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        })
+      : apiRequest("/courses", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+    request
+      .then(() => {
+        fetchCourses();
+        handleClose();
+      })
+      .catch((error) => alert(`Błąd: ${error.message}`));
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm("Czy na pewno chcesz usunąć ten kurs?")) {
+      apiRequest(`/courses/${id}`, { method: "DELETE" })
+        .then(fetchCourses)
+        .catch(console.error);
+    }
+  };
+
+  const getUserNameById = (id) =>
+    users.find((u) => u.id === id)?.name || "Nieznany";
+  const getGroupNameById = (id) =>
+    groups.find((g) => g.id === id)?.name || "Nieznana";
+
+  const columns = [
+    { field: "id", headerName: "ID", width: 90 },
+    {
+      field: "name",
+      headerName: "Nazwa Kursu",
+      width: 300,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <SchoolIcon sx={{ mr: 1, color: "text.secondary" }} />
+          {params.value}
+        </Box>
+      ),
+    },
+    {
+      field: "teacher_id",
+      headerName: "Prowadzący",
+      flex: 1,
+      valueGetter: (value) => getUserNameById(value),
+    },
+    {
+      field: "group_id",
+      headerName: "Grupa",
+      flex: 1,
+      valueGetter: (value) => getGroupNameById(value),
+    },
+    {
+      field: "actions",
+      headerName: "Akcje",
+      width: 150,
+      sortable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={1}>
+          <IconButton size="small" onClick={() => handleOpen(params.row)}>
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleDelete(params.row.id)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
+      ),
+    },
+  ];
+
+  const filteredRows = courses.filter((course) =>
+    course.name.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const teachers = users.filter((user) => user.role === "PROWADZACY");
+
+  return (
+    <Container maxWidth="lg">
+      <Paper>
+        <Toolbar>
+          <Box sx={{ flexGrow: 1 }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Szukaj po nazwie kursu..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              sx={{ width: 300 }}
+            />
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+          >
+            Dodaj Kurs
+          </Button>
+        </Toolbar>
+        <Box sx={{ height: "70vh", width: "100%" }}>
+          <DataGrid
+            rows={filteredRows}
+            columns={columns}
+            getRowId={(row) => row.id}
+            pageSizeOptions={[10, 25, 50]}
+            checkboxSelection
+            disableRowSelectionOnClick
+          />
+        </Box>
+      </Paper>
+
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editMode ? "Edytuj kurs" : "Dodaj nowy kurs"}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              label="Nazwa kursu"
+              name="name"
+              fullWidth
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              select
+              label="Prowadzący"
+              name="teacher_id"
+              fullWidth
+              value={formData.teacher_id}
+              onChange={handleChange}
+              required
+            >
+              {teachers.map((teacher) => (
+                <MenuItem key={teacher.id} value={teacher.id}>
+                  {teacher.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Grupa"
+              name="group_id"
+              fullWidth
+              value={formData.group_id}
+              onChange={handleChange}
+              required
+            >
+              {groups.map((group) => (
+                <MenuItem key={group.id} value={group.id}>
+                  {group.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: "16px 24px" }}>
+          <Button onClick={handleClose}>Anuluj</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editMode ? "Zapisz zmiany" : "Dodaj"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
+};
+
+export default CoursesPage;
+
+
+--- FILE: ./src/pages/SelectTermPage.js ---
+
+// frontend/src/pages/SelectTermPage.js
+import React, { useEffect, useState } from "react";
+import { Box, Typography, List, ListItem, Button } from "@mui/material";
+import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
+
+const SelectTermPage = ({ changeRequestId }) => {
+  const [recommendations, setRecommendations] = useState([]);
+
+  const navigate = useNavigate();
+
+    // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
+  useEffect(() => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+          navigate("/login", { replace: true });
+      }
+      apiRequest(`/change_recommendation/${changeRequestId}/recommendations`)
+          .then((data) => setRecommendations(data))
+          .catch((error) => console.error("Błąd podczas pobierania rekomendacji:", error));
+    }, [navigate, changeRequestId]);
+
+
+  const handleSelect = (recommendationId) => {
+    alert(`Wybrano termin: ${recommendationId}`);
+  };
+
+  return (
+    <Box>
+      <Typography variant="h4">Wybierz Termin</Typography>
+      <List>
+        {recommendations.map((rec) => (
+          <ListItem key={rec.id}>
+            {`Od: ${rec.recommended_start_datetime}, Do: ${rec.recommended_end_datetime}`}
+            <Button onClick={() => handleSelect(rec.id)}>Wybierz</Button>
+          </ListItem>
+        ))}
+      </List>
+    </Box>
+  );
+};
+
+export default SelectTermPage;
+
+--- FILE: ./src/pages/UsersPage.js ---
+
+import React, { useEffect, useState, useContext } from "react";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Paper,
+  Container,
+  Toolbar,
+  Stack,
+  Avatar,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  IconButton,
+  Alert,
+} from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
+import PersonIcon from "@mui/icons-material/Person";
+import { apiRequest } from "../services/apiService";
+import { UserContext } from "../App";
+
+const UsersPage = () => {
+  const [users, setUsers] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    id: null,
+    name: "",
+    surname: "",
+    email: "",
+    password: "",
+    role: "PROWADZACY",
+  });
+  const [editMode, setEditMode] = useState(false);
+  const { user: currentUser } = useContext(UserContext);
+  const [searchText, setSearchText] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = () => {
+    apiRequest("/users")
+      .then((data) => setUsers(data))
+      .catch(console.error);
+  };
+
+  const handleOpen = (user = null) => {
+    setError("");
+    if (user) {
+      setFormData({
+        id: user.id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        password: "",
+        role: user.role,
+      });
+      setEditMode(true);
+    } else {
+      setFormData({
+        id: null,
+        name: "",
+        surname: "",
+        email: "",
+        password: "",
+        role: "PROWADZACY",
+      });
+      setEditMode(false);
+    }
+    setOpen(true);
+  };
+  const handleClose = () => setOpen(false);
+
+  const handleChange = (e) =>
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSubmit = () => {
+    setError("");
+    const payload = { ...formData };
+    if (!payload.password) {
+      delete payload.password;
+    }
+
+    const request = editMode
+      ? apiRequest(`/users/${formData.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        })
+      : apiRequest("/users/create", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+    request
+      .then(() => {
+        fetchUsers();
+        handleClose();
+      })
+      .catch((error) => {
+        setError(error.message || "Wystąpił nieznany błąd.");
+      });
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm("Czy na pewno chcesz usunąć tego użytkownika?")) {
+      apiRequest(`/users/${id}`, { method: "DELETE" })
+        .then(fetchUsers)
+        .catch(console.error);
+    }
+  };
+
+  const roleTranslations = {
+    ADMIN: "Administrator",
+    KOORDYNATOR: "Koordynator",
+    PROWADZACY: "Prowadzący",
+    STAROSTA: "Starosta",
+  };
+
+  const columns = [
+    { field: "id", headerName: "ID", width: 90 },
+    {
+      field: "avatar",
+      headerName: "Avatar",
+      width: 70,
+      renderCell: (params) => (
+        <Avatar>
+          <PersonIcon />
+        </Avatar>
+      ),
+      sortable: false,
+      filterable: false,
+    },
+    { field: "name", headerName: "Imię", width: 150 },
+    { field: "surname", headerName: "Nazwisko", width: 150 },
+    { field: "email", headerName: "Email", flex: 1 },
+    {
+      field: "role",
+      headerName: "Rola",
+      width: 150,
+      valueGetter: (value) => roleTranslations[value] || value,
+    },
+    {
+      field: "actions",
+      headerName: "Akcje",
+      width: 120,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={1}>
+          <IconButton size="small" onClick={() => handleOpen(params.row)}>
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleDelete(params.row.id)}
+            disabled={params.row.id === currentUser?.id}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
+      ),
+    },
+  ];
+
+  const filteredRows = users.filter((user) => {
+    const search = searchText.toLowerCase();
+    return (
+      (user.name?.toLowerCase() || "").includes(search) ||
+      (user.surname?.toLowerCase() || "").includes(search) ||
+      (user.email?.toLowerCase() || "").includes(search)
+    );
+  });
+
+  return (
+    <Container maxWidth="lg">
+      <Paper>
+        <Toolbar>
+          <Box sx={{ flexGrow: 1 }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Szukaj po imieniu, nazwisku, emailu..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              sx={{ width: 350 }}
+            />
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+          >
+            Dodaj użytkownika
+          </Button>
+        </Toolbar>
+        <Box sx={{ height: "70vh", width: "100%" }}>
+          <DataGrid
+            rows={filteredRows}
+            columns={columns}
+            getRowId={(row) => row.id}
+            pageSizeOptions={[10, 25, 50]}
+            checkboxSelection
+            disableRowSelectionOnClick
+          />
+        </Box>
+      </Paper>
+
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editMode ? "Edytuj użytkownika" : "Dodaj nowego użytkownika"}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <TextField
+              label="Imię"
+              name="name"
+              fullWidth
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              label="Nazwisko"
+              name="surname"
+              fullWidth
+              value={formData.surname}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              label="Adres Email"
+              name="email"
+              type="email"
+              fullWidth
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              label="Hasło"
+              name="password"
+              type="password"
+              fullWidth
+              value={formData.password}
+              onChange={handleChange}
+              required={!editMode}
+              helperText={
+                editMode ? "Pozostaw puste, aby nie zmieniać hasła" : ""
+              }
+            />
+            <FormControl fullWidth>
+              <InputLabel>Rola</InputLabel>
+              <Select
+                name="role"
+                value={formData.role}
+                label="Rola"
+                onChange={handleChange}
+              >
+                <MenuItem value={"PROWADZACY"}>Prowadzący</MenuItem>
+                <MenuItem value={"STAROSTA"}>Starosta</MenuItem>
+                <MenuItem value={"KOORDYNATOR"}>Koordynator</MenuItem>
+                <MenuItem value={"ADMIN"}>Administrator</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: "16px 24px" }}>
+          <Button onClick={handleClose}>Anuluj</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editMode ? "Zapisz zmiany" : "Dodaj"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
+};
+
+export default UsersPage;
+
+
+--- FILE: ./src/pages/MyRecommendationsPage.js ---
+
+import React, {useCallback, useContext, useEffect, useState} from "react";
+import {
+    Box,
+    Typography,
+    List,
+    ListItem,
+    ListItemText,
+    Divider,
+    Paper,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
+} from "@mui/material";
+
+import Navbar from "../components/Navbar";
+import { apiRequest } from "../services/apiService";
+import { UserContext } from "../App";
+import { useNavigate } from "react-router-dom";
+
+const MyRecommendationsPage = () => {
+    const { user, loading } = useContext(UserContext);
+    const [changeRequests, setChangeRequests] = useState([]);
+    const [coursesMap, setCoursesMap] = useState({});
+    const [selectedRequestId, setSelectedRequestId] = useState(null);
+    const [recommendations, setRecommendations] = useState([]);
+    const [roomNames, setRoomNames] = useState({});
+    const navigate = useNavigate();
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const statusLabels = {
+        PENDING: "Oczekujące",
+        ACCEPTED: "Zaakceptowane",
+        REJECTED: "Odrzucone",
+        CANCELLED: "Anulowane",
+    };
+    const [openDialog, setOpenDialog] = useState(false);
+    const [selectedProposal, setSelectedProposal] = useState(null);
+    const [hasInitialized, setHasInitialized] = useState(false);
+    const [eventInfoMap, setEventInfoMap] = useState({}); // eventId → { courseId, day }
+
+
+
+    const fetchAndTriggerCommonAvailability = useCallback(async (requests) => {
+        for (const req of requests) {
+            try {
+                const event = await apiRequest(`/courses/events/${req.course_event_id}`);
+                const course = await apiRequest(`/courses/${event.course_id}`);
+                const group = await apiRequest(`/groups/${course.group_id}`);
+
+                const user1_id = user.id;
+                let user2_id = null;
+
+                if (user.role === "PROWADZACY") {
+                    user2_id = group.leader_id;
+                } else if (user.role === "STAROSTA") {
+                    user2_id = course.teacher_id;
+                }
+
+                if (user2_id) {
+                    await apiRequest(
+                        `/change_recommendation/common-availability?user1_id=${user1_id}&user2_id=${user2_id}&change_request_id=${req.id}`,
+                        { method: "POST" }
+                    );
+                }
+            } catch (err) {
+                console.warn(`Nie udało się wywołać common-availability dla requestu ${req.id}`, err);
+            }
+        }
+    }, [user]);
+
+
+    const fetchRelatedRequests = useCallback(async () => {
+        try {
+            const queryParams = new URLSearchParams({ limit: 1000 });
+            if (selectedStatus) {
+                queryParams.append("status", selectedStatus);
+            }
+            const result = await apiRequest(`/change_requests/related?${queryParams.toString()}`);
+            setChangeRequests(result);
+            await fetchAndTriggerCommonAvailability(result);
+        } catch (error) {
+            console.error("Błąd podczas pobierania powiązanych zgłoszeń zmian:", error);
+        }
+    }, [selectedStatus, fetchAndTriggerCommonAvailability]);
+
+    useEffect(() => {
+        if (!loading && !localStorage.getItem("token")) {
+            navigate("/login", { replace: true });
+        }
+
+        if (!loading && user && !hasInitialized) {
+            fetchRelatedRequests();
+            fetchCourses();
+            setHasInitialized(true);
+        }
+    }, [loading, user, navigate, hasInitialized, fetchRelatedRequests]);
+
+    useEffect(() => {
+        if (hasInitialized) {
+            fetchRelatedRequests();
+        }
+    }, [selectedStatus, hasInitialized, fetchRelatedRequests]);
+
+    if (loading) {
+        return;
+    }
+
+    const fetchCourses = async () => {
+        try {
+            const courses = await apiRequest("/courses/");
+            const newCoursesMap = {};
+            const newEventInfoMap = {};
+
+            for (const course of courses) {
+                newCoursesMap[course.id] = course.name || `Kurs ${course.id}`;
+                const events = await apiRequest(`/courses/${course.id}/events`);
+                for (const event of events) {
+                    newEventInfoMap[event.id] = {
+                        courseId: course.id,
+                        eventDay: event.day,
+                    };
+                }
+            }
+
+            setCoursesMap(newCoursesMap);
+            setEventInfoMap(newEventInfoMap);
+        } catch (error) {
+            console.error("Błąd podczas pobierania kursów i wydarzeń:", error);
+        }
+    };
+
+
+
+    const fetchRecommendations = async (changeRequestId) => {
+        try {
+            const result = await apiRequest(`/change_recommendation/${changeRequestId}/recommendations`);
+            setRecommendations(result);
+
+            // Pobierz nazwy sal jeśli jeszcze nieznane
+            const uniqueRoomIds = [...new Set(result.map(r => r.recommended_room_id))];
+            for (const roomId of uniqueRoomIds) {
+                if (!roomNames[roomId]) {
+                    try {
+                        const room = await apiRequest(`/rooms/${roomId}`);
+                        setRoomNames(prev => ({ ...prev, [roomId]: room.name }));
+                    } catch (e) {
+                        console.warn(`Nie udało się pobrać sali ${roomId}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Błąd podczas pobierania rekomendacji:", error);
+        }
+    };
+
+    const handleSelectChangeRequest = (e) => {
+        const requestId = e.target.value;
+        setSelectedRequestId(requestId);
+        fetchRecommendations(requestId);
+    };
+
+    const handleStatusChange = (e) => {
+        setSelectedStatus(e.target.value);
+    };
+
+    const handleSelectProposal = (rec) => {
+        setSelectedProposal(rec);
+        setOpenDialog(true);
+    };
+
+    const handleCloseDialog = () => {
+        setOpenDialog(false);
+        setSelectedProposal(null);
+    };
+
+    const handleProposalStatusChange = async (newStatus) => {
+        if (!selectedProposal) return;
+
+        const role = user.role;
+        const baseEndpoint =
+            role === "PROWADZACY"
+                ? "/leader"
+                : role === "STAROSTA"
+                    ? "/representative"
+                    : null;
+
+        if (!baseEndpoint) return;
+
+        // Budujemy poprawny URL z /proposals/{id}/changestatus/{role} oraz parametrem query new_status
+        const endpoint = `/proposals/${selectedProposal.id}/changestatus${baseEndpoint}?new_status=${newStatus}`;
+
+        try {
+            await apiRequest(endpoint, {
+                method: "POST",
+                // usuń body - backend oczekuje parametru w query, więc nie wysyłamy ciała
+            });
+
+            // odśwież rekomendacje po zmianie
+            if (selectedRequestId) {
+                fetchRecommendations(selectedRequestId);
+            }
+
+            handleCloseDialog();
+        } catch (error) {
+            console.error("Błąd podczas zmiany statusu propozycji:", error);
+        }
+    };
+
+
+
+
+
+    const formatSlotTime = (slotId) => {
+        const slots = [
+            "08:00 - 09:30",
+            "09:45 - 11:15",
+            "11:30 - 13:00",
+            "13:15 - 14:45",
+            "15:00 - 16:30",
+            "16:45 - 18:15",
+            "18:30 - 20:00",
+        ];
+        return slots[slotId - 1] || `Slot ${slotId}`;
+    };
+
+    return (
+        <Box>
+            <Navbar />
+            <Box padding={4}>
+                <Typography variant="h4" gutterBottom>
+                    Rekomendacje dla Twoich zgłoszeń zmian
+                </Typography>
+                <FormControl fullWidth sx={{ marginBottom: 2 }}>
+                    <InputLabel>Status zgłoszenia</InputLabel>
+                    <Select
+                        value={selectedStatus}
+                        onChange={handleStatusChange}
+                        label="Status zgłoszenia"
+                    >
+                        <MenuItem value="">Wszystkie</MenuItem>
+                        {Object.entries(statusLabels).map(([value, label]) => (
+                            <MenuItem key={value} value={value}>
+                                {label}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+
+                <FormControl fullWidth sx={{ marginBottom: 3 }}>
+                    <InputLabel>Wybierz zgłoszenie zmiany</InputLabel>
+                    <Select
+                        value={selectedRequestId || ""}
+                        onChange={handleSelectChangeRequest}
+                        label="Wybierz zgłoszenie zmiany"
+                    >
+                        {changeRequests.map((request) => (
+                            <MenuItem key={request.id} value={request.id}>
+                                {`${coursesMap[eventInfoMap[request.course_event_id]?.courseId] || "Nieznany kurs"}: ${request.reason} (${eventInfoMap[request.course_event_id]?.eventDay ? new Date(eventInfoMap[request.course_event_id].eventDay).toLocaleDateString() : "brak daty"})`}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                {recommendations.length > 0 ? (
+                    <Paper elevation={3}>
+                        <List>
+                            {recommendations.map((rec) => (
+                                <React.Fragment key={rec.id}>
+                                    <ListItem button onClick={() => handleSelectProposal(rec)}>
+                                    <ListItemText
+                                            primary={`Data: ${rec.recommended_day}`}
+                                            secondary={
+                                                <>
+                                                    <div>Slot: {formatSlotTime(rec.recommended_slot_id)}</div>
+                                                    <div>Sala: {roomNames[rec.recommended_room_id] || rec.recommended_room_id}</div>
+                                                </>
+                                            }
+                                        />
+                                    </ListItem>
+                                    <Divider />
+                                </React.Fragment>
+                            ))}
+                        </List>
+                    </Paper>) : (
+                    selectedRequestId && (
+                        <Typography variant="body1">Brak rekomendacji dla wybranego zgłoszenia.</Typography>
+                    )
+
+                )}
+                <Dialog open={openDialog} onClose={handleCloseDialog}>
+                    <DialogTitle>Szczegóły propozycji</DialogTitle>
+                    <DialogContent>
+                        {selectedProposal && (
+                            <List>
+                                <ListItem>
+                                    <ListItemText primary="Data" secondary={selectedProposal.recommended_day} />
+                                </ListItem>
+                                <ListItem>
+                                    <ListItemText primary="Slot" secondary={formatSlotTime(selectedProposal.recommended_slot_id)} />
+                                </ListItem>
+                                <ListItem>
+                                    <ListItemText
+                                        primary="Sala"
+                                        secondary={roomNames[selectedProposal.recommended_room_id] || selectedProposal.recommended_room_id}
+                                    />
+                                </ListItem>
+                            </List>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseDialog}>Zamknij</Button>
+                        {["STAROSTA", "PROWADZACY"].includes(user.role) && (
+                            <>
+                                <Button onClick={() => handleProposalStatusChange(false)} color="error" variant="outlined">
+                                    Odrzuć
+                                </Button>
+                                <Button onClick={() => handleProposalStatusChange(true)} color="primary" variant="contained">
+                                    Zaakceptuj
+                                </Button>
+                            </>
+                        )}
+                    </DialogActions>
+                </Dialog>
+
+            </Box>
+        </Box>
+    );
+};
+
+export default MyRecommendationsPage;
+
+
+--- FILE: ./src/pages/RedirectOnRoot.js ---
+
+import { useContext, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { UserContext } from "../App";
+
+const RedirectOnRoot = () => {
+  const navigate = useNavigate();
+  const { user } = useContext(UserContext);
+
+  useEffect(() => {
+    if (user) {
+      navigate("/main", { replace: true });
+    } else {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  return null;
+};
+
+export default RedirectOnRoot;
+
+--- FILE: ./src/pages/RequestStatusPage.js ---
+
+// frontend/src/pages/RequestStatusPage.js
+import React, { useEffect, useState } from "react";
+import { Box, Typography, List, ListItem } from "@mui/material";
+import { apiRequest } from "../services/apiService";
+import {useNavigate} from "react-router-dom";
+
+const RequestStatusPage = ({ userId }) => {
+  const [requests, setRequests] = useState([]);
+  const navigate = useNavigate();
+
+    // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
+  useEffect(() => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+          navigate("/login", { replace: true });
+      }
+      apiRequest(`/change_requests/my?initiator_id=${userId}`)
+          .then((data) => setRequests(data))
+          .catch((error) => console.error("Błąd podczas pobierania statusu zgłoszeń:", error));
+    }, [navigate, userId]);
+
+
+  return (
+    <Box>
+      <Typography variant="h4">Status Zgłoszeń</Typography>
+      <List>
+        {requests.map((req) => (
+          <ListItem key={req.id}>
+            {`Zgłoszenie ID: ${req.id}, Status: ${req.status}`}
+          </ListItem>
+        ))}
+      </List>
+    </Box>
+  );
+};
+
+export default RequestStatusPage;
+
+--- FILE: ./src/pages/GroupsPage.js ---
+
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Paper,
+  Container,
+  Toolbar,
+  Stack,
+  IconButton,
+  MenuItem,
+} from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
+import GroupIcon from "@mui/icons-material/Group";
+import { apiRequest } from "../services/apiService";
+
+const GroupsPage = () => {
+  const [groups, setGroups] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    id: null,
+    name: "",
+    year: "",
+    leader_id: "",
+  });
+  const [editMode, setEditMode] = useState(false);
+  const [searchText, setSearchText] = useState("");
+
+  useEffect(() => {
+    fetchGroups();
+    fetchUsers();
+  }, []);
+
+  const fetchGroups = () => {
+    apiRequest("/groups")
+      .then((data) => setGroups(data))
+      .catch(console.error);
+  };
+
+  const fetchUsers = () => {
+    apiRequest("/users")
+      .then((data) => setUsers(data))
+      .catch(console.error);
+  };
+
+  const handleOpen = (group = null) => {
+    if (group) {
+      setFormData({
+        id: group.id,
+        name: group.name,
+        year: group.year,
+        leader_id: group.leader_id,
+      });
+      setEditMode(true);
+    } else {
+      setFormData({ id: null, name: "", year: "", leader_id: "" });
+      setEditMode(false);
+    }
+    setOpen(true);
+  };
+  const handleClose = () => setOpen(false);
+
+  const handleChange = (e) =>
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSubmit = () => {
+    const payload = {
+      ...formData,
+      year: parseInt(formData.year, 10),
+      leader_id: parseInt(formData.leader_id, 10),
+    };
+
+    const request = editMode
+      ? apiRequest(`/groups/${formData.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        })
+      : apiRequest("/groups", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+    request
+      .then(() => {
+        fetchGroups();
+        handleClose();
+      })
+      .catch((error) => alert(`Błąd: ${error.message}`));
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm("Czy na pewno chcesz usunąć tę grupę?")) {
+      apiRequest(`/groups/${id}`, { method: "DELETE" })
+        .then(fetchGroups)
+        .catch(console.error);
+    }
+  };
+
+  const getUserNameById = (id) =>
+    users.find((u) => u.id === id)?.name || "Nieznany";
+
+  const columns = [
+    { field: "id", headerName: "ID", width: 90 },
+    {
+      field: "name",
+      headerName: "Nazwa Grupy",
+      width: 250,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <GroupIcon sx={{ mr: 1, color: "text.secondary" }} />
+          {params.value}
+        </Box>
+      ),
+    },
+    { field: "year", headerName: "Rok", type: "number", width: 100 },
+    {
+      field: "leader_id",
+      headerName: "Starosta",
+      flex: 1,
+      valueGetter: (value) => getUserNameById(value),
+    },
+    {
+      field: "actions",
+      headerName: "Akcje",
+      width: 150,
+      sortable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={1}>
+          <IconButton size="small" onClick={() => handleOpen(params.row)}>
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleDelete(params.row.id)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
+      ),
+    },
+  ];
+
+  const filteredRows = groups.filter((group) =>
+    group.name.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const starostas = users.filter((user) => user.role === "STAROSTA");
+
+  return (
+    <Container maxWidth="lg">
+      <Paper>
+        <Toolbar>
+          <Box sx={{ flexGrow: 1 }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Szukaj po nazwie grupy..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              sx={{ width: 300 }}
+            />
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+          >
+            Dodaj Grupę
+          </Button>
+        </Toolbar>
+        <Box sx={{ height: "70vh", width: "100%" }}>
+          <DataGrid
+            rows={filteredRows}
+            columns={columns}
+            getRowId={(row) => row.id}
+            pageSizeOptions={[10, 25, 50]}
+            checkboxSelection
+            disableRowSelectionOnClick
+          />
+        </Box>
+      </Paper>
+
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editMode ? "Edytuj grupę" : "Dodaj nową grupę"}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              label="Nazwa grupy"
+              name="name"
+              fullWidth
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              label="Rok studiów"
+              name="year"
+              type="number"
+              fullWidth
+              value={formData.year}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              select
+              label="Starosta"
+              name="leader_id"
+              fullWidth
+              value={formData.leader_id}
+              onChange={handleChange}
+              required
+            >
+              {starostas.map((starosta) => (
+                <MenuItem key={starosta.id} value={starosta.id}>
+                  {starosta.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: "16px 24px" }}>
+          <Button onClick={handleClose}>Anuluj</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editMode ? "Zapisz zmiany" : "Dodaj"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
+};
+
+export default GroupsPage;
+
+
+--- FILE: ./src/pages/ChangeRequestsPage.js ---
+
+// frontend/src/pages/ChangeRequestsPage.js
+import React, { useState, useEffect, useContext, useCallback } from "react";
+import {
+  Typography,
+  Container,
+  CircularProgress,
+  Backdrop,
+} from "@mui/material";
+import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay } from "date-fns";
+import { apiRequest } from "../services/apiService";
+import { pl } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import { UserContext } from "../App";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+
+const locales = { pl: pl };
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
+  getDay,
+  locales,
+});
+const availableViews = [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA];
+
+const ChangeRequestsPage = () => {
+  const [events, setEvents] = useState([]);
+  const [eventDetails, setEventDetails] = useState(null);
+  const [openEventDialog, setOpenEventDialog] = useState(false);
+  const [openChangeDialog, setopenChangeDialog] = useState(false);
+  const [formData, setFormData] = useState({
+    reason: "",
+    room_requirements: "",
+    minimum_capacity: "",
+  });
+
+  const [view, setView] = useState(Views.MONTH);
+  const { user } = useContext(UserContext);
+  const navigate = useNavigate();
+  const { user, loading } = useContext(UserContext);
+
+  const fetchAllEvents = useCallback(async () => {
+    try {
+      const courses = await apiRequest("/courses");
+      const allEvents = [];
+      for (const course of courses) {
+        const events = await apiRequest(`/courses/${course.id}/events`);
+        for (const event of events) {
+          const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+          allEvents.push({
+            ...event,
+            id: `${course.id}-${event.id}`,
+            title: `Kurs ${course.name || course.id}`,
+            start,
+            end,
+            time_slot_id: event.time_slot_id,
+            courseId: course.id,
+            courseName: course.name,
+          });
+        }
+      }
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń:", error);
+    }
+  }, []);
+
+  // PROWADZĄCY
+  const fetchTeacherGroupEvents = useCallback(async () => {
+    try {
+      const courses = await apiRequest("/courses");
+      const myCourses = courses.filter(c => c.teacher_id === user.id);
+      const allEvents = [];
+      for (const course of myCourses) {
+        const events = await apiRequest(`/courses/${course.id}/events`);
+        for (const event of events) {
+          const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+          allEvents.push({
+            ...event,
+            id: `${course.id}-${event.id}`,
+            title: `Kurs ${course.name || course.id}`,
+            start,
+            end,
+            time_slot_id: event.time_slot_id,
+            courseId: course.id,
+            courseName: course.name,
+          });
+        }
+      }
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń prowadzonych kursów:", error);
+    }
+  }, [user]);
+
+  // STAROSTA
+  const fetchStarostaGroupEvents = useCallback(async () => {
+    try {
+      const groups = await apiRequest("/groups?limit=1000");
+      const myGroups = groups.filter(g => g.leader_id === user.id);
+      const allEvents = [];
+      for (const group of myGroups) {
+        // Pobierz kurs powiązany z grupą
+        const courses = await apiRequest("/courses");
+        const groupCourses = courses.filter(c => c.group_id === group.id);
+        for (const course of groupCourses) {
+          const events = await apiRequest(`/courses/${course.id}/events`);
+          for (const event of events) {
+            const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+            allEvents.push({
+              ...event,
+              id: `${course.id}-${event.id}`,
+              title: `Kurs ${course.name || course.id}`,
+              start,
+              end,
+              time_slot_id: event.time_slot_id,
+              courseId: course.id,
+              courseName: course.name,
+            });
+          }
+        }
+      }
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń grup starosty:", error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token && !loading) {
+      navigate("/login", { replace: true });
+    }
+    if (!loading && user) {
+      if (user.role === "ADMIN" || user.role === "KOORDYNATOR") {
+        fetchAllEvents();
+      } else if (user.role === "PROWADZACY") {
+        fetchTeacherGroupEvents();
+      } else if (user.role === "STAROSTA") {
+        fetchStarostaGroupEvents();
+      }
+    }
+  }, [user, loading, navigate, fetchAllEvents, fetchTeacherGroupEvents, fetchStarostaGroupEvents]);
+
+  if (loading) {
+    return;
+  }
+
+  // Funkcja pomocnicza do wyliczania godzin na podstawie slotu
+  const getSlotTimes = (day, slot) => {
+    const slotTimes = [
+      { start: "08:00", end: "09:30" },
+      { start: "09:45", end: "11:15" },
+      { start: "11:30", end: "13:00" },
+      { start: "13:15", end: "14:45" },
+      { start: "15:00", end: "16:30" },
+      { start: "16:45", end: "18:15" },
+      { start: "18:30", end: "20:00" },
+    ];
+    const { start, end } = slotTimes[slot - 1];
+    const startDate = new Date(`${day}T${start}`);
+    const endDate = new Date(`${day}T${end}`);
+    return { start: startDate, end: endDate };
+  };
+
+  // Po kliknięciu w wydarzenie pobierz szczegóły i pokaż dialog
+  const handleSelectEvent = async (event) => {
+    try {
+      // Pobierz szczegóły pokoju
+      let room = null;
+      if (event.room_id) {
+        room = await apiRequest(`/rooms/${event.room_id}`);
+        console.log(room);
+      }
+      setEventDetails({
+        ...event,
+        room,
+      });
+      setOpenEventDialog(true);
+    } catch (error) {
+      console.error("Błąd podczas pobierania szczegółów wydarzenia:", error);
+    }
+
+  const handleCloseEventDialog = () => {
+    setOpenEventDialog(false);
+    setEventDetails(null);
+  };
+
+  // Otwórz dialog do zgłoszenia zmiany
+  const handleOpenChangeDialog = () => {
+    setFormData({ reason: "", room_requirements: "" });
+    setopenChangeDialog(true);
+  };
+
+  const handleCloseChangeDialog = () => setopenChangeDialog(false);
+
+  const handleSubmitChange = async () => {
+    try {
+      if (!user) throw new Error("Brak danych użytkownika");
+
+      const changeRequestPayload = {
+        course_event_id: parseInt(eventDetails.id.split("-")[1], 10),
+        initiator_id: user.id,
+        status: "PENDING",
+        reason: formData.reason,
+        room_requirements: formData.room_requirements,
+        minimum_capacity: parseInt(formData.minimum_capacity, 10),
+        created_at: new Date().toISOString(),
+      };
+
+
+      await apiRequest("/change_requests/", {
+        method: "POST",
+        body: JSON.stringify(changeRequestPayload),
+      });
+
+      setopenChangeDialog(false);
+      setOpenEventDialog(false);
+      fetchAllEvents();
+    } catch (error) {
+      console.error("Błąd podczas zgłaszania zmiany:", error);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNavigate = (action) => {
+    let newDate = new Date(date);
+    if (action === "TODAY") {
+      newDate = new Date();
+    } else if (action === "PREV") {
+      if (view === Views.MONTH) {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else if (view === Views.WEEK) {
+        newDate.setDate(newDate.getDate() - 7);
+      } else if (view === Views.DAY) {
+        newDate.setDate(newDate.getDate() - 1);
+      }
+    }
+  };
+
+  return (
+    <Box>
+      <Navbar />
+      <Box padding={2}>
+        <Typography variant="h4" gutterBottom>
+          Twój plan zajęć
+        </Typography>
+        <Calendar
+          localizer={localizer}
+          culture="pl"
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          view={view}
+          onView={(newView) => setView(newView)}
+          views={availableViews}
+          onSelectEvent={handleSelectEvent}
+          formats={calendarFormats}
+          messages={{
+            date: "Data",
+            time: "Czas",
+            event: "Wydarzenie",
+            allDay: "Cały dzień",
+            week: "Tydzień",
+            work_week: "Tydzień roboczy",
+            day: "Dzień",
+            month: "Miesiąc",
+            previous: "Poprzedni",
+            next: "Następny",
+            yesterday: "Wczoraj",
+            tomorrow: "Jutro",
+            today: "Dziś",
+            agenda: "Agenda",
+            noEventsInRange: "Brak wydarzeń w tym zakresie.",
+          }}
+        />
+      </Box>
+
+      {/* Dialog ze szczegółami wydarzenia */}
+      <Dialog open={openEventDialog} onClose={handleCloseEventDialog}>
+        <DialogTitle>Szczegóły wydarzenia</DialogTitle>
+        <DialogContent>
+          {eventDetails && (
+            <List>
+              <ListItem>
+                <ListItemText primary="Kurs" secondary={eventDetails.courseName} />
+              </ListItem>
+              <ListItem>
+                <ListItemText primary="Data początkowa" secondary={eventDetails.start.toLocaleString()} />
+              </ListItem>
+              <ListItem>
+                <ListItemText primary="Data końcowa" secondary={eventDetails.end.toLocaleString()} />
+              </ListItem>
+              {eventDetails.room && (
+                <>
+                  <ListItem>
+                    <ListItemText primary="Pokój" secondary={eventDetails.room.name} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="Pojemność" secondary={eventDetails.room.capacity} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                        primary="Wyposażenie"
+                        secondary={
+                          eventDetails.room.equipment.length > 0
+                              ? eventDetails.room.equipment.map((e) => e.name).join(", ")
+                              : "Brak danych"
+                        }
+                    />
+                  </ListItem>
+
+                </>
+              )}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEventDialog}>Zamknij</Button>
+          <Button onClick={handleOpenChangeDialog} variant="contained">
+            Zgłoś potrzebę zmiany
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openChangeDialog} onClose={handleCloseChangeDialog}>
+        <DialogTitle>Zgłoś potrzebę zmiany</DialogTitle>
+        <DialogContent>
+          <TextField
+              margin="dense"
+              label="Powód zmiany"
+              name="reason"
+              fullWidth
+              value={formData.reason}
+              onChange={handleChange}
+          />
+          <TextField
+              margin="dense"
+              label="Wymagania dotyczące sali"
+              name="room_requirements"
+              fullWidth
+              value={formData.room_requirements}
+              onChange={handleChange}
+          />
+          <TextField
+              margin="dense"
+              label="Minimalna pojemność sali"
+              name="minimum_capacity"
+              fullWidth
+              type="number"
+              value={formData.minimum_capacity}
+              onChange={handleChange}
+          />
+
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseChangeDialog}>Anuluj</Button>
+          <Button onClick={handleSubmitChange} variant="contained">
+            Wyślij propozycję
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default ChangeRequestsPage;
+
+
+--- FILE: ./src/pages/AvailabilityPage.js ---
+
+// Przykład dla src/pages/AvailabilityPage.js
+import React, { useState } from "react";
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  Container,
+  Paper,
+  Stack,
+  Alert,
+} from "@mui/material";
+import { apiRequest } from "../services/apiService";
+
+const AvailabilityPage = () => {
+  const [formData, setFormData] = useState({
+    change_request_id: "",
+    start_date: "",
+    end_date: "",
+  });
+  const [message, setMessage] = useState("");
+
+  const handleChange = (e) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage("");
+    try {
+      await apiRequest("/proposals", {
+        method: "POST",
+        body: JSON.stringify({
+          change_request_id: parseInt(formData.change_request_id, 10),
+          interval: {
+            start_date: new Date(formData.start_date).toISOString(),
+            end_date: new Date(formData.end_date).toISOString(),
+          },
+        }),
+      });
+      setMessage("Twoja dostępność została pomyślnie zgłoszona.");
+      setFormData({ change_request_id: "", start_date: "", end_date: "" });
+    } catch (error) {
+      console.error("Błąd podczas zgłaszania dostępności:", error);
+      setMessage(`Wystąpił błąd: ${error.message}`);
+    }
+  };
+
+  return (
+    <Container maxWidth="sm">
+      <Paper sx={{ p: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Wskaż swoją dostępność
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Jeśli otrzymałeś zgłoszenie zmiany terminu, możesz tutaj wskazać
+          przedziały czasowe, które Ci odpowiadają.
+        </Typography>
+        <Box component="form" onSubmit={handleSubmit}>
+          <Stack spacing={3}>
+            <TextField
+              label="ID Zgłoszenia Zmiany"
+              name="change_request_id"
+              type="number"
+              value={formData.change_request_id}
+              onChange={handleChange}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Dostępny od"
+              name="start_date"
+              type="datetime-local"
+              value={formData.start_date}
+              onChange={handleChange}
+              required
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Dostępny do"
+              name="end_date"
+              type="datetime-local"
+              value={formData.end_date}
+              onChange={handleChange}
+              required
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+            {message && (
+              <Alert
+                severity={
+                  message.startsWith("Wystąpił błąd") ? "error" : "success"
+                }
+              >
+                {message}
+              </Alert>
+            )}
+            <Button type="submit" variant="contained" size="large">
+              Wyślij propozycję terminu
+            </Button>
+          </Stack>
+        </Box>
+      </Paper>
+    </Container>
+  );
+};
+
+export default AvailabilityPage;
+
+
+--- FILE: ./src/pages/UserPlanPage.js ---
+
+import React, { useState, useEffect } from "react";
+import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from "@mui/material";
+import { Calendar, dateFnsLocalizer } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay } from "date-fns";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+import { apiRequest } from "../services/apiService";
+import Navbar from "../components/Navbar";
+import {useNavigate} from "react-router-dom";
+
+const locales = { "en-US": require("date-fns/locale/en-US") };
+const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
+
+const UserPlanPage = () => {
+  const [events, setEvents] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({ title: "", start: "", end: "" });
+  const navigate = useNavigate();
+
+  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
+    apiRequest("/courses/events")
+        .then((data) => setEvents(data.map(event => ({
+          id: event.id,
+          title: event.name,
+          start: new Date(event.start_datetime),
+          end: new Date(event.end_datetime),
+        }))))
+        .catch((error) => console.error("Error fetching events:", error));
+  }, [navigate]);
+
+
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = () => {
+    const payload = {
+      name: formData.title,
+      start_datetime: new Date(formData.start).toISOString(),
+      end_datetime: new Date(formData.end).toISOString(),
+    };
+
+    apiRequest("/courses/events", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+      .then((newEvent) => {
+        setEvents((prev) => [
+          ...prev,
+          {
+            id: newEvent.id,
+            title: newEvent.name,
+            start: new Date(newEvent.start_datetime),
+            end: new Date(newEvent.end_datetime),
+          },
+        ]);
+        handleClose();
+      })
+      .catch((error) => console.error("Error adding event:", error));
+  };
+
+  return (
+    <Box>
+      <Navbar />
+      <Box padding={2}>
+        <Typography variant="h4">Twój plan</Typography>
+        <Button variant="contained" onClick={handleOpen}>
+          Dodaj wydarzenie
+        </Button>
+        <Calendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: 500, margin: "50px 0" }}
+        />
+      </Box>
+
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>Dodaj wydarzenie</DialogTitle>
+        <DialogContent>
+          <TextField
+            margin="dense"
+            label="Tytuł"
+            name="title"
+            fullWidth
+            value={formData.title}
+            onChange={handleChange}
+          />
+          <TextField
+            margin="dense"
+            label="Data początkowa"
+            name="start"
+            type="datetime-local"
+            fullWidth
+            value={formData.start}
+            onChange={handleChange}
+          />
+          <TextField
+            margin="dense"
+            label="Data końcowa"
+            name="end"
+            type="datetime-local"
+            fullWidth
+            value={formData.end}
+            onChange={handleChange}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Anuluj</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            Dodaj
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default UserPlanPage;
+
+--- FILE: ./src/pages/ProposalsPage.js ---
+
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  Box,
+  Paper,
+  Container,
+  Toolbar,
+  TextField,
+  IconButton,
+  Stack,
+} from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { apiRequest } from "../services/apiService";
+import { format } from "date-fns";
+import { pl } from "date-fns/locale";
+
+const timeSlotMap = {
+  1: "8:00-9:30",
+  2: "9:45-11:15",
+  3: "11:30-13:00",
+  4: "13:15-14:45",
+  5: "15:00-16:30",
+  6: "16:45-18:15",
+  7: "18:30-20:00",
+};
+
+const ProposalsPage = () => {
+  const [proposals, setProposals] = useState([]);
+  const [users, setUsers] = useState({}); // Użyjemy obiektu/mapy dla szybszego dostępu
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Pobieramy wszystkie propozycje i wszystkich użytkowników równolegle
+      const [proposalsData, usersData] = await Promise.all([
+        apiRequest("/proposals"),
+        apiRequest("/users"),
+      ]);
+
+      setProposals(proposalsData || []);
+
+      // Tworzymy mapę użytkowników dla łatwego dostępu: { 1: {id: 1, name: 'Jan'}, ... }
+      const usersMap = usersData.reduce((acc, user) => {
+        acc[user.id] = user;
+        return acc;
+      }, {});
+      setUsers(usersMap);
+    } catch (error) {
+      console.error("Błąd podczas pobierania danych:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleDelete = (id) => {
+    if (
+      window.confirm(
+        "Czy na pewno chcesz usunąć tę propozycję? Tej akcji nie można cofnąć."
+      )
+    ) {
+      apiRequest(`/proposals/${id}`, { method: "DELETE" })
+        .then(() => {
+          // Po usunięciu odświeżamy dane
+          fetchData();
+        })
+        .catch((error) => alert(`Błąd podczas usuwania: ${error.message}`));
+    }
+  };
+
+  const columns = [
+    { field: "id", headerName: "ID Propozycji", width: 120 },
+    { field: "change_request_id", headerName: "ID Zgłoszenia", width: 120 },
+    {
+      field: "user_id",
+      headerName: "Zaproponowane przez",
+      flex: 1,
+      // Pobieramy nazwę użytkownika z naszej mapy
+      valueGetter: (value) => users[value]?.name || `Użytkownik ID: ${value}`,
+    },
+    {
+      field: "day",
+      headerName: "Dzień",
+      width: 180,
+      valueFormatter: (value) =>
+        format(new Date(value), "EEEE, d MMMM yyyy", { locale: pl }),
+    },
+    {
+      field: "time_slot_id",
+      headerName: "Slot czasowy",
+      width: 150,
+      valueGetter: (value) => timeSlotMap[value] || "Nieznany",
+    },
+    {
+      field: "actions",
+      headerName: "Akcje",
+      width: 100,
+      sortable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={1}>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleDelete(params.row.id)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
+      ),
+    },
+  ];
+
+  const filteredRows = proposals.filter((proposal) => {
+    const search = searchText.toLowerCase();
+    const userName = (users[proposal.user_id]?.name || "").toLowerCase();
+    return (
+      userName.includes(search) ||
+      String(proposal.change_request_id).includes(search)
+    );
+  });
+
+  return (
+    <Container maxWidth="lg">
+      <Paper>
+        <Toolbar>
+          <Box sx={{ flexGrow: 1 }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Szukaj po nazwisku lub ID zgłoszenia..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              sx={{ width: 350 }}
+            />
+          </Box>
+        </Toolbar>
+        <Box sx={{ height: "70vh", width: "100%" }}>
+          <DataGrid
+            rows={filteredRows}
+            columns={columns}
+            getRowId={(row) => row.id}
+            loading={loading}
+            pageSizeOptions={[10, 25, 50]}
+            checkboxSelection
+            disableRowSelectionOnClick
+          />
+        </Box>
+      </Paper>
+    </Container>
+  );
+};
+
+export default ProposalsPage;
+
+
+--- FILE: ./src/pages/MainPage.js ---
+
+import React, { useContext, useEffect, useState, useCallback } from "react";
+import {
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Container,
+  CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Button,
+  Divider,
+} from "@mui/material";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { UserContext } from "../App";
+import { apiRequest } from "../services/apiService";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
+import EventIcon from "@mui/icons-material/Event";
+
+const MainPage = () => {
+  const navigate = useNavigate();
+  const { user } = useContext(UserContext);
+  const [tasks, setTasks] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const processTasks = useCallback(async () => {
+    if (!user) return;
+    try {
+      const myRequests = await apiRequest(`/change_requests/my/${user.id}`);
+      const allProposals = await apiRequest("/proposals");
+
+      const generatedTasks = myRequests
+        .map((req) => {
+          const proposalsForRequest = allProposals.filter(
+            (p) => p.change_request_id === req.id
+          );
+          const myProposal = proposalsForRequest.find(
+            (p) => p.user_id === user.id
+          );
+          const otherPartyProposals = proposalsForRequest.filter(
+            (p) => p.user_id !== user.id
+          );
+
+          if (req.status === "PENDING") {
+            if (!myProposal) {
+              return {
+                id: req.id,
+                text: `Wskaż swoją dostępność dla zgłoszenia #${req.id}`,
+                cta: "Wskaż dostępność",
+                path: `/request/${req.id}`,
+              };
+            }
+            if (otherPartyProposals.length > 0) {
+              return {
+                id: req.id,
+                text: `Sprawdź wspólne terminy dla zgłoszenia #${req.id}`,
+                cta: "Zobacz zgłoszenie",
+                path: `/request/${req.id}`,
+              };
+            }
+            return {
+              id: req.id,
+              text: `Oczekiwanie na drugą stronę dla zgłoszenia #${req.id}`,
+              cta: "Zobacz status",
+              path: `/request/${req.id}`,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      setTasks(generatedTasks);
+    } catch (error) {
+      console.error("Error processing tasks:", error);
+    }
+  }, [user]);
+
+  const fetchUpcomingEvents = useCallback(async () => {
+    if (!user?.group_id) return;
+    try {
+      const events = await apiRequest(`/courses/group/${user.group_id}/events`);
+      const sortedEvents = events
+        .map((e) => ({ ...e, date: new Date(e.day) }))
+        .filter((e) => e.date >= new Date())
+        .sort((a, b) => a.date - b.date)
+        .slice(0, 3);
+      setUpcomingEvents(sortedEvents);
+    } catch (error) {
+      console.error("Error fetching upcoming events:", error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    console.log("Token:", token);
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  const features = [
+    {
+      title: "Plan zajęć",
+      description: "Przeglądaj twój plan zajęć i zgłaszaj potrzebę zmiany.",
+      path: "/requests",
+      allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"],
+    },
+    {
+      title: "Propozycje",
+      description: "Przeglądaj propozycje terminów.",
+      path: "/proposals",
+      allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"],
+    },
+    {
+      title: "Sale",
+      description: "Przeglądaj sale.",
+      path: "/rooms",
+      allowedRole: ["ADMIN", "KOORDYNATOR"],
+    },
+    {
+      title: "Użytkownicy",
+      description: "Przeglądaj użytkowników.",
+      path: "/users",
+      allowedRole: ["ADMIN"],
+    },
+    {
+      title: "Grupy",
+      description: "Przeglądaj grupy.",
+      path: "/groups",
+      allowedRole: ["ADMIN", "KOORDYNATOR"],
+    },
+    {
+      title: "Kursy",
+      description: "Przeglądaj kursy.",
+      path: "/courses",
+      allowedRole: ["ADMIN", "KOORDYNATOR"],
+    },
+    {
+      title: "Rekomendacje",
+      description:
+        "Sprawdź rekomendacje zmian dla prowadzonych lub zgłoszonych zajęć.",
+      path: "/recommendations",
+      allowedRole: ["STAROSTA", "PROWADZACY"],
+    },
+  ];
+
+  const visibleFeatures = features.filter(
+    (feature) => user && feature.allowedRole.includes(user.role)
+  );
+
+  return (
+    <Container maxWidth="lg">
+      <Typography variant="h4" gutterBottom>
+        Witaj, {user?.name}!
+      </Typography>
+
+      <Grid container spacing={4}>
+        <Grid item xs={12} md={8}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Twoje zadania
+              </Typography>
+              {tasks.length > 0 ? (
+                <List>
+                  {tasks.map((task) => (
+                    <ListItem
+                      key={task.id}
+                      secondaryAction={
+                        <Button
+                          component={RouterLink}
+                          to={task.path}
+                          size="small"
+                          variant="outlined"
+                        >
+                          {task.cta}
+                        </Button>
+                      }
+                    >
+                      <ListItemIcon>
+                        <TaskAltIcon color="primary" />
+                      </ListItemIcon>
+                      <ListItemText primary={task.text} />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography color="text.secondary">
+                  Brak aktywnych zadań. Wszystko załatwione!
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Nadchodzące zajęcia
+              </Typography>
+              {upcomingEvents.length > 0 ? (
+                <List dense>
+                  {upcomingEvents.map((event) => (
+                    <ListItem key={event.id}>
+                      <ListItemIcon>
+                        <EventIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={`Kurs ID: ${event.course_id}`}
+                        secondary={new Date(event.day).toLocaleDateString(
+                          "pl-PL"
+                        )}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography color="text.secondary">
+                  Brak nadchodzących zajęć.
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Narzędzia
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate("/requests")}
+                >
+                  Otwórz Kalendarz
+                </Button>
+                {user && ["ADMIN", "KOORDYNATOR"].includes(user.role) && (
+                  <Button onClick={() => navigate("/rooms")}>
+                    Zarządzaj Salami
+                  </Button>
+                )}
+                {user && ["ADMIN"].includes(user.role) && (
+                  <Button onClick={() => navigate("/users")}>
+                    Zarządzaj Użytkownikami
+                  </Button>
+                )}
+                {user && ["ADMIN", "KOORDYNATOR"].includes(user.role) && (
+                  <Button onClick={() => navigate("/groups")}>
+                    Zarządzaj Grupami
+                  </Button>
+                )}
+                {user &&
+                  ["ADMIN", "KOORDYNATOR", "PROWADZACY"].includes(
+                    user.role
+                  ) && (
+                    <Button onClick={() => navigate("/courses")}>
+                      Zarządzaj Kursami
+                    </Button>
+                  )}
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
+  );
+};
+
+export default MainPage;
+
+
+--- FILE: ./src/pages/RoomsPage.js ---
+
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Paper,
+  Container,
+  Toolbar,
+  Stack,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  IconButton,
+} from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
+import { apiRequest } from "../services/apiService";
+
+const RoomsPage = () => {
+  const [rooms, setRooms] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    id: null,
+    name: "",
+    capacity: "",
+    equipment: "",
+    type: "LECTURE_HALL",
+  });
+  const [editMode, setEditMode] = useState(false);
+  const [searchText, setSearchText] = useState("");
+
+  const roomTypeTranslations = {
+    LECTURE_HALL: "Sala wykładowa",
+    LABORATORY: "Laboratorium",
+    SEMINAR_ROOM: "Sala seminaryjna",
+    CONFERENCE_ROOM: "Sala konferencyjna",
+    OTHER: "Inne",
+  };
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = () => {
+    apiRequest("/rooms")
+      .then((data) => setRooms(data))
+      .catch(console.error);
+  };
+
+  const handleOpen = (room = null) => {
+    if (room) {
+      setFormData({
+        id: room.id,
+        name: room.name,
+        capacity: room.capacity,
+        equipment: room.equipment || "",
+        type: room.type,
+      });
+      setEditMode(true);
+    } else {
+      setFormData({
+        id: null,
+        name: "",
+        capacity: "",
+        equipment: "",
+        type: "LECTURE_HALL",
+      });
+      setEditMode(false);
+    }
+    setOpen(true);
+  };
+  const handleClose = () => setOpen(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = () => {
+    const payload = {
+      ...formData,
+      capacity: parseInt(formData.capacity, 10),
+    };
+
+    const request = editMode
+      ? apiRequest(`/rooms/${formData.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        })
+      : apiRequest("/rooms", { method: "POST", body: JSON.stringify(payload) });
+
+    request
+      .then(() => {
+        fetchRooms();
+        handleClose();
+      })
+      .catch((error) => alert(`Błąd: ${error.message}`));
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm("Czy na pewno chcesz usunąć tę salę?")) {
+      apiRequest(`/rooms/${id}`, { method: "DELETE" })
+        .then(fetchRooms)
+        .catch(console.error);
+    }
+  };
+
+  const columns = [
+    { field: "id", headerName: "ID", width: 90 },
+    {
+      field: "name",
+      headerName: "Nazwa Sali",
+      width: 200,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <MeetingRoomIcon sx={{ mr: 1, color: "text.secondary" }} />
+          {params.value}
+        </Box>
+      ),
+    },
+    {
+      field: "type",
+      headerName: "Typ",
+      width: 180,
+      renderCell: (params) => (
+        <span>{roomTypeTranslations[params.value] || params.value}</span>
+      ),
+    },
+    { field: "capacity", headerName: "Pojemność", type: "number", width: 120 },
+    { field: "equipment", headerName: "Wyposażenie", flex: 1 },
+    {
+      field: "actions",
+      headerName: "Akcje",
+      width: 150,
+      sortable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={1}>
+          <IconButton size="small" onClick={() => handleOpen(params.row)}>
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleDelete(params.row.id)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
+      ),
+    },
+  ];
+
+  const filteredRows = rooms.filter(
+    (room) =>
+      room.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      (room.equipment &&
+        room.equipment.toLowerCase().includes(searchText.toLowerCase()))
+  );
+
+  return (
+    <Container maxWidth="lg">
+      <Paper>
+        <Toolbar>
+          <Box sx={{ flexGrow: 1 }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Szukaj po nazwie lub wyposażeniu..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              sx={{ width: 300 }}
+            />
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+          >
+            Dodaj Salę
+          </Button>
+        </Toolbar>
+        <Box sx={{ height: "70vh", width: "100%" }}>
+          <DataGrid
+            rows={filteredRows}
+            columns={columns}
+            getRowId={(row) => row.id}
+            pageSizeOptions={[10, 25, 50]}
+            checkboxSelection
+            disableRowSelectionOnClick
+          />
+        </Box>
+      </Paper>
+
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editMode ? "Edytuj salę" : "Dodaj nową salę"}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              label="Nazwa"
+              name="name"
+              fullWidth
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              label="Pojemność"
+              name="capacity"
+              type="number"
+              fullWidth
+              value={formData.capacity}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              label="Wyposażenie"
+              name="equipment"
+              fullWidth
+              value={formData.equipment}
+              onChange={handleChange}
+            />
+            <FormControl fullWidth>
+              <InputLabel>Typ Sali</InputLabel>
+              <Select
+                name="type"
+                value={formData.type}
+                label="Typ Sali"
+                onChange={handleChange}
+              >
+                {Object.entries(roomTypeTranslations).map(([key, value]) => (
+                  <MenuItem key={key} value={key}>
+                    {value}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: "16px 24px" }}>
+          <Button onClick={handleClose}>Anuluj</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editMode ? "Zapisz zmiany" : "Dodaj"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
+};
+
+export default RoomsPage;
+
+
+--- FILE: ./src/pages/SingleRequestPage.js ---
+
+import React, { useState, useEffect, useContext, useCallback } from "react";
+import { useParams } from "react-router-dom";
+import {
+  Container,
+  Paper,
+  Typography,
+  CircularProgress,
+  Box,
+  Grid,
+  List,
+  ListItem,
+  ListItemText,
+  Button,
+  Stepper,
+  Step,
+  StepLabel,
+  Divider,
+  TextField,
+  MenuItem,
+  Stack,
+} from "@mui/material";
+import { apiRequest } from "../services/apiService";
+import { UserContext } from "../App";
+import { format } from "date-fns";
+import { pl } from "date-fns/locale";
+
+const steps = [
+  "Zgłoszenie",
+  "Wskazywanie dostępności",
+  "Akceptacja terminu",
+  "Zakończone",
+];
+const timeSlotMap = {
+  1: "8:00-9:30",
+  2: "9:45-11:15",
+  3: "11:30-13:00",
+  4: "13:15-14:45",
+  5: "15:00-16:30",
+  6: "16:45-18:15",
+  7: "18:30-20:00",
+};
+
+const SingleRequestPage = () => {
+  const { requestId } = useParams();
+  const { user } = useContext(UserContext);
+  const [request, setRequest] = useState(null);
+  const [proposals, setProposals] = useState([]);
+  const [commonSlots, setCommonSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [myAvailability, setMyAvailability] = useState({
+    day: "",
+    time_slot_id: "",
+  });
+
+  const fetchRequestData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const reqData = await apiRequest(
+        `/change_requests/${requestId}?request_id=${requestId}`
+      );
+      const propData = await apiRequest(`/proposals/${requestId}`);
+      setRequest(reqData);
+      setProposals(propData || []);
+    } catch (error) {
+      console.error("Error fetching request data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [requestId]);
+
+  useEffect(() => {
+    fetchRequestData();
+  }, [fetchRequestData]);
+
+  useEffect(() => {
+    if (proposals.length > 0 && user) {
+      const myProposals = proposals.filter((p) => p.user_id === user.id);
+      const otherProposals = proposals.filter((p) => p.user_id !== user.id);
+      const common = [];
+      myProposals.forEach((myP) => {
+        otherProposals.forEach((otherP) => {
+          if (
+            myP.day === otherP.day &&
+            myP.time_slot_id === otherP.time_slot_id
+          ) {
+            common.push(myP);
+          }
+        });
+      });
+      setCommonSlots(common);
+    }
+  }, [proposals, user]);
+
+  const handleAddAvailability = async () => {
+    if (!myAvailability.day || !myAvailability.time_slot_id) {
+      alert("Proszę wybrać dzień i slot czasowy.");
+      return;
+    }
+    try {
+      await apiRequest("/proposals", {
+        method: "POST",
+        body: JSON.stringify({
+          change_request_id: parseInt(requestId),
+          user_id: user.id,
+          day: myAvailability.day,
+          time_slot_id: parseInt(myAvailability.time_slot_id),
+        }),
+      });
+      alert("Dostępność dodana!");
+      fetchRequestData();
+    } catch (e) {
+      alert("Błąd: " + e.message);
+    }
+  };
+
+  if (loading)
+    return (
+      <Container sx={{ textAlign: "center", mt: 5 }}>
+        <CircularProgress />
+      </Container>
+    );
+  if (!request) return <Typography>Nie znaleziono zgłoszenia.</Typography>;
+
+  const mySubmittedProposals = proposals.filter((p) => p.user_id === user?.id);
+
+  return (
+    <Container maxWidth="md">
+      <Paper sx={{ p: { xs: 2, md: 4 } }}>
+        <Typography variant="h4" gutterBottom>
+          Szczegóły zgłoszenia #{request.id || requestId}
+        </Typography>
+        <Stepper activeStep={1} alternativeLabel sx={{ my: 4 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+        <Divider sx={{ my: 3 }} />
+
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <Stack spacing={3}>
+              <div>
+                <Typography variant="h6">Moje propozycje</Typography>
+                {mySubmittedProposals.length > 0 ? (
+                  <List dense>
+                    {mySubmittedProposals.map((p) => (
+                      <ListItem key={p.id}>
+                        <ListItemText
+                          primary={format(new Date(p.day), "d MMMM yyyy", {
+                            locale: pl,
+                          })}
+                          secondary={`Slot: ${timeSlotMap[p.time_slot_id]}`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                ) : (
+                  <Typography color="text.secondary" sx={{ mt: 1 }}>
+                    Nie wskazałeś jeszcze dostępności.
+                  </Typography>
+                )}
+              </div>
+              <Box component="form" noValidate>
+                <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                  Dodaj nową dostępność:
+                </Typography>
+                <TextField
+                  type="date"
+                  name="day"
+                  fullWidth
+                  sx={{ mb: 2 }}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) =>
+                    setMyAvailability({
+                      ...myAvailability,
+                      day: e.target.value,
+                    })
+                  }
+                />
+                <TextField
+                  select
+                  label="Slot czasowy"
+                  name="time_slot_id"
+                  fullWidth
+                  defaultValue=""
+                  onChange={(e) =>
+                    setMyAvailability({
+                      ...myAvailability,
+                      time_slot_id: e.target.value,
+                    })
+                  }
+                >
+                  {Object.entries(timeSlotMap).map(([id, time]) => (
+                    <MenuItem key={id} value={id}>
+                      {time}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Button
+                  variant="contained"
+                  sx={{ mt: 2 }}
+                  onClick={handleAddAvailability}
+                >
+                  Dodaj
+                </Button>
+              </Box>
+            </Stack>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6">Wspólne terminy</Typography>
+            {commonSlots.length > 0 ? (
+              <List>
+                {commonSlots.map((p) => (
+                  <ListItem
+                    key={`common-${p.id}`}
+                    secondaryAction={
+                      <Button variant="contained" size="small">
+                        Akceptuj
+                      </Button>
+                    }
+                  >
+                    <ListItemText
+                      primary={format(new Date(p.day), "d MMMM yyyy", {
+                        locale: pl,
+                      })}
+                      secondary={`Slot: ${timeSlotMap[p.time_slot_id]}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography color="text.secondary" sx={{ mt: 1 }}>
+                Brak wspólnych terminów do akceptacji.
+              </Typography>
+            )}
+          </Grid>
+        </Grid>
+      </Paper>
+    </Container>
+  );
+};
+
+export default SingleRequestPage;
+
+
+--- FILE: ./src/App.js ---
+
+import React, { createContext, useEffect, useState } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import {
+  ThemeProvider,
+  CssBaseline,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+} from "@mui/material";
+import theme from "./theme";
+import PrivateRoute from "./components/PrivateRoute";
+import PublicRoute from "./components/PublicRoute";
+import LoginPage from "./pages/LoginPage";
+import MainPage from "./pages/MainPage";
+import RoomsPage from "./pages/RoomsPage";
+import UsersPage from "./pages/UsersPage";
+import GroupsPage from "./pages/GroupsPage";
+import CoursesPage from "./pages/CoursesPage";
+import ProposalsPage from "./pages/ProposalsPage";
+import ChangeRequestsPage from "./pages/ChangeRequestsPage";
+import SingleRequestPage from "./pages/SingleRequestPage";
+import {
+  isAuthenticated,
+  getCurrentUser,
+  logout as authLogout,
+} from "./services/authService";
+
+export const UserContext = createContext(null);
+export const ErrorContext = createContext(null);
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (isAuthenticated()) {
+        try {
+          const userData = await getCurrentUser();
+          setUser(userData);
+        } catch (err) {
+          authLogout();
+          setUser(null);
+          console.error("Authentication check failed:", err);
+        }
+      }
+      setLoading(false);
+    };
+    checkAuth();
+  }, []);
+
+  const handleCloseError = () => setError("");
+  const handleLogout = () => {
+    authLogout();
+    setUser(null);
+  };
+
+  const userContextValue = { user, setUser, loading, logout: handleLogout };
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <ErrorContext.Provider value={setError}>
+        <UserContext.Provider value={userContextValue}>
+          <Router>
+            <Routes>
+              <Route element={<PublicRoute />}>
+                <Route path="/login" element={<LoginPage />} />
+              </Route>
+
+              <Route element={<PrivateRoute />}>
+                <Route path="/main" element={<MainPage />} />
+                <Route path="/requests" element={<ChangeRequestsPage />} />
+                <Route
+                  path="/request/:requestId"
+                  element={<SingleRequestPage />}
+                />
+                <Route path="/proposals" element={<ProposalsPage />} />
+                <Route path="/rooms" element={<RoomsPage />} />
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/courses" element={<CoursesPage />} />
+                <Route path="/" element={<Navigate to="/main" replace />} />
+              </Route>
+
+              <Route
+                path="*"
+                element={
+                  <Navigate
+                    to={isAuthenticated() ? "/main" : "/login"}
+                    replace
+                  />
+                }
+              />
+            </Routes>
+          </Router>
+          <Dialog open={!!error} onClose={handleCloseError}>
+            <DialogTitle>Wystąpił Błąd</DialogTitle>
+            <DialogContent>{error.toString()}</DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseError} variant="contained">
+                Zamknij
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </UserContext.Provider>
+      </ErrorContext.Provider>
+    </ThemeProvider>
+  );
+}
+
+export default App;
+
+
+--- FILE: ./src/services/apiService.js ---
+
+const API_BASE_URL = "http://localhost:8000";
+
+export const apiRequest = async (endpoint, options = {}) => {
+  const token = localStorage.getItem("token");
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const errorMessage =
+      errorData?.detail || `HTTP error! status: ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+};
+
+
+--- FILE: ./src/services/authService.js ---
+
+import { apiRequest } from "./apiService";
+
+const API_URL = "http://localhost:8000/auth";
+
+export const login = async (email, password) => {
+  const response = await fetch(`${API_URL}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ username: email, password }),
+  });
+  if (!response.ok) throw new Error("Invalid credentials");
+  const data = await response.json();
+  localStorage.setItem("token", data.access_token);
+};
+
+export const logout = () => {
+  localStorage.removeItem("token");
+};
+
+export const isAuthenticated = () => !!localStorage.getItem("token");
+
+export const getCurrentUser = async () => {
+  return apiRequest("/auth/me");
+};
+
+
