@@ -15,18 +15,21 @@ import {
   FormHelperText,
 } from "@mui/material";
 
-// Funkcja pomocnicza do walidacji emaila
-const isEmailValid = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// Funkcja walidująca formularz użytkownika po stronie klienta
 const validate = (formData, isEditMode) => {
   const newErrors = {};
+  if (!formData.name.trim()) {
+    newErrors.name = "Imię jest wymagane.";
+  } else if (formData.name.trim().length < 2) {
+    newErrors.name = "Imię musi mieć co najmniej 2 znaki.";
+  }
 
-  if (!formData.name.trim()) newErrors.name = "Imię jest wymagane.";
-  if (!formData.surname.trim()) newErrors.surname = "Nazwisko jest wymagane.";
+  if (!formData.surname.trim()) {
+    newErrors.surname = "Nazwisko jest wymagane.";
+  } else if (formData.surname.trim().length < 2) {
+    newErrors.surname = "Nazwisko musi mieć co najmniej 2 znaki.";
+  }
 
   if (!formData.email.trim()) {
     newErrors.email = "Adres email jest wymagany.";
@@ -34,8 +37,6 @@ const validate = (formData, isEditMode) => {
     newErrors.email = "Wprowadź poprawny adres email.";
   }
 
-  // Walidacja hasła tylko przy tworzeniu nowego użytkownika
-  // lub jeśli hasło zostało wpisane podczas edycji
   if (!isEditMode) {
     if (!formData.password) {
       newErrors.password = "Hasło jest wymagane.";
@@ -112,16 +113,19 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
       await onSave(payload);
       onClose();
     } catch (error) {
-      // Obsługa błędów z serwera
-      const detail = error.response?.data?.detail;
-      if (detail && Array.isArray(detail)) {
+      // Poprawiona obsługa błędów
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
         const newErrors = {};
-        detail.forEach((err) => {
+        errorMsg.forEach((err) => {
           if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
         });
         setErrors(newErrors);
       } else {
-        setErrors({ general: error.message || "Wystąpił nieznany błąd." });
+        setErrors({ general: errorMsg });
       }
     } finally {
       setIsSubmitting(false);

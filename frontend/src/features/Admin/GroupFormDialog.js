@@ -12,7 +12,7 @@ import {
   FormControl,
   InputLabel,
   Select,
-  FormHelperText, // Dodane brakujące importy
+  FormHelperText,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService";
@@ -20,17 +20,17 @@ import { apiRequest } from "../../api/apiService";
 const useLeaders = () => {
   return useQuery({
     queryKey: ["users", { role: "STAROSTA" }],
-    queryFn: async () => {
-      // Zapewniamy ukośnik dla spójności
-      const users = await apiRequest("/users/");
-      return users.filter((user) => user.role === "STAROSTA");
-    },
+    queryFn: async () =>
+      (await apiRequest("/users/")).filter((user) => user.role === "STAROSTA"),
   });
 };
 
 const validate = (formData) => {
   const newErrors = {};
   if (!formData.name.trim()) newErrors.name = "Nazwa grupy jest wymagana.";
+  else if (formData.name.trim().length < 3)
+    newErrors.name = "Nazwa grupy musi mieć co najmniej 3 znaki.";
+
   const yearNum = Number(formData.year);
   if (!formData.year) {
     newErrors.year = "Rok jest wymagany.";
@@ -95,17 +95,18 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
       await onSave(payload);
       onClose();
     } catch (error) {
-      const detail = error.response?.data?.detail;
-      if (typeof detail === "string") {
-        setErrors({ general: detail });
-      } else if (detail && Array.isArray(detail)) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
         const newErrors = {};
-        detail.forEach((err) => {
+        errorMsg.forEach((err) => {
           if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
         });
         setErrors(newErrors);
       } else {
-        setErrors({ general: error.message || "Wystąpił nieznany błąd." });
+        setErrors({ general: errorMsg });
       }
     } finally {
       setIsSubmitting(false);

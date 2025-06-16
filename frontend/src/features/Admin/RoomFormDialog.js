@@ -33,13 +33,11 @@ const useEquipment = () =>
     queryFn: () => apiRequest("/equipment/"),
   });
 
-// Funkcja walidująca formularz po stronie klienta
 const validate = (formData) => {
   const newErrors = {};
-
   if (!formData.name.trim()) {
     newErrors.name = "Nazwa sali jest wymagana.";
-  } else if (formData.name.length < 3) {
+  } else if (formData.name.trim().length < 3) {
     newErrors.name = "Nazwa musi mieć co najmniej 3 znaki.";
   }
 
@@ -54,9 +52,7 @@ const validate = (formData) => {
     newErrors.capacity = "Pojemność musi być dodatnią liczbą całkowitą.";
   }
 
-  if (!formData.type) {
-    newErrors.type = "Typ sali jest wymagany.";
-  }
+  if (!formData.type) newErrors.type = "Typ sali jest wymagany.";
 
   return newErrors;
 };
@@ -72,6 +68,8 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!room;
 
   useEffect(() => {
     if (room) {
@@ -113,11 +111,10 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
   };
 
   const handleSaveAttempt = async () => {
-    // Krok 1: Walidacja po stronie klienta
     const validationErrors = validate(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      return; // Przerwij zapis, jeśli są błędy
+      return;
     }
 
     setErrors({});
@@ -131,30 +128,24 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
       await onSave(payload);
       onClose();
     } catch (error) {
-      // Obsługa błędów z serwera (np. duplikat nazwy)
-      let errorDetail = error.message || "Wystąpił nieznany błąd.";
-      try {
-        const parsedError = JSON.parse(error.message);
-        if (parsedError.detail && Array.isArray(parsedError.detail)) {
-          const newErrors = {};
-          parsedError.detail.forEach((err) => {
-            if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
-          });
-          setErrors(newErrors);
-          return;
-        } else if (parsedError.detail) {
-          errorDetail = parsedError.detail;
-        }
-      } catch (e) {
-        // Błąd nie był w formacie JSON
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
+        const newErrors = {};
+        errorMsg.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: errorMsg });
       }
-      setErrors({ general: errorDetail });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const editMode = !!room;
   const equipmentNameMap = new Map(allEquipment.map((eq) => [eq.id, eq.name]));
 
   return (
@@ -171,7 +162,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
             onChange={handleChange}
             required
             error={!!errors.name}
-            helperText={errors.name || "Minimum 3 znaki"}
+            helperText={errors.name}
           />
           <TextField
             label="Pojemność"
@@ -182,7 +173,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
             onChange={handleChange}
             required
             error={!!errors.capacity}
-            helperText={errors.capacity || "Wymagana liczba dodatnia"}
+            helperText={errors.capacity}
           />
           <FormControl fullWidth required error={!!errors.type}>
             <InputLabel>Typ Sali</InputLabel>

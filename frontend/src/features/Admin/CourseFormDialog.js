@@ -84,15 +84,18 @@ const CourseFormDialog = ({ open, onClose, onSave, course }) => {
       await onSave(formData);
       onClose();
     } catch (error) {
-      const detail = error.response?.data?.detail;
-      if (detail && Array.isArray(detail)) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
         const newErrors = {};
-        detail.forEach((err) => {
+        errorMsg.forEach((err) => {
           if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
         });
         setErrors(newErrors);
       } else {
-        setErrors({ general: error.message || "Wystąpił nieznany błąd." });
+        setErrors({ general: errorMsg });
       }
     } finally {
       setIsSubmitting(false);

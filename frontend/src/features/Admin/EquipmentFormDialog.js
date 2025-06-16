@@ -14,7 +14,7 @@ const validate = (formData) => {
   const newErrors = {};
   if (!formData.name.trim()) {
     newErrors.name = "Nazwa wyposażenia jest wymagana.";
-  } else if (formData.name.length < 3) {
+  } else if (formData.name.trim().length < 3) {
     newErrors.name = "Nazwa musi mieć co najmniej 3 znaki.";
   }
   return newErrors;
@@ -57,7 +57,11 @@ const EquipmentFormDialog = ({ open, onClose, onSave, equipment }) => {
       await onSave(formData);
       onClose();
     } catch (error) {
-      setErrors({ general: error.message || "Wystąpił nieznany błąd." });
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      setErrors({ general: errorMsg });
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +84,7 @@ const EquipmentFormDialog = ({ open, onClose, onSave, equipment }) => {
             onChange={handleChange}
             required
             error={!!errors.name}
-            helperText={errors.name || "Minimum 3 znaki"}
+            helperText={errors.name}
           />
         </Stack>
       </DialogContent>
