@@ -12,7 +12,7 @@ from model import (
 )
 from routers.auth import get_current_user
 from routers.schemas import ChangeRecomendationResponse
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from starlette.status import HTTP_204_NO_CONTENT
 
@@ -133,7 +133,35 @@ async def find_and_add_common_availability(
                 source_proposal_id=source_proposal.id if source_proposal else None
             )
             recommendations.append(recommendation)
-            db.add(recommendation)
+
+    # Evening lessons
+    ev = 0
+    for recommendation in recommendations:
+        if recommendation.recommended_slot_id == 6 or recommendation.recommended_slot_id == 7:
+            ev +=1
+    if ev != len(recommendations):
+        recommendations = [ rec for rec in recommendations if rec.recommended_slot_id not in [6, 7]]
+
+    # Neighboring lessons
+    tmp_rec = []
+    for recommendation in recommendations:
+        proposed_day_lessons = (
+            db.query(CourseEvent).filter(
+                CourseEvent.room_id == recommendation.recommended_room_id,
+                CourseEvent.day == recommendation.recommended_day,
+                or_(CourseEvent.time_slot_id == recommendation.recommended_slot_id+1,
+                    CourseEvent.time_slot_id == recommendation.recommended_slot_id-1),
+            )
+        )
+
+        if proposed_day_lessons.first():
+            tmp_rec.append(recommendation)
+
+    if len(tmp_rec) > 0:
+        recommendations = tmp_rec
+
+    for recommendation in recommendations:
+        db.add(recommendation)
 
     if not recommendations:
         raise HTTPException(
