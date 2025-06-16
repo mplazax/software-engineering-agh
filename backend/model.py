@@ -62,7 +62,7 @@ class Group(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
     year = Column(Integer, nullable=True)
-    leader_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    leader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     leader = relationship("User", back_populates="led_group")
     courses = relationship("Course", back_populates="group")
 
@@ -70,7 +70,7 @@ class Equipment(Base):
     __tablename__ = "equipment"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
-    rooms = relationship("Room", secondary=room_equipment_association, back_populates="equipment")
+    rooms = relationship("Room", secondary=room_equipment_association, back_populates="equipment", cascade="save-update, merge")
 
 class Room(Base):
     __tablename__ = "rooms"

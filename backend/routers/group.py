@@ -27,8 +27,8 @@ def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current
         raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["leader_id"], "msg": "Wybrany użytkownik musi mieć rolę 'STAROSTA'."}])
     if db.query(Group).filter(Group.name == group_data.name).first():
         raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Grupa o tej nazwie już istnieje.")
-    if db.query(Group).filter(Group.leader_id == group_data.leader_id).first():
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Ten użytkownik jest już starostą innej grupy.")
+    # if db.query(Group).filter(Group.leader_id == group_data.leader_id).first():
+    #     raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Ten użytkownik jest już starostą innej grupy.")
     
     new_group = Group(**group_data.dict())
     db.add(new_group)
