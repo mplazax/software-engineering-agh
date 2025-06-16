@@ -12,6 +12,7 @@ import RoomsPage from "./pages/RoomsPage";
 import UsersPage from "./pages/UsersPage";
 import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
+import EquipmentPage from "./pages/EquipmentPage"; // Nowy import
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import MyRecommendationsPage from "./pages/MyRecommendationsPage";
 
@@ -43,6 +44,8 @@ const AppRoutes = () => {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/courses" element={<CoursesPage />} />
+        <Route path="/equipment" element={<EquipmentPage />} />{" "}
+        {/* Nowa trasa */}
         <Route path="/calendar" element={<ChangeRequestsPage />} />
         <Route path="/recommendations" element={<MyRecommendationsPage />} />
       </Route>

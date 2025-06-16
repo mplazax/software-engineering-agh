@@ -24,7 +24,6 @@ services:
     volumes:
       - ./backend:/app
       - /app/.venv
-    # ZMIANA: Tymczasowo wystawiamy port 8000
     ports:
       - "8000:8000"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -35,15 +34,31 @@ services:
       db:
         condition: service_healthy
 
-  # Serwis Frontendu z Nginx
+  # Serwis Frontendu (serwer deweloperski React)
   frontend:
-    container_name: booking_system_frontend
+    container_name: booking_system_frontend_dev
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
+      target: development # Mówimy Dockerowi, aby budował tylko do etapu 'development'
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    # Nie wystawiamy portu 3000 na zewnątrz, Nginx będzie się z nim komunikował
     depends_on:
+      - backend
+
+  # Serwis Nginx (brama wejściowa)
+  nginx:
+    container_name: booking_system_nginx
+    build:
+      context: ./frontend # Używamy tego samego kontekstu i Dockerfile
+      dockerfile: Dockerfile
+      target: production # Ale budujemy obraz produkcyjny Nginx
+    ports:
+      - "80:80" # Jedyny port wystawiony na zewnątrz
+    depends_on:
+      - frontend # Nginx zależy od serwera deweloperskiego
       - backend
 
 volumes:

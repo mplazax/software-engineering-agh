@@ -9,6 +9,10 @@ import {
   Stack,
   MenuItem,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText, // Dodane brakujące importy
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService";
@@ -17,10 +21,25 @@ const useLeaders = () => {
   return useQuery({
     queryKey: ["users", { role: "STAROSTA" }],
     queryFn: async () => {
-      const users = await apiRequest("/users");
+      // Zapewniamy ukośnik dla spójności
+      const users = await apiRequest("/users/");
       return users.filter((user) => user.role === "STAROSTA");
     },
   });
+};
+
+const validate = (formData) => {
+  const newErrors = {};
+  if (!formData.name.trim()) newErrors.name = "Nazwa grupy jest wymagana.";
+  const yearNum = Number(formData.year);
+  if (!formData.year) {
+    newErrors.year = "Rok jest wymagany.";
+  } else if (!Number.isInteger(yearNum) || yearNum < 1 || yearNum > 5) {
+    newErrors.year = "Rok musi być liczbą od 1 do 5.";
+  }
+  if (!formData.leader_id)
+    newErrors.leader_id = "Wybór starosty jest wymagany.";
+  return newErrors;
 };
 
 const GroupFormDialog = ({ open, onClose, onSave, group }) => {
@@ -30,8 +49,10 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
     year: "",
     leader_id: "",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!group;
 
   useEffect(() => {
     if (group) {
@@ -43,31 +64,53 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
     } else {
       setFormData({ name: "", year: "", leader_id: "" });
     }
-    setError("");
+    setErrors({});
   }, [group, open]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    setIsSubmitting(true);
-    const payload = {
-      ...formData,
-      year: parseInt(formData.year, 10) || null,
-      leader_id: parseInt(formData.leader_id, 10) || null,
-    };
-    const result = await onSave(payload);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
-      onClose();
+    if (errors[e.target.name]) {
+      const newErrors = { ...errors };
+      delete newErrors[e.target.name];
+      setErrors(newErrors);
     }
   };
 
-  const editMode = !!group;
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        ...formData,
+        year: parseInt(formData.year, 10),
+        leader_id: parseInt(formData.leader_id, 10),
+      };
+      await onSave(payload);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      if (typeof detail === "string") {
+        setErrors({ general: detail });
+      } else if (detail && Array.isArray(detail)) {
+        const newErrors = {};
+        detail.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: error.message || "Wystąpił nieznany błąd." });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -76,7 +119,7 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Nazwa grupy"
             name="name"
@@ -84,6 +127,8 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name}
           />
           <TextField
             label="Rok studiów"
@@ -93,23 +138,28 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
             value={formData.year}
             onChange={handleChange}
             required
+            error={!!errors.year}
+            helperText={errors.year}
           />
-          <TextField
-            select
-            label="Starosta"
-            name="leader_id"
-            fullWidth
-            value={formData.leader_id}
-            onChange={handleChange}
-            required
-            disabled={isLoadingLeaders}
-          >
-            {leaders.map((leader) => (
-              <MenuItem key={leader.id} value={leader.id}>
-                {leader.name} {leader.surname}
-              </MenuItem>
-            ))}
-          </TextField>
+          <FormControl fullWidth required error={!!errors.leader_id}>
+            <InputLabel>Starosta</InputLabel>
+            <Select
+              name="leader_id"
+              value={formData.leader_id}
+              label="Starosta"
+              onChange={handleChange}
+              disabled={isLoadingLeaders}
+            >
+              {leaders.map((leader) => (
+                <MenuItem key={leader.id} value={leader.id}>
+                  {leader.name} {leader.surname}
+                </MenuItem>
+              ))}
+            </Select>
+            {errors.leader_id && (
+              <FormHelperText>{errors.leader_id}</FormHelperText>
+            )}
+          </FormControl>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: "16px 24px" }}>
@@ -117,7 +167,7 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >

@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Paper,
+  CircularProgress,
+  Alert,
   Toolbar,
   TextField,
   Button,
-  CircularProgress,
-  Alert,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
@@ -18,16 +18,28 @@ const AdminDataGrid = ({
   isError,
   error,
   onAddItem,
-  toolbarConfig,
+  toolbarConfig = {},
+  // Nowy, opcjonalny prop do niestandardowego filtrowania
+  customFilterFn,
 }) => {
   const [searchText, setSearchText] = useState("");
 
-  const filteredRows = rows.filter((row) => {
-    if (!searchText) return true;
-    return Object.values(row).some((value) =>
-      String(value).toLowerCase().includes(searchText.toLowerCase())
+  const filteredRows = useMemo(() => {
+    if (!searchText) return rows;
+    const lowerCaseSearch = searchText.toLowerCase();
+
+    // Jeśli przekazano niestandardową funkcję filtrowania (dla Sal), użyj jej
+    if (customFilterFn) {
+      return customFilterFn(rows, lowerCaseSearch);
+    }
+
+    // W przeciwnym razie, użyj domyślnego, generycznego filtrowania
+    return rows.filter((row) =>
+      Object.values(row).some((value) =>
+        String(value).toLowerCase().includes(lowerCaseSearch)
+      )
     );
-  });
+  }, [rows, searchText, customFilterFn]);
 
   return (
     <Paper>
@@ -40,12 +52,22 @@ const AdminDataGrid = ({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             sx={{ width: { xs: "100%", sm: 350 } }}
+            // Kluczowa poprawka rozwiązująca problem autouzupełniania
+            autoComplete="off"
+            id={`datagrid-search-${toolbarConfig.addLabel}`} // Unikalne ID
           />
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={onAddItem}>
-          {toolbarConfig.addLabel || "Dodaj"}
-        </Button>
+        {onAddItem && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={onAddItem}
+          >
+            {toolbarConfig.addLabel || "Dodaj"}
+          </Button>
+        )}
       </Toolbar>
+
       {isError && <Alert severity="error">Błąd: {error?.message}</Alert>}
       <Box sx={{ height: "70vh", width: "100%" }}>
         <DataGrid

@@ -12,7 +12,44 @@ import {
   Select,
   MenuItem,
   Alert,
+  FormHelperText,
 } from "@mui/material";
+
+// Funkcja pomocnicza do walidacji emaila
+const isEmailValid = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Funkcja walidująca formularz użytkownika po stronie klienta
+const validate = (formData, isEditMode) => {
+  const newErrors = {};
+
+  if (!formData.name.trim()) newErrors.name = "Imię jest wymagane.";
+  if (!formData.surname.trim()) newErrors.surname = "Nazwisko jest wymagane.";
+
+  if (!formData.email.trim()) {
+    newErrors.email = "Adres email jest wymagany.";
+  } else if (!isEmailValid(formData.email)) {
+    newErrors.email = "Wprowadź poprawny adres email.";
+  }
+
+  // Walidacja hasła tylko przy tworzeniu nowego użytkownika
+  // lub jeśli hasło zostało wpisane podczas edycji
+  if (!isEditMode) {
+    if (!formData.password) {
+      newErrors.password = "Hasło jest wymagane.";
+    } else if (formData.password.length < 8) {
+      newErrors.password = "Hasło musi mieć co najmniej 8 znaków.";
+    }
+  } else if (formData.password && formData.password.length < 8) {
+    newErrors.password = "Nowe hasło musi mieć co najmniej 8 znaków.";
+  }
+
+  if (!formData.role) newErrors.role = "Rola jest wymagana.";
+
+  return newErrors;
+};
 
 const UserFormDialog = ({ open, onClose, onSave, user }) => {
   const [formData, setFormData] = useState({
@@ -22,8 +59,10 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
     password: "",
     role: "PROWADZACY",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!user;
 
   useEffect(() => {
     if (user) {
@@ -43,26 +82,51 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
         role: "PROWADZACY",
       });
     }
-    setError("");
+    setErrors({});
   }, [user, open]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    setIsSubmitting(true);
-    const result = await onSave(formData);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
-      onClose();
+    if (errors[e.target.name]) {
+      const newErrors = { ...errors };
+      delete newErrors[e.target.name];
+      setErrors(newErrors);
     }
   };
 
-  const editMode = !!user;
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData, editMode);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    try {
+      const payload = { ...formData };
+      if (editMode && !payload.password) {
+        delete payload.password;
+      }
+      await onSave(payload);
+      onClose();
+    } catch (error) {
+      // Obsługa błędów z serwera
+      const detail = error.response?.data?.detail;
+      if (detail && Array.isArray(detail)) {
+        const newErrors = {};
+        detail.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: error.message || "Wystąpił nieznany błąd." });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -71,7 +135,7 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Imię"
             name="name"
@@ -79,6 +143,8 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name}
           />
           <TextField
             label="Nazwisko"
@@ -87,6 +153,8 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.surname}
             onChange={handleChange}
             required
+            error={!!errors.surname}
+            helperText={errors.surname}
           />
           <TextField
             label="Adres Email"
@@ -96,6 +164,8 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.email}
             onChange={handleChange}
             required
+            error={!!errors.email}
+            helperText={errors.email}
           />
           <TextField
             label="Hasło"
@@ -105,11 +175,15 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.password}
             onChange={handleChange}
             required={!editMode}
+            error={!!errors.password}
             helperText={
-              editMode ? "Pozostaw puste, aby nie zmieniać hasła" : ""
+              errors.password ||
+              (editMode
+                ? "Pozostaw puste, aby nie zmieniać hasła"
+                : "Minimum 8 znaków")
             }
           />
-          <FormControl fullWidth>
+          <FormControl fullWidth required error={!!errors.role}>
             <InputLabel>Rola</InputLabel>
             <Select
               name="role"
@@ -122,6 +196,7 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
               <MenuItem value="KOORDYNATOR">Koordynator</MenuItem>
               <MenuItem value="ADMIN">Administrator</MenuItem>
             </Select>
+            {errors.role && <FormHelperText>{errors.role}</FormHelperText>}
           </FormControl>
         </Stack>
       </DialogContent>
@@ -130,7 +205,7 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >

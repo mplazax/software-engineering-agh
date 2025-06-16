@@ -21,6 +21,7 @@ import PeopleIcon from "@mui/icons-material/People";
 import GroupsIcon from "@mui/icons-material/Groups";
 import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
+import BuildIcon from "@mui/icons-material/Build"; // Nowa ikona
 
 const drawerWidth = 280;
 
@@ -50,6 +51,7 @@ const adminNavItems = [
   { text: "Użytkownicy", icon: <PeopleIcon />, path: "/users" },
   { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
   { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
+  { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" }, // Nowy link
   { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
 ];
 
@@ -61,7 +63,7 @@ const Sidebar = () => {
       case "ADMIN":
         return [...commonNavItems, ...adminNavItems];
       case "KOORDYNATOR":
-        return [...commonNavItems, ...adminNavItems.slice(1)];
+        return [...commonNavItems, ...adminNavItems.slice(1)]; // Wszystko oprócz Użytkowników
       case "PROWADZACY":
       case "STAROSTA":
         return commonNavItems;
@@ -94,7 +96,7 @@ const Sidebar = () => {
             <ListItemButton
               component={NavLink}
               to={item.path}
-              end={item.path === "/"} // Important for root path matching
+              end={item.path === "/"}
               sx={{
                 borderRadius: "6px",
                 "&.active": {

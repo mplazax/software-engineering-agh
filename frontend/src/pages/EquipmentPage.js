@@ -1,46 +1,42 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { Container, Stack, IconButton, Avatar } from "@mui/material";
+import { Container, Stack, IconButton, Box } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import PersonIcon from "@mui/icons-material/Person";
+import BuildIcon from "@mui/icons-material/Build"; // Ikona dla wyposażenia
 
 import { useCrud } from "../hooks/useCrud";
 import AdminDataGrid from "../features/Admin/AdminDataGrid";
-import UserFormDialog from "../features/Admin/UserFormDialog";
+import EquipmentFormDialog from "../features/Admin/EquipmentFormDialog";
 
-const roleTranslations = {
-  ADMIN: "Administrator",
-  KOORDYNATOR: "Koordynator",
-  PROWADZACY: "Prowadzący",
-  STAROSTA: "Starosta",
-};
-
-const UsersPage = () => {
+const EquipmentPage = () => {
   const {
-    items: users,
+    items: equipment,
     isLoading,
     isError,
     error,
     createItem,
     updateItem,
     deleteItem,
-  } = useCrud("users", "/users");
+  } = useCrud("equipment", "/equipment");
+
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentItem, setCurrentItem] = useState(null);
 
   const handleAdd = () => {
-    setCurrentUser(null);
+    setCurrentItem(null);
     setDialogOpen(true);
   };
 
-  const handleEdit = useCallback((user) => {
-    setCurrentUser(user);
+  const handleEdit = useCallback((item) => {
+    setCurrentItem(item);
     setDialogOpen(true);
   }, []);
 
   const handleDelete = useCallback(
     async (id) => {
-      if (window.confirm("Czy na pewno chcesz usunąć tego użytkownika?")) {
+      if (
+        window.confirm("Czy na pewno chcesz usunąć ten element wyposażenia?")
+      ) {
         try {
           await deleteItem(id);
         } catch (e) {
@@ -51,20 +47,18 @@ const UsersPage = () => {
     [deleteItem]
   );
 
-  const handleSave = async (userData) => {
+  const handleSave = async (data) => {
     try {
-      if (currentUser) {
-        const payload = { ...userData };
-        if (!payload.password) delete payload.password;
-        await updateItem({ id: currentUser.id, updatedItem: payload });
+      if (currentItem) {
+        await updateItem({ id: currentItem.id, updatedItem: data });
       } else {
-        await createItem(userData);
+        await createItem(data);
       }
       setDialogOpen(false);
-      return Promise.resolve();
     } catch (e) {
-      console.error("Save failed", e);
-      return Promise.reject(e);
+      // Błąd zostanie obsłużony w formularzu, ale logujemy go na wszelki wypadek
+      console.error("Save failed:", e);
+      throw e; // Rzucamy błąd dalej, aby formularz mógł go złapać
     }
   };
 
@@ -72,24 +66,15 @@ const UsersPage = () => {
     () => [
       { field: "id", headerName: "ID", width: 90 },
       {
-        field: "avatar",
-        headerName: "Avatar",
-        width: 70,
-        renderCell: () => (
-          <Avatar>
-            <PersonIcon />
-          </Avatar>
+        field: "name",
+        headerName: "Nazwa Wyposażenia",
+        flex: 1,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <BuildIcon sx={{ mr: 1, color: "text.secondary" }} />
+            {params.value}
+          </Box>
         ),
-        sortable: false,
-      },
-      { field: "name", headerName: "Imię", width: 150 },
-      { field: "surname", headerName: "Nazwisko", width: 150 },
-      { field: "email", headerName: "Email", flex: 1 },
-      {
-        field: "role",
-        headerName: "Rola",
-        width: 150,
-        valueGetter: (value) => roleTranslations[value] || value,
       },
       {
         field: "actions",
@@ -119,24 +104,24 @@ const UsersPage = () => {
     <Container maxWidth="lg" sx={{ p: "0 !important" }}>
       <AdminDataGrid
         columns={columns}
-        rows={users}
+        rows={equipment}
         isLoading={isLoading}
         isError={isError}
         error={error}
         onAddItem={handleAdd}
         toolbarConfig={{
-          searchPlaceholder: "Szukaj po imieniu, nazwisku, emailu...",
-          addLabel: "Dodaj użytkownika",
+          searchPlaceholder: "Szukaj po nazwie...",
+          addLabel: "Dodaj wyposażenie",
         }}
       />
-      <UserFormDialog
+      <EquipmentFormDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
-        user={currentUser}
+        equipment={currentItem}
       />
     </Container>
   );
 };
 
-export default UsersPage;
+export default EquipmentPage;
