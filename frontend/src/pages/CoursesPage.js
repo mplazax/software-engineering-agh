@@ -1,135 +1,154 @@
-import React, { useEffect, useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-} from "@mui/material";
+import React, { useState, useMemo, useCallback } from "react";
+import { Container, Stack, IconButton, Box } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import Navbar from "../components/Navbar";
-import { apiRequest } from "../services/apiService";
-import {useNavigate} from "react-router-dom";
+import EditIcon from "@mui/icons-material/Edit";
+import SchoolIcon from "@mui/icons-material/School";
+import { useQuery } from "@tanstack/react-query";
+
+import { useCrud } from "../hooks/useCrud";
+import AdminDataGrid from "../features/Admin/AdminDataGrid";
+import CourseFormDialog from "../features/Admin/CourseFormDialog";
+import { apiRequest } from "../api/apiService";
+
+const useIdToNameMap = (
+  queryKey,
+  endpoint,
+  nameFormatter = (item) => item.name
+) => {
+  const { data = [] } = useQuery({
+    queryKey,
+    queryFn: () => apiRequest(endpoint),
+  });
+  return useMemo(
+    () => new Map(data.map((item) => [item.id, nameFormatter(item)])),
+    [data, nameFormatter]
+  );
+};
 
 const CoursesPage = () => {
-  const [courses, setCourses] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", teacher_id: "", group_id: "" });
+  const {
+    items: courses,
+    isLoading,
+    isError,
+    error,
+    createItem,
+    updateItem,
+    deleteItem,
+  } = useCrud("courses", "/courses");
+  const teachersMap = useIdToNameMap(
+    ["users"],
+    "/users",
+    (user) => `${user.name} ${user.surname}`
+  );
+  const groupsMap = useIdToNameMap(["groups"], "/groups");
 
-  const navigate = useNavigate();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentCourse, setCurrentCourse] = useState(null);
 
-  // Sprawdzenie czy użytkownik jest zalogowany (np. po tokenie w localStorage)
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login", { replace: true });
+  const handleAdd = () => {
+    setCurrentCourse(null);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = useCallback((course) => {
+    setCurrentCourse(course);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (id) => {
+      if (window.confirm("Czy na pewno chcesz usunąć ten kurs?")) {
+        await deleteItem(id).catch((e) => alert(`Błąd: ${e.message}`));
+      }
+    },
+    [deleteItem]
+  );
+
+  const handleSave = async (courseData) => {
+    try {
+      if (currentCourse) {
+        await updateItem({ id: currentCourse.id, updatedItem: courseData });
+      } else {
+        await createItem(courseData);
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      console.error("Save failed", e);
+      return e;
     }
-    fetchCourses();
-  }, [navigate]);
-
-  const fetchCourses = () => {
-    apiRequest("/courses")
-      .then((data) => setCourses(data))
-      .catch((error) => console.error("Error fetching courses:", error));
   };
 
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = () => {
-    apiRequest("/courses", {
-      method: "POST",
-      body: JSON.stringify(formData),
-    })
-      .then((newCourse) => {
-        setCourses((prev) => [...prev, newCourse]);
-        handleClose();
-      })
-      .catch((error) => console.error("Error adding course:", error));
-  };
-
-  const handleDelete = (courseId) => {
-    // Optimistically update the UI
-    setCourses((prev) => prev.filter((course) => course.id !== courseId));
-  
-    // Send the delete request to the backend
-    apiRequest(`/courses/${courseId}`, { method: "DELETE" })
-      .catch((error) => {
-        console.error("Error deleting course:", error);
-        // Revert the UI update if the request fails
-        fetchCourses();
-      });
-  };
+  const columns = useMemo(
+    () => [
+      { field: "id", headerName: "ID", width: 90 },
+      {
+        field: "name",
+        headerName: "Nazwa Kursu",
+        width: 300,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <SchoolIcon sx={{ mr: 1, color: "text.secondary" }} />
+            {params.value}
+          </Box>
+        ),
+      },
+      {
+        field: "teacher_id",
+        headerName: "Prowadzący",
+        flex: 1,
+        valueGetter: (value) => teachersMap.get(value) || "Nieznany",
+      },
+      {
+        field: "group_id",
+        headerName: "Grupa",
+        flex: 1,
+        valueGetter: (value) => groupsMap.get(value) || "Nieznana",
+      },
+      {
+        field: "actions",
+        headerName: "Akcje",
+        width: 120,
+        sortable: false,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={1}>
+            <IconButton size="small" onClick={() => handleEdit(params.row)}>
+              <EditIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => handleDelete(params.row.id)}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Stack>
+        ),
+      },
+    ],
+    [teachersMap, groupsMap, handleEdit, handleDelete]
+  );
 
   return (
-    <Box>
-      <Navbar />
-      <Box padding={2}>
-        <Typography variant="h4">Zarządzaj kursami</Typography>
-        <List>
-          {courses.map((course) => (
-            <ListItem key={course.id} secondaryAction={
-              <IconButton edge="end" onClick={() => handleDelete(course.id)}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemText primary={`${course.name} - Prowadzący: ${course.teacher_id}`} />
-            </ListItem>
-          ))}
-        </List>
-        <Button variant="contained" onClick={handleOpen}>
-          Dodaj kurs
-        </Button>
-      </Box>
-
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Dodaj kurs</DialogTitle>
-        <DialogContent>
-          <TextField
-            margin="dense"
-            label="Nazwa"
-            name="name"
-            fullWidth
-            value={formData.name}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            label="ID prowadzącego"
-            name="teacher_id"
-            fullWidth
-            value={formData.teacher_id}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            label="ID grupy"
-            name="group_id"
-            fullWidth
-            value={formData.group_id}
-            onChange={handleChange}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Anuluj</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            Dodaj
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+    <Container maxWidth="lg" sx={{ p: "0 !important" }}>
+      <AdminDataGrid
+        columns={columns}
+        rows={courses}
+        isLoading={isLoading || teachersMap.size === 0 || groupsMap.size === 0}
+        isError={isError}
+        error={error}
+        onAddItem={handleAdd}
+        toolbarConfig={{
+          searchPlaceholder: "Szukaj po nazwie kursu...",
+          addLabel: "Dodaj Kurs",
+        }}
+      />
+      <CourseFormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+        course={currentCourse}
+      />
+    </Container>
   );
 };
 

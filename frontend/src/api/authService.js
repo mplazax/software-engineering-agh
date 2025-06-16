@@ -1,16 +1,20 @@
 import { apiRequest } from "./apiService";
 
-const API_URL = "http://localhost:8000/auth";
-
 export const login = async (email, password) => {
-  const response = await fetch(`${API_URL}/token`, {
+  const response = await fetch(`/api/auth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ username: email, password }),
+    body: new URLSearchParams({ username: email, password: password }),
   });
-  if (!response.ok) throw new Error("Invalid credentials");
+  if (!response.ok) {
+    const errorData = await response
+      .json()
+      .catch(() => ({ detail: "Invalid credentials" }));
+    throw new Error(errorData.detail);
+  }
   const data = await response.json();
   localStorage.setItem("token", data.access_token);
+  return data;
 };
 
 export const logout = () => {
@@ -20,7 +24,5 @@ export const logout = () => {
 export const isAuthenticated = () => !!localStorage.getItem("token");
 
 export const getCurrentUser = async () => {
-  return apiRequest("/auth/me", {
-    method: "GET",
-  });
+  return apiRequest("/auth/me");
 };

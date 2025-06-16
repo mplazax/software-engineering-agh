@@ -1,73 +1,45 @@
-import React, { createContext, useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
-import LoginPage from "./pages/LoginPage";
-import MainPage from "./pages/MainPage";
-import RoomsPage from "./pages/RoomsPage";
-import UsersPage from "./pages/UsersPage";
-import GroupsPage from "./pages/GroupsPage";
-import CoursesPage from "./pages/CoursesPage";
-import ProposalsPage from "./pages/ProposalsPage";
-import ChangeRequestsPage from "./pages/ChangeRequestsPage";
-import MyRecommendationsPage from "./pages/MyRecommendationsPage";
-import RedirectOnRoot from "./pages/RedirectOnRoot";
+import React from "react";
+import { BrowserRouter as Router } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider, CssBaseline } from "@mui/material";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFnsV3";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { pl } from "date-fns/locale";
 
-import { isAuthenticated, getCurrentUser } from "./services/authService";
+import { AuthProvider } from "./contexts/AuthContext";
+import AppRoutes from "./AppRoutes";
+import theme from "./theme/theme";
 
-export const UserContext = createContext(null);
-export const ErrorContext = createContext(null);
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
 
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
-
-  useEffect(() => {
-    if (isAuthenticated()) {
-      getCurrentUser()
-          .then((data) => setUser(data))
-          .catch(() => setUser(null))
-          .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleCloseError = () => setError("");
-
+function App() {
   return (
-    <ErrorContext.Provider value={setError}>
-      <UserContext.Provider value={{ user, setUser, loading }}>
-        <Router>
-          <Box sx={{ paddingTop: 8 }}>
-            <Routes>
-              <Route path="/" element={<RedirectOnRoot />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/main" element={<MainPage />} />
-              <Route path="/rooms" element={<RoomsPage />} />
-              <Route path="/users" element={<UsersPage />} />
-              <Route path="/groups" element={<GroupsPage />} />
-              <Route path="/courses" element={<CoursesPage />} />
-              <Route path="/proposals" element={<ProposalsPage />} />
-              <Route path="/requests" element={<ChangeRequestsPage />} />
-              <Route path="/recommendations" element={<MyRecommendationsPage />} />
-              <Route path="*" element={<RedirectOnRoot />} />
-            </Routes>
-          </Box>
-        </Router>
-        <Dialog open={!!error} onClose={handleCloseError}>
-          <DialogTitle>Błąd autoryzacji</DialogTitle>
-          <DialogContent>{error}</DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseError} variant="contained">
-              Zamknij
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </UserContext.Provider>
-    </ErrorContext.Provider>
+    <QueryClientProvider client={queryClient}>
+      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={pl}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <Router>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </Router>
+        </ThemeProvider>
+      </LocalizationProvider>
+    </QueryClientProvider>
   );
-};
+}
 
 export default App;
