@@ -15,6 +15,7 @@ import {
   Checkbox,
   ListItemText,
   OutlinedInput,
+  FormHelperText,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService";
@@ -26,12 +27,38 @@ const roomTypeTranslations = {
   CONFERENCE_ROOM: "Sala konferencyjna",
   OTHER: "Inne",
 };
-
-const useEquipment = () => {
-  return useQuery({
+const useEquipment = () =>
+  useQuery({
     queryKey: ["equipment"],
-    queryFn: () => apiRequest("/equipment"),
+    queryFn: () => apiRequest("/equipment/"),
   });
+
+// Funkcja walidująca formularz po stronie klienta
+const validate = (formData) => {
+  const newErrors = {};
+
+  if (!formData.name.trim()) {
+    newErrors.name = "Nazwa sali jest wymagana.";
+  } else if (formData.name.length < 3) {
+    newErrors.name = "Nazwa musi mieć co najmniej 3 znaki.";
+  }
+
+  const capacityNum = Number(formData.capacity);
+  if (!formData.capacity) {
+    newErrors.capacity = "Pojemność jest wymagana.";
+  } else if (
+    isNaN(capacityNum) ||
+    !Number.isInteger(capacityNum) ||
+    capacityNum <= 0
+  ) {
+    newErrors.capacity = "Pojemność musi być dodatnią liczbą całkowitą.";
+  }
+
+  if (!formData.type) {
+    newErrors.type = "Typ sali jest wymagany.";
+  }
+
+  return newErrors;
 };
 
 const RoomFormDialog = ({ open, onClose, onSave, room }) => {
@@ -43,7 +70,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
     type: "LECTURE_HALL",
     equipment_ids: [],
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -62,12 +89,17 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
         equipment_ids: [],
       });
     }
-    setError("");
+    setErrors({});
   }, [room, open]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      const newErrors = { ...errors };
+      delete newErrors[name];
+      setErrors(newErrors);
+    }
   };
 
   const handleEquipmentChange = (event) => {
@@ -80,19 +112,45 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
     }));
   };
 
-  const handleSubmit = async () => {
-    setError("");
+  const handleSaveAttempt = async () => {
+    // Krok 1: Walidacja po stronie klienta
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return; // Przerwij zapis, jeśli są błędy
+    }
+
+    setErrors({});
     setIsSubmitting(true);
-    const payload = {
-      ...formData,
-      capacity: parseInt(formData.capacity, 10) || 0,
-    };
-    const result = await onSave(payload);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
+
+    try {
+      const payload = {
+        ...formData,
+        capacity: parseInt(formData.capacity, 10),
+      };
+      await onSave(payload);
       onClose();
+    } catch (error) {
+      // Obsługa błędów z serwera (np. duplikat nazwy)
+      let errorDetail = error.message || "Wystąpił nieznany błąd.";
+      try {
+        const parsedError = JSON.parse(error.message);
+        if (parsedError.detail && Array.isArray(parsedError.detail)) {
+          const newErrors = {};
+          parsedError.detail.forEach((err) => {
+            if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+          });
+          setErrors(newErrors);
+          return;
+        } else if (parsedError.detail) {
+          errorDetail = parsedError.detail;
+        }
+      } catch (e) {
+        // Błąd nie był w formacie JSON
+      }
+      setErrors({ general: errorDetail });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -104,7 +162,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
       <DialogTitle>{editMode ? "Edytuj salę" : "Dodaj nową salę"}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Nazwa"
             name="name"
@@ -112,6 +170,8 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name || "Minimum 3 znaki"}
           />
           <TextField
             label="Pojemność"
@@ -121,8 +181,10 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
             value={formData.capacity}
             onChange={handleChange}
             required
+            error={!!errors.capacity}
+            helperText={errors.capacity || "Wymagana liczba dodatnia"}
           />
-          <FormControl fullWidth>
+          <FormControl fullWidth required error={!!errors.type}>
             <InputLabel>Typ Sali</InputLabel>
             <Select
               name="type"
@@ -136,6 +198,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
                 </MenuItem>
               ))}
             </Select>
+            {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
           </FormControl>
           <FormControl fullWidth>
             <InputLabel>Wyposażenie</InputLabel>
@@ -167,7 +230,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >

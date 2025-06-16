@@ -128,6 +128,7 @@
     "@mui/material": "^5.15.19",
     "@mui/x-data-grid": "^7.6.2",
     "@mui/x-date-pickers": "^7.6.2",
+    "@tanstack/react-query": "^5.45.1",
     "axios": "^1.7.2",
     "date-fns": "^3.6.0",
     "react": "^18.3.1",
@@ -1209,7 +1210,7 @@ const timeSlotMap = {
   7: "18:30-20:00",
 };
 
-const AvailabilitySelector = ({ changeRequestId }) => {
+const AvailabilitySelector = ({ changeRequestId, onProposalChange }) => {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -1220,47 +1221,34 @@ const AvailabilitySelector = ({ changeRequestId }) => {
     enabled: !!changeRequestId,
   });
 
+  const mutationOptions = {
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["proposals", changeRequestId],
+      });
+      if (onProposalChange) {
+        onProposalChange();
+      }
+    },
+  };
+
   const createMutation = useMutation({
     mutationFn: (newProposal) =>
       apiRequest("/proposals/", {
         method: "POST",
         body: JSON.stringify(newProposal),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["proposals", changeRequestId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["recommendations", changeRequestId],
-      });
-    },
+    ...mutationOptions,
   });
 
   const deleteMutation = useMutation({
     mutationFn: (proposalId) =>
       apiRequest(`/proposals/${proposalId}`, { method: "DELETE" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["proposals", changeRequestId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["recommendations", changeRequestId],
-      });
-    },
+    ...mutationOptions,
   });
-
-  const proposedSlots = useMemo(() => {
-    const slotSet = new Set();
-    proposals.forEach((p) => {
-      const formattedDate = format(new Date(p.day), "yyyy-MM-dd");
-      slotSet.add(`${formattedDate}-${p.time_slot_id}`, p.id);
-    });
-    return slotSet;
-  }, [proposals]);
 
   const handleSlotClick = (slotId) => {
     const formattedDate = format(selectedDate, "yyyy-MM-dd");
-    const proposalKey = `${formattedDate}-${slotId}`;
     const existingProposal = proposals.find(
       (p) =>
         format(new Date(p.day), "yyyy-MM-dd") === formattedDate &&
@@ -2314,11 +2302,7 @@ export default UsersPage;
 ====================================================================
 ### Plik: ./frontend/src/pages/MyRecommendationsPage.js
 ====================================================================
-<<<<<<< HEAD
-import React, {useCallback, useContext, useEffect, useState} from "react";
-=======
 import React, { useState, useMemo, useContext } from "react";
->>>>>>> feat/update-ui
 import {
   Box,
   Typography,
@@ -2389,32 +2373,11 @@ const useCoursesMap = () => {
 };
 
 const MyRecommendationsPage = () => {
-<<<<<<< HEAD
-    const { user, loading } = useContext(UserContext);
-    const [changeRequests, setChangeRequests] = useState([]);
-    const [coursesMap, setCoursesMap] = useState({});
-    const [selectedRequestId, setSelectedRequestId] = useState(null);
-    const [recommendations, setRecommendations] = useState([]);
-    const [roomNames, setRoomNames] = useState({});
-    const navigate = useNavigate();
-    const [selectedStatus, setSelectedStatus] = useState("");
-    const statusLabels = {
-        PENDING: "Oczekujące",
-        ACCEPTED: "Zaakceptowane",
-        REJECTED: "Odrzucone",
-        CANCELLED: "Anulowane",
-    };
-    const [openDialog, setOpenDialog] = useState(false);
-    const [selectedProposal, setSelectedProposal] = useState(null);
-    const [hasInitialized, setHasInitialized] = useState(false);
-    const [eventInfoMap, setEventInfoMap] = useState({}); // eventId → { courseId, day }
-=======
   const queryClient = useQueryClient();
   const { user } = useContext(AuthContext);
   const [selectedStatus, setSelectedStatus] = useState("PENDING");
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [selectedProposal, setSelectedProposal] = useState(null);
->>>>>>> feat/update-ui
 
   const { data: requests = [], isLoading: isLoadingRequests } =
     useRelatedRequests(selectedStatus);
@@ -2424,294 +2387,6 @@ const MyRecommendationsPage = () => {
     return requests.find((req) => req.id === selectedRequestId) || null;
   }, [requests, selectedRequestId]);
 
-<<<<<<< HEAD
-    const fetchAndTriggerCommonAvailability = useCallback(async (requests) => {
-        for (const req of requests) {
-            try {
-                const event = await apiRequest(`/courses/events/${req.course_event_id}`);
-                const course = await apiRequest(`/courses/${event.course_id}`);
-                const group = await apiRequest(`/groups/${course.group_id}`);
-
-                const user1_id = user.id;
-                let user2_id = null;
-
-                if (user.role === "PROWADZACY") {
-                    user2_id = group.leader_id;
-                } else if (user.role === "STAROSTA") {
-                    user2_id = course.teacher_id;
-                }
-
-                if (user2_id) {
-                    await apiRequest(
-                        `/change_recommendation/common-availability?user1_id=${user1_id}&user2_id=${user2_id}&change_request_id=${req.id}`,
-                        { method: "POST" }
-                    );
-                }
-            } catch (err) {
-                console.warn(`Nie udało się wywołać common-availability dla requestu ${req.id}`, err);
-            }
-        }
-    }, [user]);
-
-
-    const fetchRelatedRequests = useCallback(async () => {
-        try {
-            const queryParams = new URLSearchParams({ limit: 1000 });
-            if (selectedStatus) {
-                queryParams.append("status", selectedStatus);
-            }
-            const result = await apiRequest(`/change_requests/related?${queryParams.toString()}`);
-            setChangeRequests(result);
-            await fetchAndTriggerCommonAvailability(result);
-        } catch (error) {
-            console.error("Błąd podczas pobierania powiązanych zgłoszeń zmian:", error);
-        }
-    }, [selectedStatus, fetchAndTriggerCommonAvailability]);
-
-    useEffect(() => {
-        if (!loading && !localStorage.getItem("token")) {
-            navigate("/login", { replace: true });
-        }
-
-        if (!loading && user && !hasInitialized) {
-            fetchRelatedRequests();
-            fetchCourses();
-            setHasInitialized(true);
-        }
-    }, [loading, user, navigate, hasInitialized, fetchRelatedRequests]);
-
-    useEffect(() => {
-        if (hasInitialized) {
-            fetchRelatedRequests();
-        }
-    }, [selectedStatus, hasInitialized, fetchRelatedRequests]);
-
-    if (loading) {
-        return;
-    }
-
-    const fetchCourses = async () => {
-        try {
-            const courses = await apiRequest("/courses/");
-            const newCoursesMap = {};
-            const newEventInfoMap = {};
-
-            for (const course of courses) {
-                newCoursesMap[course.id] = course.name || `Kurs ${course.id}`;
-                const events = await apiRequest(`/courses/${course.id}/events`);
-                for (const event of events) {
-                    newEventInfoMap[event.id] = {
-                        courseId: course.id,
-                        eventDay: event.day,
-                    };
-                }
-            }
-
-            setCoursesMap(newCoursesMap);
-            setEventInfoMap(newEventInfoMap);
-        } catch (error) {
-            console.error("Błąd podczas pobierania kursów i wydarzeń:", error);
-        }
-    };
-
-
-
-    const fetchRecommendations = async (changeRequestId) => {
-        try {
-            const result = await apiRequest(`/change_recommendation/${changeRequestId}/recommendations`);
-            setRecommendations(result);
-
-            // Pobierz nazwy sal jeśli jeszcze nieznane
-            const uniqueRoomIds = [...new Set(result.map(r => r.recommended_room_id))];
-            for (const roomId of uniqueRoomIds) {
-                if (!roomNames[roomId]) {
-                    try {
-                        const room = await apiRequest(`/rooms/${roomId}`);
-                        setRoomNames(prev => ({ ...prev, [roomId]: room.name }));
-                    } catch (e) {
-                        console.warn(`Nie udało się pobrać sali ${roomId}`);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Błąd podczas pobierania rekomendacji:", error);
-        }
-    };
-
-    const handleSelectChangeRequest = (e) => {
-        const requestId = e.target.value;
-        setSelectedRequestId(requestId);
-        fetchRecommendations(requestId);
-    };
-
-    const handleStatusChange = (e) => {
-        setSelectedStatus(e.target.value);
-    };
-
-    const handleSelectProposal = (rec) => {
-        setSelectedProposal(rec);
-        setOpenDialog(true);
-    };
-
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
-        setSelectedProposal(null);
-    };
-
-    const handleProposalStatusChange = async (newStatus) => {
-        if (!selectedProposal) return;
-
-        const role = user.role;
-        const baseEndpoint =
-            role === "PROWADZACY"
-                ? "/leader"
-                : role === "STAROSTA"
-                    ? "/representative"
-                    : null;
-
-        if (!baseEndpoint) return;
-
-        // Budujemy poprawny URL z /proposals/{id}/changestatus/{role} oraz parametrem query new_status
-        const endpoint = `/proposals/${selectedProposal.id}/changestatus${baseEndpoint}?new_status=${newStatus}`;
-
-        try {
-            await apiRequest(endpoint, {
-                method: "POST",
-                // usuń body - backend oczekuje parametru w query, więc nie wysyłamy ciała
-            });
-
-            // odśwież rekomendacje po zmianie
-            if (selectedRequestId) {
-                fetchRecommendations(selectedRequestId);
-            }
-
-            handleCloseDialog();
-        } catch (error) {
-            console.error("Błąd podczas zmiany statusu propozycji:", error);
-        }
-    };
-
-
-
-
-
-    const formatSlotTime = (slotId) => {
-        const slots = [
-            "08:00 - 09:30",
-            "09:45 - 11:15",
-            "11:30 - 13:00",
-            "13:15 - 14:45",
-            "15:00 - 16:30",
-            "16:45 - 18:15",
-            "18:30 - 20:00",
-        ];
-        return slots[slotId - 1] || `Slot ${slotId}`;
-    };
-
-    return (
-        <Box>
-            <Navbar />
-            <Box padding={4}>
-                <Typography variant="h4" gutterBottom>
-                    Rekomendacje dla Twoich zgłoszeń zmian
-                </Typography>
-                <FormControl fullWidth sx={{ marginBottom: 2 }}>
-                    <InputLabel>Status zgłoszenia</InputLabel>
-                    <Select
-                        value={selectedStatus}
-                        onChange={handleStatusChange}
-                        label="Status zgłoszenia"
-                    >
-                        <MenuItem value="">Wszystkie</MenuItem>
-                        {Object.entries(statusLabels).map(([value, label]) => (
-                            <MenuItem key={value} value={value}>
-                                {label}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-
-                <FormControl fullWidth sx={{ marginBottom: 3 }}>
-                    <InputLabel>Wybierz zgłoszenie zmiany</InputLabel>
-                    <Select
-                        value={selectedRequestId || ""}
-                        onChange={handleSelectChangeRequest}
-                        label="Wybierz zgłoszenie zmiany"
-                    >
-                        {changeRequests.map((request) => (
-                            <MenuItem key={request.id} value={request.id}>
-                                {`${coursesMap[eventInfoMap[request.course_event_id]?.courseId] || "Nieznany kurs"}: ${request.reason} (${eventInfoMap[request.course_event_id]?.eventDay ? new Date(eventInfoMap[request.course_event_id].eventDay).toLocaleDateString() : "brak daty"})`}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-                {recommendations.length > 0 ? (
-                    <Paper elevation={3}>
-                        <List>
-                            {recommendations.map((rec) => (
-                                <React.Fragment key={rec.id}>
-                                    <ListItem button onClick={() => handleSelectProposal(rec)}>
-                                    <ListItemText
-                                            primary={`Data: ${rec.recommended_day}`}
-                                            secondary={
-                                                <>
-                                                    <div>Slot: {formatSlotTime(rec.recommended_slot_id)}</div>
-                                                    <div>Sala: {roomNames[rec.recommended_room_id] || rec.recommended_room_id}</div>
-                                                </>
-                                            }
-                                        />
-                                    </ListItem>
-                                    <Divider />
-                                </React.Fragment>
-                            ))}
-                        </List>
-                    </Paper>) : (
-                    selectedRequestId && (
-                        <Typography variant="body1">Brak rekomendacji dla wybranego zgłoszenia.</Typography>
-                    )
-
-                )}
-                <Dialog open={openDialog} onClose={handleCloseDialog}>
-                    <DialogTitle>Szczegóły propozycji</DialogTitle>
-                    <DialogContent>
-                        {selectedProposal && (
-                            <List>
-                                <ListItem>
-                                    <ListItemText primary="Data" secondary={selectedProposal.recommended_day} />
-                                </ListItem>
-                                <ListItem>
-                                    <ListItemText primary="Slot" secondary={formatSlotTime(selectedProposal.recommended_slot_id)} />
-                                </ListItem>
-                                <ListItem>
-                                    <ListItemText
-                                        primary="Sala"
-                                        secondary={roomNames[selectedProposal.recommended_room_id] || selectedProposal.recommended_room_id}
-                                    />
-                                </ListItem>
-                            </List>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCloseDialog}>Zamknij</Button>
-                        {["STAROSTA", "PROWADZACY"].includes(user.role) && (
-                            <>
-                                <Button onClick={() => handleProposalStatusChange(false)} color="error" variant="outlined">
-                                    Odrzuć
-                                </Button>
-                                <Button onClick={() => handleProposalStatusChange(true)} color="primary" variant="contained">
-                                    Zaakceptuj
-                                </Button>
-                            </>
-                        )}
-                    </DialogActions>
-                </Dialog>
-
-            </Box>
-        </Box>
-    );
-=======
   const { data: recommendations = [], isLoading: isLoadingRecommendations } =
     useQuery({
       queryKey: ["recommendations", selectedRequestId],
@@ -2908,7 +2583,6 @@ const MyRecommendationsPage = () => {
       </Dialog>
     </Box>
   );
->>>>>>> feat/update-ui
 };
 
 export default MyRecommendationsPage;
@@ -3300,27 +2974,13 @@ const useUpcomingEvents = (user) => {
         myCourses = courses; // Admin/Koordynator widzi wszystko
       }
 
-      const eventPromises = myCourses.map((course) =>
-        apiRequest(`/courses/${course.id}/events`)
-      );
+      const eventPromises = myCourses.map(async (course) => {
+        const events = await apiRequest(`/courses/${course.id}/events`);
+        return events.map((e) => ({ ...e, courseName: course.name }));
+      });
       const eventsByCourse = await Promise.all(eventPromises);
 
-<<<<<<< HEAD
-  const features = [
-    { title: "Plan zajęć", description: "Przeglądaj twój plan zajęć i zgłaszaj potrzebę zmiany.", path: "/requests", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
-    { title: "Propozycje", description: "Przeglądaj propozycje terminów.", path: "/proposals", allowedRole: ["ADMIN", "KOORDYNATOR", "PROWADZACY", "STAROSTA"] },
-    { title: "Sale", description: "Przeglądaj sale.", path: "/rooms", allowedRole: ["ADMIN", "KOORDYNATOR"] },
-    { title: "Użytkownicy", description: "Przeglądaj użytkowników.", path: "/users", allowedRole: ["ADMIN"] },
-    { title: "Grupy", description: "Przeglądaj grupy.", path: "/groups", allowedRole: ["ADMIN", "KOORDYNATOR"] },
-    { title: "Kursy", description: "Przeglądaj kursy.", path: "/courses", allowedRole: ["ADMIN", "KOORDYNATOR"] },
-    { title: "Rekomendacje", description: "Sprawdź rekomendacje zmian dla prowadzonych lub zgłoszonych zajęć.",  path: "/recommendations",  allowedRole: ["STAROSTA", "PROWADZACY"] },
-=======
-      const allEvents = eventsByCourse.flat().map((event, index) => ({
-        ...event,
-        courseName:
-          myCourses.find((c) => c.events?.some((e) => e.id === event.id))
-            ?.name || "Unknown Course",
-      }));
+      const allEvents = eventsByCourse.flat();
 
       return allEvents
         .map((e) => ({ ...e, date: new Date(e.day) }))
@@ -3349,7 +3009,6 @@ const RecentActivity = () => {
       text: "Reservation Requested",
       subject: "Room 102",
     },
->>>>>>> feat/update-ui
   ];
 
   return (
@@ -4072,7 +3731,10 @@ def update_request(
 from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from model import AvailabilityProposal, ChangeRecomendation, ChangeRequest, CourseEvent, Equipment, Room, RoomUnavailability, User
+from model import (
+    AvailabilityProposal, ChangeRecomendation, ChangeRequest, CourseEvent,
+    Equipment, Room, RoomUnavailability, User
+)
 from routers.auth import get_current_user
 from routers.schemas import ChangeRecomendationResponse
 from sqlalchemy import func, or_
@@ -4120,13 +3782,11 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
             continue
         processed_slots.add(slot_key)
         
-        # Subquery for unavailable rooms due to RoomUnavailability
         unavailable_by_block = db.query(RoomUnavailability.room_id).filter(
             RoomUnavailability.start_datetime <= proposal.day,
             RoomUnavailability.end_datetime >= proposal.day
         ).subquery()
         
-        # Subquery for rooms unavailable due to other CourseEvents
         unavailable_by_event = db.query(CourseEvent.room_id).filter(
             CourseEvent.day == proposal.day,
             CourseEvent.time_slot_id == proposal.time_slot_id,
@@ -4166,124 +3826,30 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
                     source_proposal=proposal
                 )
             )
-<<<<<<< HEAD
-            recommendation = ChangeRecomendation(
-                change_request_id=change_request_id,
-                recommended_slot_id=slot_id,
-                recommended_day=day,
-                recommended_room_id=room.id,
-                source_proposal_id=source_proposal.id if source_proposal else None
+
+    # Logika priorytetyzacji zintegrowana z `main`
+    # 1. Preferowanie terminów nie-wieczornych
+    non_evening_recs = [rec for rec in recommendations if rec.recommended_slot_id not in [6, 7]]
+    if len(non_evening_recs) > 0:
+        recommendations = non_evening_recs
+
+    # 2. Preferowanie terminów "doklejonych" do innych zajęć
+    adjacent_recs = []
+    for rec in recommendations:
+        neighboring_events = db.query(CourseEvent.id).filter(
+            CourseEvent.day == rec.recommended_day,
+            or_(
+                CourseEvent.time_slot_id == rec.recommended_slot_id + 1,
+                CourseEvent.time_slot_id == rec.recommended_slot_id - 1
             )
-            recommendations.append(recommendation)
-
-    # Evening lessons
-    ev = 0
-    for recommendation in recommendations:
-        if recommendation.recommended_slot_id == 6 or recommendation.recommended_slot_id == 7:
-            ev +=1
-    if ev != len(recommendations):
-        recommendations = [ rec for rec in recommendations if rec.recommended_slot_id not in [6, 7]]
-
-    # Neighboring lessons
-    tmp_rec = []
-    for recommendation in recommendations:
-        proposed_day_lessons = (
-            db.query(CourseEvent).filter(
-                CourseEvent.room_id == recommendation.recommended_room_id,
-                CourseEvent.day == recommendation.recommended_day,
-                or_(CourseEvent.time_slot_id == recommendation.recommended_slot_id+1,
-                    CourseEvent.time_slot_id == recommendation.recommended_slot_id-1),
-            )
-        )
-
-        if proposed_day_lessons.first():
-            tmp_rec.append(recommendation)
-
-    if len(tmp_rec) > 0:
-        recommendations = tmp_rec
-
-    for recommendation in recommendations:
-        db.add(recommendation)
-
-    if not recommendations:
-        raise HTTPException(
-            status_code=404, detail="No rooms available for the common intervals"
-        )
-
-    db.commit()
-    return {"message": "Recommendations added successfully"}
-
-
-@router.get(
-    "/{change_request_id}/recommendations",
-    response_model=list[ChangeRecomendationResponse],
-)
-async def get_proposals(
-    change_request_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[ChangeRecomendationResponse]:
-    """
-    Get all recommendations for a specific change request.
-    
-    Args:
-        change_request_id (int): ID of the change request
-        db (Session): Database session
-        current_user (User): Current authenticated user
-        
-    Raises:
-        HTTPException: If change request is not found
-        
-    Returns:
-        list[ChangeRecomendation]: List of change recommendations
-    """
-    change_request = (
-        db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
-    )
-    if not change_request:
-        raise HTTPException(status_code=404, detail="Change request not found")
-
-    change_recommendations = (
-        db.query(ChangeRecomendation)
-        .filter(ChangeRecomendation.change_request_id == change_request_id)
-        .all()
-    )
-    return change_recommendations
-
-
-@router.delete("/{change_request_id}/recommendations", status_code=HTTP_204_NO_CONTENT)
-async def delete_recommendations(
-    change_request_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """
-    Delete all recommendations for a specific change request.
-    
-    Args:
-        change_request_id (int): ID of the change request
-        db (Session): Database session
-        current_user (User): Current authenticated user
-        
-    Raises:
-        HTTPException: If change request is not found
-    """
-    change_request = (
-        db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
-    )
-    if not change_request:
-        raise HTTPException(status_code=404, detail="Change request not found")
-
-    db.query(ChangeRecomendation).filter(
-        ChangeRecomendation.change_request_id == change_request_id
-    ).delete()
-    db.commit()
-    return
-=======
+        ).first()
+        if neighboring_events:
+            adjacent_recs.append(rec)
+            
+    if len(adjacent_recs) > 0:
+        recommendations = adjacent_recs
             
     return recommendations
->>>>>>> feat/update-ui
-
 ====================================================================
 ### Plik: ./backend/routers/__init__.py
 ====================================================================

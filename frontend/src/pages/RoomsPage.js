@@ -16,6 +16,21 @@ const roomTypeTranslations = {
   OTHER: "Inne",
 };
 
+// Niestandardowa funkcja filtrowania przekazywana jako prop
+const filterRooms = (rows, searchText) => {
+  return rows.filter((row) => {
+    const inName = row.name.toLowerCase().includes(searchText);
+    const inType = roomTypeTranslations[row.type]
+      .toLowerCase()
+      .includes(searchText);
+    const inCapacity = String(row.capacity).includes(searchText);
+    const inEquipment = row.equipment.some((eq) =>
+      eq.name.toLowerCase().includes(searchText)
+    );
+    return inName || inType || inCapacity || inEquipment;
+  });
+};
+
 const RoomsPage = () => {
   const {
     items: rooms,
@@ -60,9 +75,10 @@ const RoomsPage = () => {
         await createItem(roomData);
       }
       setDialogOpen(false);
+      return Promise.resolve();
     } catch (e) {
       console.error("Save failed", e);
-      return e;
+      return Promise.reject(e);
     }
   };
 
@@ -135,6 +151,7 @@ const RoomsPage = () => {
           searchPlaceholder: "Szukaj po nazwie lub wyposażeniu...",
           addLabel: "Dodaj Salę",
         }}
+        customFilterFn={filterRooms} // Przekazujemy naszą niestandardową logikę
       />
       <RoomFormDialog
         open={dialogOpen}
