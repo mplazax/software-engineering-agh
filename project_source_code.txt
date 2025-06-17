@@ -1,27 +1,37 @@
 ====================================================================
 ### Plik: ./frontend/Dockerfile
 ====================================================================
-# --- Etap 1: Budowanie Aplikacji React ---
-    FROM node:18-alpine AS builder
+# --- Etap 1: Baza deweloperska i instalacja zależności ---
+    FROM node:18-alpine AS base
 
     WORKDIR /app
     
-    # Kopiujemy package.json i package-lock.json (lub yarn.lock)
+    # Kopiujemy tylko pliki manifestu, aby wykorzystać cache Dockera
     COPY package*.json ./
     
-    # Instalujemy zależności
+    # Instalujemy wszystkie zależności
     RUN npm install
     
-    # Kopiujemy resztę kodu źródłowego aplikacji
+    # --- Etap 2: Środowisko deweloperskie (uruchamiane przez docker-compose) ---
+    FROM base AS development
+    
+    # Kopiujemy resztę kodu
+    COPY . .
+    
+    # Uruchamiamy serwer deweloperski Reacta
+    CMD ["npm", "start"]
+    
+    # --- Etap 3: Budowanie wersji produkcyjnej ---
+    FROM base AS builder
+    
+    # Kopiujemy resztę kodu
     COPY . .
     
     # Budujemy aplikację w wersji produkcyjnej
-    # Folder /app/build będzie zawierał gotowe, statyczne pliki
     RUN npm run build
     
-    
-    # --- Etap 2: Serwowanie plików przez Nginx ---
-    FROM nginx:1.25-alpine
+    # --- Etap 4: Serwer produkcyjny Nginx ---
+    FROM nginx:1.25-alpine AS production
     
     # Usuwamy domyślną konfigurację Nginx
     RUN rm /etc/nginx/conf.d/default.conf
@@ -30,7 +40,6 @@
     COPY nginx/default.conf /etc/nginx/conf.d/default.conf
     
     # Kopiujemy zbudowane pliki statyczne z etapu "builder"
-    # do katalogu, z którego Nginx serwuje pliki
     COPY --from=builder /app/build /usr/share/nginx/html
     
     # Uruchamiamy Nginx na pierwszym planie
@@ -171,32 +180,28 @@ server {
     listen 80;
     server_name localhost;
 
-    # Lokalizacja dla plików statycznych aplikacji React
-    location / {
-        root   /usr/share/nginx/html;
-        index  index.html index.htm;
-        # Kluczowe dla Single Page Application:
-        # Jeśli plik lub katalog nie istnieje, zwróć index.html
-        try_files $uri $uri/ /index.html;
-    }
-
-    # POPRAWKA: Nowa, poprawna konfiguracja proxy dla API
-    # Ta metoda jest standardowa i bardziej niezawodna niż używanie `rewrite`.
+    # Lokalizacja dla API - bez zmian
     location /api/ {
-        # Usuwa /api/ z początku ścieżki i przekazuje resztę do backendu.
-        # Np. zapytanie na /api/users/ zostanie przekazane jako /users/ do backendu.
         proxy_pass http://backend:8000/;
-
-        # Ustawiamy nagłówki, aby przekazać oryginalne informacje do backendu
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    error_page   500 502 503 504  /50x.html;
-    location = /50x.html {
-        root   /usr/share/nginx/html;
+    # POPRAWKA: Przekierowanie całego pozostałego ruchu do serwera deweloperskiego React
+    # Działa on wewnątrz sieci Docker pod nazwą serwisu 'frontend' na porcie 3000
+    location / {
+        proxy_pass http://frontend:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Ustawienia niezbędne do działania WebSocket (dla Hot-Reloading)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 }
 ====================================================================
@@ -483,17 +488,58 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
 export default EventDialog;
 
 ====================================================================
+### Plik: ./frontend/src/features/Admin/DataGridToolbar.js
+====================================================================
+import React from "react";
+import { Box, Toolbar, TextField, Button } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+
+const DataGridToolbar = ({
+  searchText,
+  onSearchTextChange,
+  onAddItem,
+  searchPlaceholder,
+  addLabel,
+}) => {
+  return (
+    <Toolbar>
+      <Box sx={{ flexGrow: 1 }}>
+        <TextField
+          variant="outlined"
+          size="small"
+          placeholder={searchPlaceholder || "Szukaj..."}
+          value={searchText}
+          onChange={(e) => onSearchTextChange(e.target.value)}
+          sx={{ width: { xs: "100%", sm: 350 } }}
+          // OSTATECZNA POPRAWKA: Wyłączamy autouzupełnianie przeglądarki
+          autoComplete="off"
+          // Można też dodać unikalne ID, aby dodatkowo zdezorientować przeglądarkę
+          id={`datagrid-search-${searchPlaceholder}`}
+        />
+      </Box>
+      {onAddItem && (
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onAddItem}>
+          {addLabel || "Dodaj"}
+        </Button>
+      )}
+    </Toolbar>
+  );
+};
+
+export default DataGridToolbar;
+
+====================================================================
 ### Plik: ./frontend/src/features/Admin/AdminDataGrid.js
 ====================================================================
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Paper,
+  CircularProgress,
+  Alert,
   Toolbar,
   TextField,
   Button,
-  CircularProgress,
-  Alert,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
@@ -505,16 +551,28 @@ const AdminDataGrid = ({
   isError,
   error,
   onAddItem,
-  toolbarConfig,
+  toolbarConfig = {},
+  // Nowy, opcjonalny prop do niestandardowego filtrowania
+  customFilterFn,
 }) => {
   const [searchText, setSearchText] = useState("");
 
-  const filteredRows = rows.filter((row) => {
-    if (!searchText) return true;
-    return Object.values(row).some((value) =>
-      String(value).toLowerCase().includes(searchText.toLowerCase())
+  const filteredRows = useMemo(() => {
+    if (!searchText) return rows;
+    const lowerCaseSearch = searchText.toLowerCase();
+
+    // Jeśli przekazano niestandardową funkcję filtrowania (dla Sal), użyj jej
+    if (customFilterFn) {
+      return customFilterFn(rows, lowerCaseSearch);
+    }
+
+    // W przeciwnym razie, użyj domyślnego, generycznego filtrowania
+    return rows.filter((row) =>
+      Object.values(row).some((value) =>
+        String(value).toLowerCase().includes(lowerCaseSearch)
+      )
     );
-  });
+  }, [rows, searchText, customFilterFn]);
 
   return (
     <Paper>
@@ -527,12 +585,22 @@ const AdminDataGrid = ({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             sx={{ width: { xs: "100%", sm: 350 } }}
+            // Kluczowa poprawka rozwiązująca problem autouzupełniania
+            autoComplete="off"
+            id={`datagrid-search-${toolbarConfig.addLabel}`} // Unikalne ID
           />
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={onAddItem}>
-          {toolbarConfig.addLabel || "Dodaj"}
-        </Button>
+        {onAddItem && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={onAddItem}
+          >
+            {toolbarConfig.addLabel || "Dodaj"}
+          </Button>
+        )}
       </Toolbar>
+
       {isError && <Alert severity="error">Błąd: {error?.message}</Alert>}
       <Box sx={{ height: "70vh", width: "100%" }}>
         <DataGrid
@@ -582,7 +650,45 @@ import {
   Select,
   MenuItem,
   Alert,
+  FormHelperText,
 } from "@mui/material";
+
+const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const validate = (formData, isEditMode) => {
+  const newErrors = {};
+  if (!formData.name.trim()) {
+    newErrors.name = "Imię jest wymagane.";
+  } else if (formData.name.trim().length < 2) {
+    newErrors.name = "Imię musi mieć co najmniej 2 znaki.";
+  }
+
+  if (!formData.surname.trim()) {
+    newErrors.surname = "Nazwisko jest wymagane.";
+  } else if (formData.surname.trim().length < 2) {
+    newErrors.surname = "Nazwisko musi mieć co najmniej 2 znaki.";
+  }
+
+  if (!formData.email.trim()) {
+    newErrors.email = "Adres email jest wymagany.";
+  } else if (!isEmailValid(formData.email)) {
+    newErrors.email = "Wprowadź poprawny adres email.";
+  }
+
+  if (!isEditMode) {
+    if (!formData.password) {
+      newErrors.password = "Hasło jest wymagane.";
+    } else if (formData.password.length < 8) {
+      newErrors.password = "Hasło musi mieć co najmniej 8 znaków.";
+    }
+  } else if (formData.password && formData.password.length < 8) {
+    newErrors.password = "Nowe hasło musi mieć co najmniej 8 znaków.";
+  }
+
+  if (!formData.role) newErrors.role = "Rola jest wymagana.";
+
+  return newErrors;
+};
 
 const UserFormDialog = ({ open, onClose, onSave, user }) => {
   const [formData, setFormData] = useState({
@@ -592,8 +698,10 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
     password: "",
     role: "PROWADZACY",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!user;
 
   useEffect(() => {
     if (user) {
@@ -613,26 +721,54 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
         role: "PROWADZACY",
       });
     }
-    setError("");
+    setErrors({});
   }, [user, open]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    setIsSubmitting(true);
-    const result = await onSave(formData);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
-      onClose();
+    if (errors[e.target.name]) {
+      const newErrors = { ...errors };
+      delete newErrors[e.target.name];
+      setErrors(newErrors);
     }
   };
 
-  const editMode = !!user;
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData, editMode);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    try {
+      const payload = { ...formData };
+      if (editMode && !payload.password) {
+        delete payload.password;
+      }
+      await onSave(payload);
+      onClose();
+    } catch (error) {
+      // Poprawiona obsługa błędów
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
+        const newErrors = {};
+        errorMsg.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: errorMsg });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -641,7 +777,7 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Imię"
             name="name"
@@ -649,6 +785,8 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name}
           />
           <TextField
             label="Nazwisko"
@@ -657,6 +795,8 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.surname}
             onChange={handleChange}
             required
+            error={!!errors.surname}
+            helperText={errors.surname}
           />
           <TextField
             label="Adres Email"
@@ -666,6 +806,8 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.email}
             onChange={handleChange}
             required
+            error={!!errors.email}
+            helperText={errors.email}
           />
           <TextField
             label="Hasło"
@@ -675,11 +817,15 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
             value={formData.password}
             onChange={handleChange}
             required={!editMode}
+            error={!!errors.password}
             helperText={
-              editMode ? "Pozostaw puste, aby nie zmieniać hasła" : ""
+              errors.password ||
+              (editMode
+                ? "Pozostaw puste, aby nie zmieniać hasła"
+                : "Minimum 8 znaków")
             }
           />
-          <FormControl fullWidth>
+          <FormControl fullWidth required error={!!errors.role}>
             <InputLabel>Rola</InputLabel>
             <Select
               name="role"
@@ -692,6 +838,7 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
               <MenuItem value="KOORDYNATOR">Koordynator</MenuItem>
               <MenuItem value="ADMIN">Administrator</MenuItem>
             </Select>
+            {errors.role && <FormHelperText>{errors.role}</FormHelperText>}
           </FormControl>
         </Stack>
       </DialogContent>
@@ -700,7 +847,7 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >
@@ -731,6 +878,10 @@ import {
   Stack,
   MenuItem,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService";
@@ -738,13 +889,20 @@ import { apiRequest } from "../../api/apiService";
 const useTeachers = () =>
   useQuery({
     queryKey: ["users", { role: "PROWADZACY" }],
-    queryFn: async () => {
-      const users = await apiRequest("/users");
-      return users.filter((user) => user.role === "PROWADZACY");
-    },
+    queryFn: async () =>
+      (await apiRequest("/users/")).filter((u) => u.role === "PROWADZACY"),
   });
 const useGroups = () =>
-  useQuery({ queryKey: ["groups"], queryFn: () => apiRequest("/groups") });
+  useQuery({ queryKey: ["groups"], queryFn: () => apiRequest("/groups/") });
+
+const validate = (formData) => {
+  const newErrors = {};
+  if (!formData.name.trim()) newErrors.name = "Nazwa kursu jest wymagana.";
+  if (!formData.teacher_id)
+    newErrors.teacher_id = "Wybór prowadzącego jest wymagany.";
+  if (!formData.group_id) newErrors.group_id = "Wybór grupy jest wymagany.";
+  return newErrors;
+};
 
 const CourseFormDialog = ({ open, onClose, onSave, course }) => {
   const { data: teachers = [], isLoading: isLoadingTeachers } = useTeachers();
@@ -754,8 +912,10 @@ const CourseFormDialog = ({ open, onClose, onSave, course }) => {
     teacher_id: "",
     group_id: "",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!course;
 
   useEffect(() => {
     if (course) {
@@ -767,33 +927,56 @@ const CourseFormDialog = ({ open, onClose, onSave, course }) => {
     } else {
       setFormData({ name: "", teacher_id: "", group_id: "" });
     }
-    setError("");
+    setErrors({});
   }, [course, open]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    setIsSubmitting(true);
-    const result = await onSave(formData);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
-      onClose();
+    if (errors[e.target.name]) {
+      const newErrors = { ...errors };
+      delete newErrors[e.target.name];
+      setErrors(newErrors);
     }
   };
 
-  const editMode = !!course;
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
+        const newErrors = {};
+        errorMsg.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: errorMsg });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{editMode ? "Edytuj kurs" : "Dodaj nowy kurs"}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Nazwa kursu"
             name="name"
@@ -801,39 +984,47 @@ const CourseFormDialog = ({ open, onClose, onSave, course }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name}
           />
-          <TextField
-            select
-            label="Prowadzący"
-            name="teacher_id"
-            fullWidth
-            value={formData.teacher_id}
-            onChange={handleChange}
-            required
-            disabled={isLoadingTeachers}
-          >
-            {teachers.map((teacher) => (
-              <MenuItem key={teacher.id} value={teacher.id}>
-                {teacher.name} {teacher.surname}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Grupa"
-            name="group_id"
-            fullWidth
-            value={formData.group_id}
-            onChange={handleChange}
-            required
-            disabled={isLoadingGroups}
-          >
-            {groups.map((group) => (
-              <MenuItem key={group.id} value={group.id}>
-                {group.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          <FormControl fullWidth required error={!!errors.teacher_id}>
+            <InputLabel>Prowadzący</InputLabel>
+            <Select
+              name="teacher_id"
+              value={formData.teacher_id}
+              label="Prowadzący"
+              onChange={handleChange}
+              disabled={isLoadingTeachers}
+            >
+              {teachers.map((teacher) => (
+                <MenuItem key={teacher.id} value={teacher.id}>
+                  {teacher.name} {teacher.surname}
+                </MenuItem>
+              ))}
+            </Select>
+            {errors.teacher_id && (
+              <FormHelperText>{errors.teacher_id}</FormHelperText>
+            )}
+          </FormControl>
+          <FormControl fullWidth required error={!!errors.group_id}>
+            <InputLabel>Grupa</InputLabel>
+            <Select
+              name="group_id"
+              value={formData.group_id}
+              label="Grupa"
+              onChange={handleChange}
+              disabled={isLoadingGroups}
+            >
+              {groups.map((group) => (
+                <MenuItem key={group.id} value={group.id}>
+                  {group.name}
+                </MenuItem>
+              ))}
+            </Select>
+            {errors.group_id && (
+              <FormHelperText>{errors.group_id}</FormHelperText>
+            )}
+          </FormControl>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: "16px 24px" }}>
@@ -841,11 +1032,15 @@ const CourseFormDialog = ({ open, onClose, onSave, course }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Zapisywanie..." : "Dodaj"}
+          {isSubmitting
+            ? "Zapisywanie..."
+            : editMode
+            ? "Zapisz zmiany"
+            : "Dodaj"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -853,6 +1048,121 @@ const CourseFormDialog = ({ open, onClose, onSave, course }) => {
 };
 
 export default CourseFormDialog;
+
+====================================================================
+### Plik: ./frontend/src/features/Admin/EquipmentFormDialog.js
+====================================================================
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Stack,
+  Alert,
+} from "@mui/material";
+
+const validate = (formData) => {
+  const newErrors = {};
+  if (!formData.name.trim()) {
+    newErrors.name = "Nazwa wyposażenia jest wymagana.";
+  } else if (formData.name.trim().length < 3) {
+    newErrors.name = "Nazwa musi mieć co najmniej 3 znaki.";
+  }
+  return newErrors;
+};
+
+const EquipmentFormDialog = ({ open, onClose, onSave, equipment }) => {
+  const [formData, setFormData] = useState({ name: "" });
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!equipment;
+
+  useEffect(() => {
+    if (equipment) {
+      setFormData({ name: equipment.name || "" });
+    } else {
+      setFormData({ name: "" });
+    }
+    setErrors({});
+  }, [equipment, open]);
+
+  const handleChange = (e) => {
+    setFormData({ name: e.target.value });
+    if (errors.name) {
+      setErrors({});
+    }
+  };
+
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      setErrors({ general: errorMsg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        {editMode ? "Edytuj wyposażenie" : "Dodaj nowe wyposażenie"}
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
+          <TextField
+            autoFocus
+            label="Nazwa wyposażenia"
+            name="name"
+            fullWidth
+            value={formData.name}
+            onChange={handleChange}
+            required
+            error={!!errors.name}
+            helperText={errors.name}
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: "16px 24px" }}>
+        <Button onClick={onClose} disabled={isSubmitting}>
+          Anuluj
+        </Button>
+        <Button
+          onClick={handleSaveAttempt}
+          variant="contained"
+          disabled={isSubmitting}
+        >
+          {isSubmitting
+            ? "Zapisywanie..."
+            : editMode
+            ? "Zapisz zmiany"
+            : "Dodaj"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default EquipmentFormDialog;
 
 ====================================================================
 ### Plik: ./frontend/src/features/Admin/GroupFormDialog.js
@@ -868,6 +1178,10 @@ import {
   Stack,
   MenuItem,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService";
@@ -875,11 +1189,26 @@ import { apiRequest } from "../../api/apiService";
 const useLeaders = () => {
   return useQuery({
     queryKey: ["users", { role: "STAROSTA" }],
-    queryFn: async () => {
-      const users = await apiRequest("/users");
-      return users.filter((user) => user.role === "STAROSTA");
-    },
+    queryFn: async () =>
+      (await apiRequest("/users/")).filter((user) => user.role === "STAROSTA"),
   });
+};
+
+const validate = (formData) => {
+  const newErrors = {};
+  if (!formData.name.trim()) newErrors.name = "Nazwa grupy jest wymagana.";
+  else if (formData.name.trim().length < 3)
+    newErrors.name = "Nazwa grupy musi mieć co najmniej 3 znaki.";
+
+  const yearNum = Number(formData.year);
+  if (!formData.year) {
+    newErrors.year = "Rok jest wymagany.";
+  } else if (!Number.isInteger(yearNum) || yearNum < 1 || yearNum > 5) {
+    newErrors.year = "Rok musi być liczbą od 1 do 5.";
+  }
+  if (!formData.leader_id)
+    newErrors.leader_id = "Wybór starosty jest wymagany.";
+  return newErrors;
 };
 
 const GroupFormDialog = ({ open, onClose, onSave, group }) => {
@@ -889,8 +1218,10 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
     year: "",
     leader_id: "",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!group;
 
   useEffect(() => {
     if (group) {
@@ -902,31 +1233,54 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
     } else {
       setFormData({ name: "", year: "", leader_id: "" });
     }
-    setError("");
+    setErrors({});
   }, [group, open]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    setIsSubmitting(true);
-    const payload = {
-      ...formData,
-      year: parseInt(formData.year, 10) || null,
-      leader_id: parseInt(formData.leader_id, 10) || null,
-    };
-    const result = await onSave(payload);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
-      onClose();
+    if (errors[e.target.name]) {
+      const newErrors = { ...errors };
+      delete newErrors[e.target.name];
+      setErrors(newErrors);
     }
   };
 
-  const editMode = !!group;
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        ...formData,
+        year: parseInt(formData.year, 10),
+        leader_id: parseInt(formData.leader_id, 10),
+      };
+      await onSave(payload);
+      onClose();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
+        const newErrors = {};
+        errorMsg.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: errorMsg });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -935,7 +1289,7 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Nazwa grupy"
             name="name"
@@ -943,6 +1297,8 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name}
           />
           <TextField
             label="Rok studiów"
@@ -952,23 +1308,28 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
             value={formData.year}
             onChange={handleChange}
             required
+            error={!!errors.year}
+            helperText={errors.year}
           />
-          <TextField
-            select
-            label="Starosta"
-            name="leader_id"
-            fullWidth
-            value={formData.leader_id}
-            onChange={handleChange}
-            required
-            disabled={isLoadingLeaders}
-          >
-            {leaders.map((leader) => (
-              <MenuItem key={leader.id} value={leader.id}>
-                {leader.name} {leader.surname}
-              </MenuItem>
-            ))}
-          </TextField>
+          <FormControl fullWidth required error={!!errors.leader_id}>
+            <InputLabel>Starosta</InputLabel>
+            <Select
+              name="leader_id"
+              value={formData.leader_id}
+              label="Starosta"
+              onChange={handleChange}
+              disabled={isLoadingLeaders}
+            >
+              {leaders.map((leader) => (
+                <MenuItem key={leader.id} value={leader.id}>
+                  {leader.name} {leader.surname}
+                </MenuItem>
+              ))}
+            </Select>
+            {errors.leader_id && (
+              <FormHelperText>{errors.leader_id}</FormHelperText>
+            )}
+          </FormControl>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: "16px 24px" }}>
@@ -976,7 +1337,7 @@ const GroupFormDialog = ({ open, onClose, onSave, group }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >
@@ -1013,6 +1374,7 @@ import {
   Checkbox,
   ListItemText,
   OutlinedInput,
+  FormHelperText,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService";
@@ -1024,12 +1386,34 @@ const roomTypeTranslations = {
   CONFERENCE_ROOM: "Sala konferencyjna",
   OTHER: "Inne",
 };
-
-const useEquipment = () => {
-  return useQuery({
+const useEquipment = () =>
+  useQuery({
     queryKey: ["equipment"],
-    queryFn: () => apiRequest("/equipment"),
+    queryFn: () => apiRequest("/equipment/"),
   });
+
+const validate = (formData) => {
+  const newErrors = {};
+  if (!formData.name.trim()) {
+    newErrors.name = "Nazwa sali jest wymagana.";
+  } else if (formData.name.trim().length < 3) {
+    newErrors.name = "Nazwa musi mieć co najmniej 3 znaki.";
+  }
+
+  const capacityNum = Number(formData.capacity);
+  if (!formData.capacity) {
+    newErrors.capacity = "Pojemność jest wymagana.";
+  } else if (
+    isNaN(capacityNum) ||
+    !Number.isInteger(capacityNum) ||
+    capacityNum <= 0
+  ) {
+    newErrors.capacity = "Pojemność musi być dodatnią liczbą całkowitą.";
+  }
+
+  if (!formData.type) newErrors.type = "Typ sali jest wymagany.";
+
+  return newErrors;
 };
 
 const RoomFormDialog = ({ open, onClose, onSave, room }) => {
@@ -1041,8 +1425,10 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
     type: "LECTURE_HALL",
     equipment_ids: [],
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const editMode = !!room;
 
   useEffect(() => {
     if (room) {
@@ -1060,12 +1446,17 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
         equipment_ids: [],
       });
     }
-    setError("");
+    setErrors({});
   }, [room, open]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      const newErrors = { ...errors };
+      delete newErrors[name];
+      setErrors(newErrors);
+    }
   };
 
   const handleEquipmentChange = (event) => {
@@ -1078,23 +1469,42 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
     }));
   };
 
-  const handleSubmit = async () => {
-    setError("");
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
     setIsSubmitting(true);
-    const payload = {
-      ...formData,
-      capacity: parseInt(formData.capacity, 10) || 0,
-    };
-    const result = await onSave(payload);
-    setIsSubmitting(false);
-    if (result instanceof Error) {
-      setError(result.message);
-    } else {
+
+    try {
+      const payload = {
+        ...formData,
+        capacity: parseInt(formData.capacity, 10),
+      };
+      await onSave(payload);
       onClose();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
+        const newErrors = {};
+        errorMsg.forEach((err) => {
+          if (err.loc && err.loc.length > 1) newErrors[err.loc[1]] = err.msg;
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: errorMsg });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const editMode = !!room;
   const equipmentNameMap = new Map(allEquipment.map((eq) => [eq.id, eq.name]));
 
   return (
@@ -1102,7 +1512,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
       <DialogTitle>{editMode ? "Edytuj salę" : "Dodaj nową salę"}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 2 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {errors.general && <Alert severity="error">{errors.general}</Alert>}
           <TextField
             label="Nazwa"
             name="name"
@@ -1110,6 +1520,8 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            error={!!errors.name}
+            helperText={errors.name}
           />
           <TextField
             label="Pojemność"
@@ -1119,8 +1531,10 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
             value={formData.capacity}
             onChange={handleChange}
             required
+            error={!!errors.capacity}
+            helperText={errors.capacity}
           />
-          <FormControl fullWidth>
+          <FormControl fullWidth required error={!!errors.type}>
             <InputLabel>Typ Sali</InputLabel>
             <Select
               name="type"
@@ -1134,6 +1548,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
                 </MenuItem>
               ))}
             </Select>
+            {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
           </FormControl>
           <FormControl fullWidth>
             <InputLabel>Wyposażenie</InputLabel>
@@ -1165,7 +1580,7 @@ const RoomFormDialog = ({ open, onClose, onSave, room }) => {
           Anuluj
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSaveAttempt}
           variant="contained"
           disabled={isSubmitting}
         >
@@ -1403,6 +1818,7 @@ import PeopleIcon from "@mui/icons-material/People";
 import GroupsIcon from "@mui/icons-material/Groups";
 import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
+import BuildIcon from "@mui/icons-material/Build"; // Nowa ikona
 
 const drawerWidth = 280;
 
@@ -1432,6 +1848,7 @@ const adminNavItems = [
   { text: "Użytkownicy", icon: <PeopleIcon />, path: "/users" },
   { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
   { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
+  { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" }, // Nowy link
   { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
 ];
 
@@ -1443,7 +1860,7 @@ const Sidebar = () => {
       case "ADMIN":
         return [...commonNavItems, ...adminNavItems];
       case "KOORDYNATOR":
-        return [...commonNavItems, ...adminNavItems.slice(1)];
+        return [...commonNavItems, ...adminNavItems.slice(1)]; // Wszystko oprócz Użytkowników
       case "PROWADZACY":
       case "STAROSTA":
         return commonNavItems;
@@ -1476,7 +1893,7 @@ const Sidebar = () => {
             <ListItemButton
               component={NavLink}
               to={item.path}
-              end={item.path === "/"} // Important for root path matching
+              end={item.path === "/"}
               sx={{
                 borderRadius: "6px",
                 "&.active": {
@@ -1873,6 +2290,137 @@ export const getCurrentUser = async () => {
 };
 
 ====================================================================
+### Plik: ./frontend/src/pages/EquipmentPage.js
+====================================================================
+import React, { useState, useMemo, useCallback } from "react";
+import { Container, Stack, IconButton, Box } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import BuildIcon from "@mui/icons-material/Build"; // Ikona dla wyposażenia
+
+import { useCrud } from "../hooks/useCrud";
+import AdminDataGrid from "../features/Admin/AdminDataGrid";
+import EquipmentFormDialog from "../features/Admin/EquipmentFormDialog";
+
+const EquipmentPage = () => {
+  const {
+    items: equipment,
+    isLoading,
+    isError,
+    error,
+    createItem,
+    updateItem,
+    deleteItem,
+  } = useCrud("equipment", "/equipment");
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
+
+  const handleAdd = () => {
+    setCurrentItem(null);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = useCallback((item) => {
+    setCurrentItem(item);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (id) => {
+      if (
+        window.confirm("Czy na pewno chcesz usunąć ten element wyposażenia?")
+      ) {
+        try {
+          await deleteItem(id);
+        } catch (e) {
+          alert(`Błąd: ${e.message}`);
+        }
+      }
+    },
+    [deleteItem]
+  );
+
+  const handleSave = async (data) => {
+    try {
+      if (currentItem) {
+        await updateItem({ id: currentItem.id, updatedItem: data });
+      } else {
+        await createItem(data);
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      // Błąd zostanie obsłużony w formularzu, ale logujemy go na wszelki wypadek
+      console.error("Save failed:", e);
+      throw e; // Rzucamy błąd dalej, aby formularz mógł go złapać
+    }
+  };
+
+  const columns = useMemo(
+    () => [
+      { field: "id", headerName: "ID", width: 90 },
+      {
+        field: "name",
+        headerName: "Nazwa Wyposażenia",
+        flex: 1,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <BuildIcon sx={{ mr: 1, color: "text.secondary" }} />
+            {params.value}
+          </Box>
+        ),
+      },
+      {
+        field: "actions",
+        headerName: "Akcje",
+        width: 120,
+        sortable: false,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={1}>
+            <IconButton size="small" onClick={() => handleEdit(params.row)}>
+              <EditIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => handleDelete(params.row.id)}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Stack>
+        ),
+      },
+    ],
+    [handleEdit, handleDelete]
+  );
+
+  return (
+    <Container maxWidth="lg" sx={{ p: "0 !important" }}>
+      <AdminDataGrid
+        columns={columns}
+        rows={equipment}
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
+        onAddItem={handleAdd}
+        toolbarConfig={{
+          searchPlaceholder: "Szukaj po nazwie...",
+          addLabel: "Dodaj wyposażenie",
+        }}
+      />
+      <EquipmentFormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+        equipment={currentItem}
+      />
+    </Container>
+  );
+};
+
+export default EquipmentPage;
+
+====================================================================
 ### Plik: ./frontend/src/pages/LoginPage.js
 ====================================================================
 import React, { useState, useContext } from "react";
@@ -2212,17 +2760,16 @@ const UsersPage = () => {
     try {
       if (currentUser) {
         const payload = { ...userData };
-        if (!payload.password) {
-          delete payload.password;
-        }
+        if (!payload.password) delete payload.password;
         await updateItem({ id: currentUser.id, updatedItem: payload });
       } else {
-        await createItem(userData, { endpoint: "/users/create" });
+        await createItem(userData);
       }
       setDialogOpen(false);
+      return Promise.resolve();
     } catch (e) {
       console.error("Save failed", e);
-      return e;
+      return Promise.reject(e);
     }
   };
 
@@ -3167,6 +3714,21 @@ const roomTypeTranslations = {
   OTHER: "Inne",
 };
 
+// Niestandardowa funkcja filtrowania przekazywana jako prop
+const filterRooms = (rows, searchText) => {
+  return rows.filter((row) => {
+    const inName = row.name.toLowerCase().includes(searchText);
+    const inType = roomTypeTranslations[row.type]
+      .toLowerCase()
+      .includes(searchText);
+    const inCapacity = String(row.capacity).includes(searchText);
+    const inEquipment = row.equipment.some((eq) =>
+      eq.name.toLowerCase().includes(searchText)
+    );
+    return inName || inType || inCapacity || inEquipment;
+  });
+};
+
 const RoomsPage = () => {
   const {
     items: rooms,
@@ -3211,9 +3773,10 @@ const RoomsPage = () => {
         await createItem(roomData);
       }
       setDialogOpen(false);
+      return Promise.resolve();
     } catch (e) {
       console.error("Save failed", e);
-      return e;
+      return Promise.reject(e);
     }
   };
 
@@ -3286,6 +3849,7 @@ const RoomsPage = () => {
           searchPlaceholder: "Szukaj po nazwie lub wyposażeniu...",
           addLabel: "Dodaj Salę",
         }}
+        customFilterFn={filterRooms} // Przekazujemy naszą niestandardową logikę
       />
       <RoomFormDialog
         open={dialogOpen}
@@ -3316,6 +3880,7 @@ import RoomsPage from "./pages/RoomsPage";
 import UsersPage from "./pages/UsersPage";
 import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
+import EquipmentPage from "./pages/EquipmentPage"; // Nowy import
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import MyRecommendationsPage from "./pages/MyRecommendationsPage";
 
@@ -3347,6 +3912,8 @@ const AppRoutes = () => {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/courses" element={<CoursesPage />} />
+        <Route path="/equipment" element={<EquipmentPage />} />{" "}
+        {/* Nowa trasa */}
         <Route path="/calendar" element={<ChangeRequestsPage />} />
         <Route path="/recommendations" element={<MyRecommendationsPage />} />
       </Route>
@@ -3414,7 +3981,6 @@ export default App;
 ### Plik: ./backend/routers/equipment.py
 ====================================================================
 from typing import List
-
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import Equipment, User, UserRole
@@ -3422,44 +3988,58 @@ from routers.auth import role_required
 from routers.schemas import EquipmentCreate, EquipmentResponse
 from sqlalchemy.orm import Session
 from starlette.status import (
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_204_NO_CONTENT,
-    HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
+    HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT,
+    HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 )
 
 router = APIRouter(prefix="/equipment", tags=["Equipment"])
-
-@router.post("/", response_model=EquipmentResponse, status_code=HTTP_201_CREATED)
-def create_equipment(
-    equipment: EquipmentCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
-    existing = db.query(Equipment).filter(Equipment.name == equipment.name).first()
-    if existing:
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Equipment with this name already exists")
-    new_equipment = Equipment(**equipment.dict())
-    db.add(new_equipment)
-    db.commit()
-    db.refresh(new_equipment)
-    return new_equipment
 
 @router.get("", response_model=List[EquipmentResponse])
 @router.get("/", response_model=List[EquipmentResponse], include_in_schema=False)
 def get_all_equipment(db: Session = Depends(get_db)):
     return db.query(Equipment).all()
 
+@router.post("", response_model=EquipmentResponse, status_code=HTTP_201_CREATED)
+@router.post("/", response_model=EquipmentResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
+def create_equipment(equipment: EquipmentCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+    if db.query(Equipment).filter(Equipment.name == equipment.name).first():
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Wyposażenie o tej nazwie już istnieje.")
+    new_equipment = Equipment(**equipment.dict())
+    db.add(new_equipment)
+    db.commit()
+    db.refresh(new_equipment)
+    return new_equipment
+
+# DODANY ENDPOINT: Pobieranie pojedynczego elementu
+@router.get("/{equipment_id}", response_model=EquipmentResponse)
+def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wyposażenie nie znalezione.")
+    return equipment
+
+# DODANY ENDPOINT: Aktualizacja
+@router.put("/{equipment_id}", response_model=EquipmentResponse)
+def update_equipment(equipment_id: int, equipment_data: EquipmentCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+    db_equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not db_equipment:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wyposażenie nie znalezione.")
+    
+    # Sprawdzenie, czy nowa nazwa nie jest już zajęta przez inny element
+    if equipment_data.name != db_equipment.name:
+        if db.query(Equipment).filter(Equipment.name == equipment_data.name).first():
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Wyposażenie o tej nazwie już istnieje.")
+            
+    db_equipment.name = equipment_data.name
+    db.commit()
+    db.refresh(db_equipment)
+    return db_equipment
+
 @router.delete("/{equipment_id}", status_code=HTTP_204_NO_CONTENT)
-def delete_equipment(
-    equipment_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-):
+def delete_equipment(equipment_id: int, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     eq = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not eq:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Equipment not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wyposażenie nie znalezione.")
     db.delete(eq)
     db.commit()
     return None
@@ -3558,12 +4138,8 @@ from routers.auth import get_current_user, get_password_hash, role_required
 from routers.schemas import UserCreate, UserResponse, UserUpdate
 from sqlalchemy.orm import Session
 from starlette.status import (
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_204_NO_CONTENT,
-    HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
-    HTTP_422_UNPROCESSABLE_ENTITY,
+    HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 )
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -3571,13 +4147,13 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.get("", response_model=List[UserResponse])
 @router.get("/", response_model=List[UserResponse], include_in_schema=False)
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
-    return db.query(User).all()
+    return db.query(User).filter(User.active).all()
 
-@router.post("", response_model=UserResponse)
-@router.post("/", response_model=UserResponse, include_in_schema=False)
+@router.post("", response_model=UserResponse, status_code=HTTP_201_CREATED)
+@router.post("/", response_model=UserResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
 def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     if db.query(User).filter(User.email == user.email).first():
-        raise HTTPException(status_code=409, detail="Email already registered")
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["email"], "msg": "Użytkownik z tym adresem email już istnieje."}])
     hashed_password = get_password_hash(user.password)
     db_user = User(name=user.name, surname=user.surname, email=user.email, password=hashed_password, role=user.role)
     db.add(db_user)
@@ -3585,49 +4161,42 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
     db.refresh(db_user)
     return db_user
 
-@router.put("/{user_id}", response_model=UserResponse, status_code=HTTP_200_OK)
-def update_user(
-    user_id: int,
-    user_update: UserUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN])),
-) -> User:
+@router.get("/{user_id}", response_model=UserResponse)
+def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Użytkownik nie znaleziony.")
+    return user
+
+@router.put("/{user_id}", response_model=UserResponse)
+def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN]))):
     db_user = db.query(User).filter(User.id == user_id).first()
     if db_user is None:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
-
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Użytkownik nie znaleziony.")
     update_data = user_update.dict(exclude_unset=True)
-
     if "email" in update_data and update_data["email"] != db_user.email:
         if db.query(User).filter(User.email == update_data["email"]).first():
-            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Email already in use")
-
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["email"], "msg": "Ten adres email jest już zajęty."}])
     if "password" in update_data and update_data["password"]:
         update_data["password"] = get_password_hash(update_data["password"])
     elif "password" in update_data:
         del update_data["password"]
-
     for key, value in update_data.items():
         setattr(db_user, key, value)
-
     db.commit()
     db.refresh(db_user)
     return db_user
 
 @router.delete("/{user_id}", status_code=HTTP_204_NO_CONTENT)
-def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN])),
-) -> None:
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN]))):
     db_user = db.query(User).filter(User.id == user_id).first()
     if db_user is None:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Użytkownik nie znaleziony.")
     if db_user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
-
-    db.delete(db_user)
+        raise HTTPException(status_code=400, detail="Nie możesz usunąć własnego konta.")
+    db_user.active = False
     db.commit()
+    db.refresh(db_user)
     return None
 ====================================================================
 ### Plik: ./backend/routers/change_request.py
@@ -3857,6 +4426,7 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
 ====================================================================
 ### Plik: ./backend/routers/proposal.py
 ====================================================================
+from datetime import date, timedelta
 from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -3868,6 +4438,8 @@ from model import (
     User,
     Room,
     Equipment,
+    Course,
+    ChangeRecomendation,
 )
 from routers.auth import get_current_user
 # POPRAWKA 1: Dodajemy brakujące importy
@@ -3877,14 +4449,14 @@ from routers.schemas import (
     ChangeRequestResponse, # <-- BRAKUJĄCY IMPORT
 )
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, extract
 from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
     HTTP_400_BAD_REQUEST,
     HTTP_403_FORBIDDEN,
-    HTTP_404_NOT_FOUND,
+    HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
 )
 
 router = APIRouter(prefix="/proposals", tags=["Availability Proposals"])
@@ -3947,6 +4519,11 @@ def create_proposal(
     db.refresh(new_proposal)
     return new_proposal
 
+def shift_to_weekday(original_date: date, target_weekday: int) -> date:
+    """Zwraca datę z tego samego tygodnia co `original_date`, ale z podmienionym dniem tygodnia (0=pon, 6=niedz)."""
+    current_weekday = original_date.weekday()
+    return original_date + timedelta(days=(target_weekday - current_weekday))
+
 # POPRAWKA 2: Zmieniamy logikę akceptacji
 # Teraz endpoint przyjmuje ID rekomendacji, a nie propozycji.
 # Ale żeby nie zmieniać frontendu, zmodyfikujemy logikę, aby działała z ID propozycji.
@@ -3976,19 +4553,71 @@ def accept_proposal(
         
     change_request.status = ChangeRequestStatus.ACCEPTED
     original_event.canceled = True
-    
-    # Utwórz nowe wydarzenie na podstawie DANYCH Z REKOMENDACJI
-    new_event = CourseEvent(
-        course_id=original_event.course_id,
-        room_id=recommendation_query.recommended_room_id, # Użyj sali z rekomendacji
-        day=recommendation_query.recommended_day, # Użyj dnia z rekomendacji
-        time_slot_id=recommendation_query.recommended_slot_id, # Użyj slotu z rekomendacji
-        canceled=False
-    )
-    db.add(new_event)
-    
-    # Opcjonalnie: Usuń wszystkie propozycje związane z tym zgłoszeniem
-    db.query(AvailabilityProposal).filter(AvailabilityProposal.change_request_id == change_request.id).delete()
+
+    if change_request.cyclical:
+        original_weekday = original_event.day.weekday()
+        target_weekday = recommendation_query.recommended_day.weekday()
+
+        related_events = db.query(CourseEvent).filter(
+            CourseEvent.course_id == original_event.course_id,
+            extract('dow', CourseEvent.day) == original_weekday,
+            CourseEvent.time_slot_id == original_event.time_slot_id,
+            CourseEvent.canceled == False
+        ).all()
+
+        for event in related_events:
+            new_day = shift_to_weekday(event.day, target_weekday)
+            new_event = CourseEvent(
+                course_id=event.course_id,
+                room_id=recommendation_query.recommended_room_id,
+                day=new_day,
+                time_slot_id=recommendation_query.recommended_slot_id,
+                canceled=False
+            )
+            conflict = db.query(CourseEvent).filter(
+                CourseEvent.room_id == new_event.room_id,
+                CourseEvent.day == new_event.day,
+                CourseEvent.time_slot_id == new_event.time_slot_id,
+                CourseEvent.canceled == False,
+            ).first()
+
+            if conflict:
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+
+            conflict = db.query(CourseEvent).join(Course).filter(
+                Course.group_id == group.id,
+                CourseEvent.time_slot_id == new_event.time_slot_id,
+                CourseEvent.day == new_event.day,
+                CourseEvent.canceled == False,
+            ).first()
+
+            if conflict:
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Group has other event")
+
+            db.add(new_event)
+            event.canceled = True
+    else:
+        new_event = CourseEvent(
+            course_id=original_event.course_id,
+            room_id=recommendation_query.recommended_room_id,
+            day=recommendation_query.recommended_day,
+            time_slot_id=recommendation_query.recommended_slot_id,
+            canceled=False
+        )
+        conflict = db.query(CourseEvent).filter(
+            CourseEvent.room_id == new_event.room_id,
+            CourseEvent.day == new_event.day,
+            CourseEvent.time_slot_id == new_event.time_slot_id,
+            CourseEvent.canceled == False,
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+        db.add(new_event)
+
+    # Usuń propozycje związane z tym zgłoszeniem
+    db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.change_request_id == change_request.id
+    ).delete()
 
     db.commit()
     db.refresh(change_request)
@@ -4285,12 +4914,8 @@ from routers.auth import get_current_user, role_required
 from routers.schemas import GroupCreate, GroupResponse, GroupUpdate
 from sqlalchemy.orm import Session
 from starlette.status import (
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_204_NO_CONTENT,
-    HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
-    HTTP_422_UNPROCESSABLE_ENTITY,
+    HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 )
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
@@ -4300,62 +4925,53 @@ router = APIRouter(prefix="/groups", tags=["Groups"])
 def get_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(Group).all()
 
-@router.get("/{group_id}", status_code=HTTP_200_OK, response_model=GroupResponse)
-def get_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Group:
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
-    return group
-
 @router.post("", response_model=GroupResponse, status_code=HTTP_201_CREATED)
 @router.post("/", response_model=GroupResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
-def create_group(
-    group_data: GroupCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> Group:
+def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     leader = db.query(User).filter(User.id == group_data.leader_id).first()
     if not leader:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Leader user not found")
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["leader_id"], "msg": "Wybrany użytkownik nie istnieje."}])
     if leader.role != UserRole.STAROSTA:
-        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="The assigned leader must have the 'STAROSTA' role.")
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["leader_id"], "msg": "Wybrany użytkownik musi mieć rolę 'STAROSTA'."}])
     if db.query(Group).filter(Group.name == group_data.name).first():
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Group with this name already exists")
-    if db.query(Group).filter(Group.leader_id == group_data.leader_id).first():
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="This user is already a leader of another group")
-
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Grupa o tej nazwie już istnieje.")
+    # if db.query(Group).filter(Group.leader_id == group_data.leader_id).first():
+    #     raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Ten użytkownik jest już starostą innej grupy.")
+    
     new_group = Group(**group_data.dict())
     db.add(new_group)
     db.commit()
     db.refresh(new_group)
     return new_group
 
-@router.put("/{group_id}", status_code=HTTP_200_OK, response_model=GroupResponse)
-def update_group(
-    group_id: int,
-    group_data: GroupUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> Group:
+@router.get("/{group_id}", response_model=GroupResponse)
+def get_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Grupa nie znaleziona.")
+    return group
+
+@router.put("/{group_id}", response_model=GroupResponse)
+def update_group(group_id: int, group_data: GroupUpdate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     db_group = db.query(Group).filter(Group.id == group_id).first()
     if not db_group:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Grupa nie znaleziona.")
 
     update_data = group_data.dict(exclude_unset=True)
 
     if "leader_id" in update_data and update_data["leader_id"] is not None:
         leader = db.query(User).filter(User.id == update_data["leader_id"]).first()
         if not leader:
-            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Leader user not found")
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["leader_id"], "msg": "Wybrany użytkownik nie istnieje."}])
         if leader.role != UserRole.STAROSTA:
-            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail="The assigned leader must have the 'STAROSTA' role.")
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["leader_id"], "msg": "Wybrany użytkownik musi mieć rolę 'STAROSTA'."}])
         existing_leadership = db.query(Group).filter(Group.leader_id == update_data["leader_id"], Group.id != group_id).first()
         if existing_leadership:
-            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="This user is already a leader of another group")
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Ten użytkownik jest już starostą innej grupy.")
 
     if "name" in update_data and update_data["name"] != db_group.name:
         if db.query(Group).filter(Group.name == update_data["name"]).first():
-            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Group with this name already exists")
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Grupa o tej nazwie już istnieje.")
             
     for key, value in update_data.items():
         setattr(db_group, key, value)
@@ -4365,14 +4981,10 @@ def update_group(
     return db_group
 
 @router.delete("/{group_id}", status_code=HTTP_204_NO_CONTENT)
-def delete_group(
-    group_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> None:
+def delete_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Grupa nie znaleziona.")
     db.delete(group)
     db.commit()
     return None
@@ -4384,37 +4996,29 @@ from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import Course, CourseEvent, Group, Room, TimeSlots, User, UserRole
 from routers.auth import get_current_user, role_required
-from routers.schemas import (
-    CourseCreate,
-    CourseEventCreate,
-    CourseEventResponse,
-    CourseUpdate
-)
+from routers.schemas import CourseCreate, CourseEventCreate, CourseEventResponse, CourseUpdate, CourseResponse
 from sqlalchemy.orm import Session
 from starlette.status import (
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_204_NO_CONTENT,
-    HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
+    HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 )
-from .schemas import CourseResponse
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
+@router.get("", response_model=List[CourseResponse])
+@router.get("/", response_model=List[CourseResponse], include_in_schema=False)
+def get_courses(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(Course).all()
+
 @router.post("", response_model=CourseResponse, status_code=HTTP_201_CREATED)
 @router.post("/", response_model=CourseResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
-def create_course(
-    course: CourseCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> Course:
+def create_course(course: CourseCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     teacher = db.query(User).filter(User.id == course.teacher_id, User.role == UserRole.PROWADZACY).first()
     if not teacher:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Teacher with PROWADZACY role not found")
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["teacher_id"], "msg": "Wybrany użytkownik nie jest prowadzącym lub nie istnieje."}])
 
     if not db.query(Group).filter(Group.id == course.group_id).first():
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
+        raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["group_id"], "msg": "Wybrana grupa nie istnieje."}])
 
     db_course = Course(**course.dict())
     db.add(db_course)
@@ -4422,39 +5026,27 @@ def create_course(
     db.refresh(db_course)
     return db_course
 
-@router.get("", response_model=List[CourseResponse])
-@router.get("/", response_model=List[CourseResponse], include_in_schema=False)
-def get_courses(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(Course).all()
-
-
-@router.get("/{course_id}", response_model=CourseResponse, status_code=HTTP_200_OK)
-def get_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Course:
+@router.get("/{course_id}", response_model=CourseResponse)
+def get_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Kurs nie znaleziony.")
     return course
 
-@router.put("/{course_id}", response_model=CourseResponse, status_code=HTTP_200_OK)
-def update_course(
-    course_id: int,
-    course_data: CourseUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> Course:
+@router.put("/{course_id}", response_model=CourseResponse)
+def update_course(course_id: int, course_data: CourseUpdate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     db_course = db.query(Course).filter(Course.id == course_id).first()
     if not db_course:
-        raise HTTPException(status_code=404, detail="Course not found")
-
+        raise HTTPException(status_code=404, detail="Kurs nie znaleziony.")
+    
     update_data = course_data.dict(exclude_unset=True)
     if "teacher_id" in update_data:
         teacher = db.query(User).filter(User.id == update_data["teacher_id"], User.role == UserRole.PROWADZACY).first()
         if not teacher:
-            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Teacher with PROWADZACY role not found")
-    
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["teacher_id"], "msg": "Wybrany użytkownik nie jest prowadzącym lub nie istnieje."}])
     if "group_id" in update_data:
         if not db.query(Group).filter(Group.id == update_data["group_id"]).first():
-            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Group not found")
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["group_id"], "msg": "Wybrana grupa nie istnieje."}])
 
     for key, value in update_data.items():
         setattr(db_course, key, value)
@@ -4464,57 +5056,42 @@ def update_course(
     return db_course
 
 @router.delete("/{course_id}", status_code=HTTP_204_NO_CONTENT)
-def delete_course(
-    course_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> None:
+def delete_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Kurs nie znaleziony.")
     db.delete(course)
     db.commit()
     return None
 
 @router.post("/events", response_model=CourseEventResponse, status_code=HTTP_201_CREATED)
-def create_event(
-    event_data: CourseEventCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> CourseEvent:
+def create_event(event_data: CourseEventCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     if not db.query(Course).filter(Course.id == event_data.course_id).first():
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Kurs nie znaleziony.")
     if event_data.room_id and not db.query(Room).filter(Room.id == event_data.room_id).first():
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room does not exist")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Sala nie istnieje.")
     if not db.query(TimeSlots).filter(TimeSlots.id == event_data.time_slot_id).first():
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Time slot does not exist")
-
-    conflict = db.query(CourseEvent).filter(
-        CourseEvent.room_id == event_data.room_id,
-        CourseEvent.day == event_data.day,
-        CourseEvent.time_slot_id == event_data.time_slot_id,
-        CourseEvent.canceled == False,
-    ).first()
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Slot czasowy nie istnieje.")
+    conflict = db.query(CourseEvent).filter(CourseEvent.room_id == event_data.room_id, CourseEvent.day == event_data.day, CourseEvent.time_slot_id == event_data.time_slot_id, CourseEvent.canceled == False).first()
     if conflict:
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room {event_data.room_id} is already booked.")
-
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Sala {event_data.room_id} jest już zarezerwowana.")
     new_event = CourseEvent(**event_data.dict())
     db.add(new_event)
     db.commit()
     db.refresh(new_event)
     return new_event
 
-@router.get("/{course_id}/events", response_model=List[CourseEventResponse], status_code=HTTP_200_OK)
-def get_events_for_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> List[CourseEvent]:
+@router.get("/{course_id}/events", response_model=List[CourseEventResponse])
+def get_events_for_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not db.query(Course).filter(Course.id == course_id).first():
-        raise HTTPException(status_code=404, detail="Course not found")
+        raise HTTPException(status_code=404, detail="Kurs nie znaleziony.")
     return db.query(CourseEvent).filter(CourseEvent.course_id == course_id).all()
 
-@router.get("/events/{event_id}", response_model=CourseEventResponse, status_code=HTTP_200_OK)
-def get_course_event(event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> CourseEvent:
+@router.get("/events/{event_id}", response_model=CourseEventResponse)
+def get_course_event(event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     course_event = db.query(CourseEvent).filter(CourseEvent.id == event_id).first()
     if not course_event:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wydarzenie nie znalezione.")
     return course_event
 ====================================================================
 ### Plik: ./backend/routers/room.py
@@ -4527,11 +5104,8 @@ from routers.auth import get_current_user, role_required
 from routers.schemas import RoomCreate, RoomResponse, RoomUpdate
 from sqlalchemy.orm import Session
 from starlette.status import (
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_204_NO_CONTENT,
-    HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
+    HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 )
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
@@ -4541,21 +5115,18 @@ router = APIRouter(prefix="/rooms", tags=["Rooms"])
 def get_rooms(db: Session = Depends(get_db)):
     return db.query(Room).all()
 
-@router.post("/", status_code=HTTP_201_CREATED, response_model=RoomResponse)
-def create_room(
-    room_data: RoomCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> Room:
+@router.post("", status_code=HTTP_201_CREATED, response_model=RoomResponse)
+@router.post("/", status_code=HTTP_201_CREATED, response_model=RoomResponse, include_in_schema=False)
+def create_room(room_data: RoomCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     if db.query(Room).filter(Room.name == room_data.name).first():
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Room with this name already exists")
-
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Sala o tej nazwie już istnieje.")
+    
     new_room = Room(name=room_data.name, capacity=room_data.capacity, type=room_data.type)
 
     if room_data.equipment_ids:
         equipment_items = db.query(Equipment).filter(Equipment.id.in_(room_data.equipment_ids)).all()
         if len(equipment_items) != len(room_data.equipment_ids):
-            raise HTTPException(status_code=404, detail="One or more equipment items not found")
+            raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["equipment_ids"], "msg": "Wybrano nieistniejący element wyposażenia."}])
         new_room.equipment = equipment_items
 
     db.add(new_room)
@@ -4563,36 +5134,31 @@ def create_room(
     db.refresh(new_room)
     return new_room
 
-@router.get("/{room_id}", status_code=HTTP_200_OK, response_model=RoomResponse)
-def get_room(room_id: int, db: Session = Depends(get_db)) -> Room:
+@router.get("/{room_id}", response_model=RoomResponse)
+def get_room(room_id: int, db: Session = Depends(get_db)):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Sala nie znaleziona.")
     return room
 
-@router.put("/{room_id}", status_code=HTTP_200_OK, response_model=RoomResponse)
-def update_room(
-    room_id: int,
-    room_data: RoomUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> Room:
+@router.put("/{room_id}", response_model=RoomResponse)
+def update_room(room_id: int, room_data: RoomUpdate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     db_room = db.query(Room).filter(Room.id == room_id).first()
     if not db_room:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
-
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Sala nie znaleziona.")
+    
     update_data = room_data.dict(exclude_unset=True)
 
     if "name" in update_data and update_data["name"] != db_room.name:
         if db.query(Room).filter(Room.name == update_data["name"]).first():
-            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Room with this name already exists")
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Sala o tej nazwie już istnieje.")
 
     if "equipment_ids" in update_data:
         equipment_ids = update_data.pop("equipment_ids")
         if equipment_ids is not None:
             equipment_items = db.query(Equipment).filter(Equipment.id.in_(equipment_ids)).all()
             if len(equipment_items) != len(set(equipment_ids)):
-                raise HTTPException(status_code=404, detail="One or more equipment items not found")
+                raise HTTPException(status_code=HTTP_422_UNPROCESSABLE_ENTITY, detail=[{"loc": ["equipment_ids"], "msg": "Wybrano nieistniejący element wyposażenia."}])
             db_room.equipment = equipment_items
         else:
             db_room.equipment = []
@@ -4605,14 +5171,10 @@ def update_room(
     return db_room
 
 @router.delete("/{room_id}", status_code=HTTP_204_NO_CONTENT)
-def delete_room(
-    room_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR])),
-) -> None:
+def delete_room(room_id: int, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Room not found")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Sala nie znaleziona.")
     db.delete(room)
     db.commit()
     return None
@@ -4835,6 +5397,7 @@ class User(Base):
     name = Column(String(100), nullable=False)
     surname = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
+    active = Column(Boolean, default=True)
     led_group = relationship("Group", back_populates="leader", uselist=False)
     taught_courses = relationship("Course", back_populates="teacher")
     initiated_requests = relationship("ChangeRequest", back_populates="initiator")
@@ -4845,7 +5408,7 @@ class Group(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
     year = Column(Integer, nullable=True)
-    leader_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    leader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     leader = relationship("User", back_populates="led_group")
     courses = relationship("Course", back_populates="group")
 
@@ -4853,7 +5416,7 @@ class Equipment(Base):
     __tablename__ = "equipment"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
-    rooms = relationship("Room", secondary=room_equipment_association, back_populates="equipment")
+    rooms = relationship("Room", secondary=room_equipment_association, back_populates="equipment", cascade="save-update, merge")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -4912,6 +5475,7 @@ class ChangeRequest(Base):
     reason = Column(Text, nullable=False)
     room_requirements = Column(Text, nullable=True)
     minimum_capacity = Column(Integer, default=0)
+    cyclical = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     course_event = relationship("CourseEvent", back_populates="change_requests", lazy="joined")
     initiator = relationship("User", back_populates="initiated_requests")
@@ -5183,7 +5747,6 @@ services:
     volumes:
       - ./backend:/app
       - /app/.venv
-    # ZMIANA: Tymczasowo wystawiamy port 8000
     ports:
       - "8000:8000"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -5194,15 +5757,31 @@ services:
       db:
         condition: service_healthy
 
-  # Serwis Frontendu z Nginx
+  # Serwis Frontendu (serwer deweloperski React)
   frontend:
-    container_name: booking_system_frontend
+    container_name: booking_system_frontend_dev
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
+      target: development # Mówimy Dockerowi, aby budował tylko do etapu 'development'
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    # Nie wystawiamy portu 3000 na zewnątrz, Nginx będzie się z nim komunikował
     depends_on:
+      - backend
+
+  # Serwis Nginx (brama wejściowa)
+  nginx:
+    container_name: booking_system_nginx
+    build:
+      context: ./frontend # Używamy tego samego kontekstu i Dockerfile
+      dockerfile: Dockerfile
+      target: production # Ale budujemy obraz produkcyjny Nginx
+    ports:
+      - "80:80" # Jedyny port wystawiony na zewnątrz
+    depends_on:
+      - frontend # Nginx zależy od serwera deweloperskiego
       - backend
 
 volumes:

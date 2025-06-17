@@ -3,12 +3,13 @@ from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import (
     AvailabilityProposal, ChangeRecomendation, ChangeRequest, CourseEvent,
-    Equipment, Room, RoomUnavailability, User
+    Equipment, Room, RoomUnavailability, User, ChangeRequestStatus, Course, Group
 )
 from routers.auth import get_current_user
-from routers.schemas import ChangeRecomendationResponse
+from routers.schemas import ChangeRecomendationResponse, ChangeRequestResponse
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
 router = APIRouter(prefix="/recommendations", tags=["Change Recommendations"])
 
@@ -45,6 +46,7 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
 
     recommendations = []
     processed_slots = set()
+    next_id = 1
 
     for proposal in common_proposals:
         slot_key = (proposal.day, proposal.time_slot_id)
@@ -73,10 +75,10 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
             base_query = base_query.filter(Room.capacity >= change_request.minimum_capacity)
             
         if change_request.room_requirements:
-            required_eq_names = [name.strip() for name in change_request.room_requirements.split(',') if name.strip()]
+            required_eq_names = [name.strip().lower() for name in change_request.room_requirements.split(',') if name.strip()]
             if required_eq_names:
                 base_query = base_query.join(Room.equipment).filter(
-                    Equipment.name.in_(required_eq_names)
+                    func.lower(Equipment.name).in_(required_eq_names)
                 ).group_by(Room.id).having(
                     func.count(Equipment.id) >= len(required_eq_names)
                 )
@@ -84,9 +86,10 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
         available_rooms = base_query.order_by(Room.capacity).all()
         
         for room in available_rooms:
+            # Używamy ID propozycji źródłowej jako ID rekomendacji - to upraszcza logikę akceptacji
             recommendations.append(
                 ChangeRecomendation(
-                    id=len(recommendations) + 1,
+                    id=proposal.id, # KLUCZOWA ZMIANA: ID rekomendacji to ID propozycji źródłowej
                     change_request_id=change_request_id,
                     recommended_day=proposal.day,
                     recommended_slot_id=proposal.time_slot_id,
@@ -96,27 +99,70 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
                     source_proposal=proposal
                 )
             )
-
-    # Logika priorytetyzacji zintegrowana z `main`
-    # 1. Preferowanie terminów nie-wieczornych
-    non_evening_recs = [rec for rec in recommendations if rec.recommended_slot_id not in [6, 7]]
-    if len(non_evening_recs) > 0:
-        recommendations = non_evening_recs
-
-    # 2. Preferowanie terminów "doklejonych" do innych zajęć
-    adjacent_recs = []
-    for rec in recommendations:
-        neighboring_events = db.query(CourseEvent.id).filter(
-            CourseEvent.day == rec.recommended_day,
-            or_(
-                CourseEvent.time_slot_id == rec.recommended_slot_id + 1,
-                CourseEvent.time_slot_id == rec.recommended_slot_id - 1
-            )
-        ).first()
-        if neighboring_events:
-            adjacent_recs.append(rec)
-            
-    if len(adjacent_recs) > 0:
-        recommendations = adjacent_recs
             
     return recommendations
+
+@router.post("/{source_proposal_id}/accept", response_model=ChangeRequestResponse)
+def accept_recommendation(
+    source_proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    # Znajdujemy propozycję, która jest podstawą akceptacji
+    source_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == source_proposal_id).first()
+    if not source_proposal:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Source proposal for this recommendation not found.")
+
+    change_request = source_proposal.change_request
+    if not change_request:
+         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Associated change request not found.")
+
+    if change_request.status != ChangeRequestStatus.PENDING:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="This request has already been processed.")
+
+    # Rekonstruujemy zaakceptowaną rekomendację
+    # Musimy znaleźć pasującą salę
+    # Ta logika jest skomplikowana, ale wynika z obecnej struktury
+    all_recs = get_recommendations(change_request.id, db, current_user)
+    accepted_rec = next((rec for rec in all_recs if rec.id == source_proposal_id), None)
+
+    if not accepted_rec:
+         raise HTTPException(status_code=404, detail="Could not find a valid room for the selected time. It might have been taken.")
+
+    original_event = change_request.course_event
+    course = original_event.course
+    
+    is_leader = current_user.id == course.group.leader_id
+    is_teacher = current_user.id == course.teacher_id
+    if not (is_leader or is_teacher):
+        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authorized to accept this recommendation.")
+
+    # Ponowne sprawdzenie konfliktu na wszelki wypadek
+    conflict = db.query(CourseEvent).filter(
+        CourseEvent.room_id == accepted_rec.recommended_room_id,
+        CourseEvent.day == accepted_rec.recommended_day,
+        CourseEvent.time_slot_id == accepted_rec.recommended_slot_id,
+        CourseEvent.canceled == False,
+    ).first()
+    if conflict:
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Sala jest już zarezerwowana w tym terminie.")
+    
+    original_event.canceled = True
+    
+    new_event = CourseEvent(
+        course_id=original_event.course_id,
+        room_id=accepted_rec.recommended_room_id,
+        day=accepted_rec.recommended_day,
+        time_slot_id=accepted_rec.recommended_slot_id,
+        canceled=False,
+    )
+    db.add(new_event)
+
+    change_request.status = ChangeRequestStatus.ACCEPTED
+    
+    # Czyszczenie po udanej operacji
+    db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.change_request_id == change_request.id
+    ).delete(synchronize_session=False)
+
+    db.commit()
+    db.refresh(change_request)
+    return change_request

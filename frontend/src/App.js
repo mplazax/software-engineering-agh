@@ -7,6 +7,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { pl } from "date-fns/locale";
 
 import { AuthProvider } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import AppRoutes from "./AppRoutes";
 import theme from "./theme/theme";
 
@@ -32,9 +33,11 @@ function App() {
         <ThemeProvider theme={theme}>
           <CssBaseline />
           <Router>
-            <AuthProvider>
-              <AppRoutes />
-            </AuthProvider>
+            <NotificationProvider>
+              <AuthProvider>
+                <AppRoutes />
+              </AuthProvider>
+            </NotificationProvider>
           </Router>
         </ThemeProvider>
       </LocalizationProvider>

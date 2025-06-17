@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from "react";
-import { Box, Typography, Container, CircularProgress } from "@mui/material";
+import { Box, Container, CircularProgress } from "@mui/material";
 import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -104,16 +104,19 @@ const useCalendarEvents = () => {
 
   const calendarEvents = useMemo(() => {
     if (!rawEvents) return [];
-    return rawEvents.map((event) => {
-      const { start, end } = getSlotTimes(event.day, event.time_slot_id);
-      return {
-        ...event,
-        id: `${event.courseId}-${event.id}`,
-        title: event.courseName,
-        start,
-        end,
-      };
-    });
+    return rawEvents
+      .map((event) => {
+        if (event.canceled) return null;
+        const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+        return {
+          ...event,
+          id: `${event.courseId}-${event.id}`,
+          title: event.courseName,
+          start,
+          end,
+        };
+      })
+      .filter(Boolean);
   }, [rawEvents]);
 
   return { events: calendarEvents, isLoading, isError, error };

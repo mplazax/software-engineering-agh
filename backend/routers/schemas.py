@@ -8,6 +8,14 @@ class OrmBase(BaseModel):
     class Config:
         from_attributes = True
 
+# UserResponse musi być zdefiniowany przed użyciem go w innych schematach
+class UserResponse(OrmBase):
+    id: int
+    email: EmailStr
+    name: str = Field(..., min_length=2, max_length=100)
+    surname: str = Field(..., min_length=2, max_length=100)
+    role: UserRole
+
 class EquipmentBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
 
@@ -51,9 +59,6 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8)
     role: Optional[UserRole] = None
 
-class UserResponse(UserBase, OrmBase):
-    id: int
-
 class GroupBase(BaseModel):
     name: str = Field(..., min_length=3, max_length=100)
     year: Optional[int] = Field(None, ge=1, le=5)
@@ -69,6 +74,7 @@ class GroupUpdate(BaseModel):
 
 class GroupResponse(GroupBase, OrmBase):
     id: int
+    leader: UserResponse # Dołączamy pełne dane lidera
 
 class CourseBase(BaseModel):
     name: str
@@ -85,6 +91,8 @@ class CourseUpdate(BaseModel):
 
 class CourseResponse(CourseBase, OrmBase):
     id: int
+    teacher: UserResponse # Dołączamy pełne dane prowadzącego
+    group: GroupResponse # Dołączamy pełne dane grupy (z liderem)
 
 class CourseEventBase(BaseModel):
     course_id: int
@@ -106,6 +114,7 @@ class ChangeRequestBase(BaseModel):
 
 class ChangeRequestCreate(ChangeRequestBase):
     course_event_id: int
+    cyclical: bool = False
 
 class ChangeRequestUpdate(BaseModel):
     status: Optional[ChangeRequestStatus] = None
@@ -114,6 +123,7 @@ class CourseEventForRequestResponse(OrmBase):
     id: int
     day: date
     course_id: int
+    course: CourseResponse # Zagnieżdżamy pełne dane kursu
 
 class ChangeRequestResponse(ChangeRequestBase, OrmBase):
     id: int
@@ -121,7 +131,8 @@ class ChangeRequestResponse(ChangeRequestBase, OrmBase):
     initiator_id: int
     status: ChangeRequestStatus
     created_at: datetime
-    course_event: CourseEventForRequestResponse
+    course_event: CourseEventForRequestResponse # Zagnieżdżamy dane wydarzenia
+    initiator: UserResponse # Dołączamy pełne dane inicjatora
 
 class ProposalBase(BaseModel):
     change_request_id: int
@@ -147,6 +158,7 @@ class ChangeRecomendationResponse(ChangeRecomendationBase, OrmBase):
     recommended_room: Optional[RoomResponse] = None
     source_proposal: Optional[ProposalResponse] = None
 
+# ... reszta schematów bez zmian
 class RoomUnavailabilityBase(BaseModel):
     room_id: int
     start_datetime: datetime
@@ -170,3 +182,7 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+class ProposalStatusResponse(BaseModel):
+    teacher_has_proposed: bool
+    leader_has_proposed: bool
