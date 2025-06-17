@@ -44,8 +44,19 @@ def create_users():
 
 def create_groups(users):
     groups = {
-        'g1': Group(name="Zarządzanie, Rok 1, Grupa A", year=1, leader_id=users['starosta1'].id),
-        'g2': Group(name="Zarządzanie, Rok 2, Grupa C", year=2, leader_id=users['starosta2'].id),
+        'g1': Group(name="Podstawy Zarządzania, Grupa A", year=1, leader_id=users['starosta1'].id),
+        'g2': Group(name="Podstawy Zarządzania, Grupa B", year=1, leader_id=users['starosta2'].id),
+        'g3': Group(name="Podstawy Zarządzania, Grupa C", year=1, leader_id=users['starosta3'].id),
+        'g4': Group(name="Marketing, Grupa A", year=2, leader_id=users['starosta4'].id),
+        'g5': Group(name="Marketing, Grupa B", year=2, leader_id=users['starosta5'].id),
+        'g6': Group(name="Marketing, Grupa C", year=2, leader_id=users['starosta2'].id),
+        'g7': Group(name="Podbijanie Planet, Grupa A", year=3, leader_id=users['starosta6'].id),
+        'g8': Group(name="Podbijanie Planet, Grupa B", year=3, leader_id=users['starosta7'].id),
+        'g9': Group(name="Podbijanie Planet, Grupa C", year=3, leader_id=users['starosta8'].id),
+        'g10': Group(name="Podbijanie Planet, Grupa D", year=3, leader_id=users['starosta8'].id),
+        'g11': Group(name="Zarządzanie Projektami, Grupa A", year=1, leader_id=users['starosta3'].id),
+        'g12': Group(name="Zarządzanie Projektami, Grupa B", year=1, leader_id=users['starosta1'].id),
+        'g13': Group(name="Zarządzanie Projektami, Grupa C", year=1, leader_id=users['starosta2'].id),
     }
     return groups
 
@@ -81,7 +92,18 @@ def create_rooms(equipments):
 def create_courses(users, groups):
     courses = {
         'c1': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g1'].id),
-        'c2': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g2'].id),
+        'c2': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g2'].id),
+        'c3': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g3'].id),
+        'c4': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g4'].id),
+        'c5': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g5'].id),
+        'c6': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g6'].id),
+        'c7': Course(name="Zarządzanie Projektami", teacher_id=users['teacher1'].id, group_id=groups['g11'].id),
+        'c8': Course(name="Zarządzanie Projektami", teacher_id=users['teacher1'].id, group_id=groups['g12'].id),
+        'c9': Course(name="Zarządzanie Projektami", teacher_id=users['teacher1'].id, group_id=groups['g13'].id),
+        'c10': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g7'].id),
+        'c11': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g8'].id),
+        'c12': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g9'].id),
+        'c13': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g10'].id),
     }
     return courses
 
