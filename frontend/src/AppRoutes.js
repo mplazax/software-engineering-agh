@@ -12,9 +12,10 @@ import RoomsPage from "./pages/RoomsPage";
 import UsersPage from "./pages/UsersPage";
 import GroupsPage from "./pages/GroupsPage";
 import CoursesPage from "./pages/CoursesPage";
-import EquipmentPage from "./pages/EquipmentPage"; // Nowy import
+import EquipmentPage from "./pages/EquipmentPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import MyRecommendationsPage from "./pages/MyRecommendationsPage";
+import RoomUnavailabilityPage from "./pages/RoomUnavailabilityPage";
 
 const AppRoutes = () => {
   const { loading, isAuthenticated } = useContext(AuthContext);
@@ -38,16 +39,20 @@ const AppRoutes = () => {
         <Route path="/login" element={<LoginPage />} />
       </Route>
 
+      {/* KLUCZOWA POPRAWKA: Wszystkie trasy chronione muszą być tutaj */}
       <Route element={<PrivateRoute />}>
         <Route path="/" element={<MainPage />} />
         <Route path="/rooms" element={<RoomsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/courses" element={<CoursesPage />} />
-        <Route path="/equipment" element={<EquipmentPage />} />{" "}
-        {/* Nowa trasa */}
+        <Route path="/equipment" element={<EquipmentPage />} />
         <Route path="/calendar" element={<ChangeRequestsPage />} />
         <Route path="/recommendations" element={<MyRecommendationsPage />} />
+        <Route
+          path="/room-unavailability"
+          element={<RoomUnavailabilityPage />}
+        />
       </Route>
 
       <Route
