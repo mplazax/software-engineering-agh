@@ -151,7 +151,7 @@ const RoomsPage = () => {
           searchPlaceholder: "Szukaj po nazwie lub wyposażeniu...",
           addLabel: "Dodaj Salę",
         }}
-        customFilterFn={filterRooms} // Przekazujemy naszą niestandardową logikę
+        customFilterFn={filterRooms}
       />
       <RoomFormDialog
         open={dialogOpen}

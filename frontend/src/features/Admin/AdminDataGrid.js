@@ -19,7 +19,6 @@ const AdminDataGrid = ({
   error,
   onAddItem,
   toolbarConfig = {},
-  // Nowy, opcjonalny prop do niestandardowego filtrowania
   customFilterFn,
 }) => {
   const [searchText, setSearchText] = useState("");
@@ -28,12 +27,10 @@ const AdminDataGrid = ({
     if (!searchText) return rows;
     const lowerCaseSearch = searchText.toLowerCase();
 
-    // Jeśli przekazano niestandardową funkcję filtrowania (dla Sal), użyj jej
     if (customFilterFn) {
       return customFilterFn(rows, lowerCaseSearch);
     }
 
-    // W przeciwnym razie, użyj domyślnego, generycznego filtrowania
     return rows.filter((row) =>
       Object.values(row).some((value) =>
         String(value).toLowerCase().includes(lowerCaseSearch)
@@ -41,44 +38,54 @@ const AdminDataGrid = ({
     );
   }, [rows, searchText, customFilterFn]);
 
+  // Wbudowany komponent Toolbar, aby uniknąć zbędnego pliku
+  const CustomToolbar = () => (
+    <Toolbar>
+      <Box sx={{ flexGrow: 1 }}>
+        <TextField
+          variant="outlined"
+          size="small"
+          placeholder={toolbarConfig.searchPlaceholder || "Szukaj..."}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          sx={{ width: { xs: "100%", sm: 350 } }}
+          autoComplete="off"
+          id={`datagrid-search-${toolbarConfig.addLabel}`}
+        />
+      </Box>
+      {onAddItem && (
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onAddItem}>
+          {toolbarConfig.addLabel || "Dodaj"}
+        </Button>
+      )}
+    </Toolbar>
+  );
+
   return (
     <Paper>
-      <Toolbar>
-        <Box sx={{ flexGrow: 1 }}>
-          <TextField
-            variant="outlined"
-            size="small"
-            placeholder={toolbarConfig.searchPlaceholder || "Szukaj..."}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            sx={{ width: { xs: "100%", sm: 350 } }}
-            // Kluczowa poprawka rozwiązująca problem autouzupełniania
-            autoComplete="off"
-            id={`datagrid-search-${toolbarConfig.addLabel}`} // Unikalne ID
-          />
-        </Box>
-        {onAddItem && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={onAddItem}
-          >
-            {toolbarConfig.addLabel || "Dodaj"}
-          </Button>
-        )}
-      </Toolbar>
-
-      {isError && <Alert severity="error">Błąd: {error?.message}</Alert>}
-      <Box sx={{ height: "70vh", width: "100%" }}>
+      {isError && (
+        <Alert severity="error" sx={{ m: 2, mb: 0 }}>
+          Błąd: {error?.message}
+        </Alert>
+      )}
+      <Box sx={{ height: "75vh", width: "100%" }}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
           loading={isLoading}
           getRowId={(row) => row.id}
-          pageSizeOptions={[10, 25, 50]}
+          pageSizeOptions={[15, 25, 50, 100]}
+          initialState={{
+            pagination: {
+              paginationModel: {
+                pageSize: 15,
+              },
+            },
+          }}
           checkboxSelection
           disableRowSelectionOnClick
           slots={{
+            toolbar: CustomToolbar,
             loadingOverlay: () => (
               <Box
                 sx={{
@@ -91,7 +98,11 @@ const AdminDataGrid = ({
                 <CircularProgress />
               </Box>
             ),
+            noRowsOverlay: () => (
+              <Box sx={{ p: 4, textAlign: "center" }}>Brak danych</Box>
+            ),
           }}
+          sx={{ border: 0 }}
         />
       </Box>
     </Paper>
