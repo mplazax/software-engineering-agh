@@ -109,27 +109,79 @@ def create_courses(users, groups):
 
 def create_course_events(courses, rooms, time_slots):
     events = {}
-    def repeat_course(course_id, room_id, day, time_slot_id):
+    def repeat_course(course_id, room_id, day, time_slot_id, course_name):
         nonlocal events
         for week in range(0, 10):  # Repeat for 10 weeks
             event = CourseEvent(course_id=course_id, room_id=room_id, day=day + timedelta(weeks=week), time_slot_id=time_slot_id)
-            events[f'{course_id}_week{week}'] = event
+            events[f'{course_name}_week{week}'] = event
 
     today = date.today()
-    repeat_course(courses['c1'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[1].id)  # Podstawy Zarządzania, Grupa A
-    repeat_course(courses['c2'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[3].id)  # Podstawy Zarządzania, Grupa B
-    repeat_course(courses['c3'].id, rooms['r205'].id, today + timedelta(days=0), time_slots[1].id)  # Podstawy Zarządzania, Grupa C
-    repeat_course(courses['c4'].id, rooms['r202'].id, today + timedelta(days=-1), time_slots[3].id)  # Marketing, Grupa A
-    repeat_course(courses['c5'].id, rooms['r202'].id, today + timedelta(days=0), time_slots[4].id)  # Marketing, Grupa B
-    repeat_course(courses['c6'].id, rooms['r202'].id, today + timedelta(days=1), time_slots[2].id)  # Marketing, Grupa C
-    repeat_course(courses['c7'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[0].id)  # Zarządzanie Projektami, Grupa A
-    repeat_course(courses['c8'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[2].id)  # Zarządzanie Projektami, Grupa B
-    repeat_course(courses['c9'].id, rooms['r101'].id, today + timedelta(days=2), time_slots[0].id)  # Zarządzanie Projektami, Grupa C
-    repeat_course(courses['c10'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[1].id)  # Podbijanie Planet, Grupa A
-    repeat_course(courses['c11'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[3].id)  # Podbijanie Planet, Grupa B
-    repeat_course(courses['c12'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[1].id)  # Podbijanie Planet, Grupa C
-    repeat_course(courses['c13'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[0].id)  # Podbijanie Planet, Grupa D
+    repeat_course(courses['c1'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[1].id, 'c1')  # Podstawy Zarządzania, Grupa A
+    repeat_course(courses['c2'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[3].id, 'c2')  # Podstawy Zarządzania, Grupa B
+    repeat_course(courses['c3'].id, rooms['r205'].id, today + timedelta(days=0), time_slots[1].id, 'c3')  # Podstawy Zarządzania, Grupa C
+    repeat_course(courses['c4'].id, rooms['r202'].id, today + timedelta(days=-1), time_slots[3].id, 'c4')  # Marketing, Grupa A
+    repeat_course(courses['c5'].id, rooms['r202'].id, today + timedelta(days=0), time_slots[4].id, 'c5')  # Marketing, Grupa B
+    repeat_course(courses['c6'].id, rooms['r202'].id, today + timedelta(days=1), time_slots[2].id, 'c6')  # Marketing, Grupa C
+    repeat_course(courses['c7'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[0].id, 'c7')  # Zarządzanie Projektami, Grupa A
+    repeat_course(courses['c8'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[2].id, 'c8')  # Zarządzanie Projektami, Grupa B
+    repeat_course(courses['c9'].id, rooms['r101'].id, today + timedelta(days=2), time_slots[0].id, 'c9')  # Zarządzanie Projektami, Grupa C
+    repeat_course(courses['c10'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[1].id, 'c10')  # Podbijanie Planet, Grupa A
+    repeat_course(courses['c11'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[3].id, 'c11')  # Podbijanie Planet, Grupa B
+    repeat_course(courses['c12'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[1].id, 'c12')  # Podbijanie Planet, Grupa C
+    repeat_course(courses['c13'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[0].id, 'c13')  # Podbijanie Planet, Grupa D
     return events
+
+def create_change_requests(users, course_events):
+    change_requests = {
+        'cr1':
+        ChangeRequest(
+            course_event_id=course_events['c1_week0'].id,
+            initiator_id=users['starosta1'].id,
+            reason="Konflikt z innym wydarzeniem uczelnianym",
+            minimum_capacity=20,
+            room_requirements="Rzutnik",
+            created_at=datetime.utcnow()
+        ),
+        'cr2':
+        ChangeRequest(
+            course_event_id=course_events['c10_week0'].id,
+            initiator_id=users['starosta6'].id,
+            reason="Potrzebujemy większej sali",
+            minimum_capacity=50,
+            room_requirements="Rzutnik",
+            created_at=datetime.utcnow()
+        )
+    }
+    return change_requests
+
+def create_proposals(change_requests, users, time_slots):
+    proposals = {
+        'prop1': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['starosta1'].id,
+            day=date.today() + timedelta(days=8),
+            time_slot_id=time_slots[2].id
+        ),
+        'prop2': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['starosta1'].id,
+            day=date.today() + timedelta(days=8),
+            time_slot_id=time_slots[3].id
+        ),
+        'prop3': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['teacher1'].id,
+            day=date.today() + timedelta(days=8),
+            time_slot_id=time_slots[3].id
+        ),
+        'prop4': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['teacher1'].id,
+            day=date.today() + timedelta(days=9),
+            time_slot_id=time_slots[4].id
+        )
+    }
+    return proposals
 
 
 def populate_db():
@@ -192,24 +244,14 @@ def populate_db():
 
         # --- 8. Change Request Scenario ---
         print("Creating change request scenario...")
-        change_req = ChangeRequest(
-            course_event_id=events['e1'].id,
-            initiator_id=users['starosta1'].id,
-            reason="Konflikt z innym wydarzeniem uczelnianym",
-            minimum_capacity=20,
-            room_requirements="Rzutnik",
-            created_at=datetime.utcnow()
-        )
-        db.add(change_req)
+        change_requests = create_change_requests(users, events)
+        db.add_all(change_requests.values())
         db.commit()
         
         # --- 9. Availability Proposals ---
         print("Creating availability proposals...")
-        prop1 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['starosta1'].id, day=today + timedelta(days=8), time_slot_id=time_slots[2].id)
-        prop2 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['starosta1'].id, day=today + timedelta(days=8), time_slot_id=time_slots[3].id)
-        prop3 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['teacher1'].id, day=today + timedelta(days=8), time_slot_id=time_slots[3].id)
-        prop4 = AvailabilityProposal(change_request_id=change_req.id, user_id=users['teacher1'].id, day=today + timedelta(days=9), time_slot_id=time_slots[4].id)
-        db.add_all([prop1, prop2, prop3, prop4])
+        proposals = create_proposals(change_requests, users, time_slots)
+        db.add_all(proposals.values())
         db.commit()
 
         print("Database populated successfully!")
