@@ -16,11 +16,13 @@ from starlette.status import (
 
 router = APIRouter(prefix="/room-unavailability", tags=["Room Unavailability"])
 
-@router.get("/", response_model=List[RoomUnavailabilityResponse])
+@router.get("", response_model=List[RoomUnavailabilityResponse])
+@router.get("/", response_model=List[RoomUnavailabilityResponse], include_in_schema=False)
 def get_room_unavailabilities(db: Session = Depends(get_db)) -> List[RoomUnavailability]:
     return db.query(RoomUnavailability).all()
 
-@router.post("/", response_model=RoomUnavailabilityResponse, status_code=HTTP_201_CREATED)
+@router.post("", response_model=RoomUnavailabilityResponse, status_code=HTTP_201_CREATED)
+@router.post("/", response_model=RoomUnavailabilityResponse, status_code=HTTP_201_CREATED, include_in_schema=False)
 def create_room_unavailability(
     unavailability: RoomUnavailabilityCreate,
     db: Session = Depends(get_db),
