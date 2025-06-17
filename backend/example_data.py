@@ -108,11 +108,27 @@ def create_courses(users, groups):
     return courses
 
 def create_course_events(courses, rooms, time_slots):
+    events = {}
+    def repeat_course(course_id, room_id, day, time_slot_id):
+        nonlocal events
+        for week in range(0, 10):  # Repeat for 10 weeks
+            event = CourseEvent(course_id=course_id, room_id=room_id, day=day + timedelta(weeks=week), time_slot_id=time_slot_id)
+            events[f'{course_id}_week{week}'] = event
+
     today = date.today()
-    events = {
-        'e1': CourseEvent(course_id=courses['c1'].id, room_id=rooms['r205'].id, day=today + timedelta(days=1), time_slot_id=time_slots[1].id),
-        'e2': CourseEvent(course_id=courses['c2'].id, room_id=rooms['r101'].id, day=today + timedelta(days=2), time_slot_id=time_slots[3].id),
-    }
+    repeat_course(courses['c1'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[1].id)  # Podstawy Zarządzania, Grupa A
+    repeat_course(courses['c2'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[3].id)  # Podstawy Zarządzania, Grupa B
+    repeat_course(courses['c3'].id, rooms['r205'].id, today + timedelta(days=0), time_slots[1].id)  # Podstawy Zarządzania, Grupa C
+    repeat_course(courses['c4'].id, rooms['r202'].id, today + timedelta(days=-1), time_slots[3].id)  # Marketing, Grupa A
+    repeat_course(courses['c5'].id, rooms['r202'].id, today + timedelta(days=0), time_slots[4].id)  # Marketing, Grupa B
+    repeat_course(courses['c6'].id, rooms['r202'].id, today + timedelta(days=1), time_slots[2].id)  # Marketing, Grupa C
+    repeat_course(courses['c7'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[0].id)  # Zarządzanie Projektami, Grupa A
+    repeat_course(courses['c8'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[2].id)  # Zarządzanie Projektami, Grupa B
+    repeat_course(courses['c9'].id, rooms['r101'].id, today + timedelta(days=2), time_slots[0].id)  # Zarządzanie Projektami, Grupa C
+    repeat_course(courses['c10'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[1].id)  # Podbijanie Planet, Grupa A
+    repeat_course(courses['c11'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[3].id)  # Podbijanie Planet, Grupa B
+    repeat_course(courses['c12'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[1].id)  # Podbijanie Planet, Grupa C
+    repeat_course(courses['c13'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[0].id)  # Podbijanie Planet, Grupa D
     return events
 
 
