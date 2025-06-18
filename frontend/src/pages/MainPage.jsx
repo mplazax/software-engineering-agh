@@ -66,7 +66,7 @@ const useUpcomingEvents = (user) => {
       const eventsByCourse = await Promise.all(eventPromises);
       const allEvents = eventsByCourse.flat();
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Ustaw godzinę na początek dnia do porównań
+      // today.setHours(0, 0, 0, 0); // Ustaw godzinę na początek dnia do porównań
 
       return allEvents
         .map((e) => ({ ...e, date: new Date(e.day) }))

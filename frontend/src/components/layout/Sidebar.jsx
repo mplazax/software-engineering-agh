@@ -22,7 +22,8 @@ import GroupsIcon from "@mui/icons-material/Groups";
 import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
 import BuildIcon from "@mui/icons-material/Build";
-import BlockIcon from "@mui/icons-material/Block"; // <-- Nowa ikona
+import BlockIcon from "@mui/icons-material/Block";
+import {CalendarIcon} from "@mui/x-date-pickers"; // <-- Nowa ikona
 
 const drawerWidth = 280;
 
@@ -43,7 +44,7 @@ const roleTranslations = {
 };
 
 const commonNavItems = [
-  { text: "Dashboard", icon: <DashboardIcon />, path: "/" },
+  { text: "Panel główny", icon: <DashboardIcon />, path: "/" },
   { text: "Kalendarz", icon: <EventNoteIcon />, path: "/calendar" },
   { text: "Rekomendacje", icon: <RecommendIcon />, path: "/recommendations" },
 ];
@@ -54,7 +55,8 @@ const adminNavItems = [
   { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
   { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" },
   { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
-  { text: "Blokady Sal", icon: <BlockIcon />, path: "/room-unavailability" }, // <-- Nowy link
+  { text: "Zajęcia", icon: <CalendarIcon />, path: "/events" },
+  { text: "Blokady Sal", icon: <BlockIcon />, path: "/room-unavailability" },
 ];
 
 const Sidebar = () => {
