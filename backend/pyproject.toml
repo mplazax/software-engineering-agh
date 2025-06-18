@@ -1,63 +1,40 @@
-[project]
-name = "backend"
-version = "0.1.0"
-description = ""
-authors = [
-    {name = "Apiotr16st",email = "piotrandres@student.agh.edu.pl"}
-]
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-    "uvicorn[standard] (>=0.34.2,<0.35.0)",
-    "fastapi (>=0.115.12,<0.116.0)",
-    "sqlalchemy (>=2.0.40,<3.0.0)",
-    "psycopg2 (>=2.9.10,<3.0.0)",
-    "pydantic[email] (>=2.11.3,<3.0.0)",
-    "python-jose[cryptography] (>=3.3.0,<4.0.0)",
-    "passlib[bcrypt] (>=1.7.4,<2.0.0)",
-    "bcrypt (<4.0.0)",
-    "python-multipart (>=0.0.6,<0.1.0)"
-]
-
 [tool.poetry]
+name = "booking-system-backend"
+version = "0.1.0"
+description = "Backend for AGH WZ Room Booking System"
+authors = ["Apiotr16st <piotrandres@student.agh.edu.pl>"]
+readme = "README.md"
 package-mode = false
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.poetry.dependencies]
+python = ">=3.10"
+uvicorn = { extras = ["standard"], version = ">=0.29.0" }
+fastapi = ">=0.115.0,<0.116.0"
+sqlalchemy = ">=2.0.40,<3.0.0"
+psycopg2-binary = ">=2.9.9"
+pydantic = { extras = ["email"], version = ">=2.11.3,<3.0.0" }
+pydantic-settings = "^2.3.0"
+python-jose = { extras = ["cryptography"], version = ">=3.3.0,<4.0.0" }
+passlib = { extras = ["bcrypt"], version = ">=1.7.4,<2.0.0" }
+python-multipart = ">=0.0.6,<0.1.0"
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.11.12"
+ruff = "^0.4.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 select = ["E", "F", "W", "I", "N", "D", "UP", "ANN", "Q"]
-ignore = ["D203", "D212"] # Przykładowe ignorowane
-line-length = 88
-src = ["app"]
-
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "venv",
-    "backend/.venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "*/migrations/*",
+ignore = [
+    "D203",
+    "D212",
+"ANN101",
+    "ANN102",
 ]
+line-length = 88
+src = ["."]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

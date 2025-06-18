@@ -1,211 +1,168 @@
+from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import (
-    AvailabilityProposal,
-    ChangeRecomendation,
-    ChangeRequest,
-    CourseEvent,
-    Room,
-    RoomUnavailability,
-    User,
-    Equipment
+    AvailabilityProposal, ChangeRecomendation, ChangeRequest, CourseEvent,
+    Equipment, Room, RoomUnavailability, User, ChangeRequestStatus, Course, Group
 )
 from routers.auth import get_current_user
-from routers.schemas import ChangeRecomendationResponse
-from sqlalchemy import func
-from sqlalchemy.orm import Session
-from starlette.status import HTTP_204_NO_CONTENT
+from routers.schemas import ChangeRecomendationResponse, ChangeRequestResponse
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, joinedload
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
-router = APIRouter(prefix="/change_recommendation", tags=["change_recommendation"])
+router = APIRouter(prefix="/recommendations", tags=["Change Recommendations"])
 
-
-@router.post("/common-availability")
-async def find_and_add_common_availability(
-    user1_id: int,
-    user2_id: int,
-    change_request_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """
-    Find common availability between two users and generate room change recommendations.
-    
-    Args:
-        user1_id (int): ID of the first user
-        user2_id (int): ID of the second user
-        change_request_id (int): ID of the change request
-        db (Session): Database session
-        current_user (User): Current authenticated user
-        
-    Raises:
-        HTTPException: If change request is not found or no common availability/rooms found
-        
-    Returns:
-        dict: Success message with the number of recommendations added
-    """
-    user1_proposals = (
-        db.query(AvailabilityProposal)
-        .filter(
-            AvailabilityProposal.user_id == user1_id,
-            AvailabilityProposal.change_request_id == change_request_id,
-        )
-        .all()
-    )
-    user2_proposals = (
-        db.query(AvailabilityProposal)
-        .filter(
-            AvailabilityProposal.user_id == user2_id,
-            AvailabilityProposal.change_request_id == change_request_id,
-        )
-        .all()
-    )
-
-    change_request = (
-        db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
-    )
+@router.get("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
+def get_recommendations(change_request_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> List[ChangeRecomendation]:
+    change_request = db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
     if not change_request:
         raise HTTPException(status_code=404, detail="Change request not found")
 
-    common_intervals = []
-    for proposal1 in user1_proposals:
-        for proposal2 in user2_proposals:
-            if (
-                proposal1.time_slot_id == proposal2.time_slot_id
-                and proposal1.day == proposal2.day
-            ):
-                common_intervals.append((proposal1.time_slot_id, proposal1.day))
+    course_event = change_request.course_event
+    teacher = course_event.course.teacher
+    group_leader = course_event.course.group.leader
+    
+    if not teacher or not group_leader:
+        raise HTTPException(status_code=404, detail="Could not determine both parties for the request.")
 
-    if not common_intervals:
-        raise HTTPException(status_code=404, detail="No common availability found")
+    teacher_proposals = db.query(AvailabilityProposal.day, AvailabilityProposal.time_slot_id).filter(
+        AvailabilityProposal.change_request_id == change_request_id,
+        AvailabilityProposal.user_id == teacher.id
+    ).subquery()
+    
+    leader_proposals = db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.change_request_id == change_request_id,
+        AvailabilityProposal.user_id == group_leader.id
+    )
+    
+    common_proposals = leader_proposals.join(
+        teacher_proposals,
+        (AvailabilityProposal.day == teacher_proposals.c.day) & (AvailabilityProposal.time_slot_id == teacher_proposals.c.time_slot_id)
+    ).all()
+    
+    if not common_proposals:
+        return []
 
     recommendations = []
-    for slot_id, day in common_intervals:
-        # Base query for available rooms
-        available_rooms_query = db.query(Room).filter(
-            ~Room.id.in_(
-                db.query(RoomUnavailability.room_id).filter(
-                    RoomUnavailability.start_datetime <= day,
-                    RoomUnavailability.end_datetime >= day,
-                )
-            ),
-            ~Room.id.in_(
-                db.query(CourseEvent.room_id).filter(
-                    CourseEvent.day == day,
-                    CourseEvent.time_slot_id == slot_id,
-                    CourseEvent.canceled == False,
-                )
-            ),
+    processed_slots = set()
+    next_id = 1
+
+    for proposal in common_proposals:
+        slot_key = (proposal.day, proposal.time_slot_id)
+        if slot_key in processed_slots:
+            continue
+        processed_slots.add(slot_key)
+        
+        unavailable_by_block = db.query(RoomUnavailability.room_id).filter(
+            RoomUnavailability.start_datetime <= proposal.day,
+            RoomUnavailability.end_datetime >= proposal.day
+        ).subquery()
+        
+        unavailable_by_event = db.query(CourseEvent.room_id).filter(
+            CourseEvent.day == proposal.day,
+            CourseEvent.time_slot_id == proposal.time_slot_id,
+            CourseEvent.canceled == False,
+            CourseEvent.room_id.isnot(None)
+        ).subquery()
+
+        base_query = db.query(Room).filter(
+            Room.id.notin_(unavailable_by_block),
+            Room.id.notin_(unavailable_by_event),
         )
-
-        # Add room requirements filtering if specified
-        if change_request.room_requirements:
-            try:
-                import json
-                required_equipment = json.loads(change_request.room_requirements)  # <-- np. ["projector"]
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid room_requirements format")
-
-            if isinstance(required_equipment, list) and required_equipment:
-                available_rooms_query = available_rooms_query.join(Room.equipment).filter(
-                    Equipment.name.in_(required_equipment)
-                ).group_by(Room.id).having(
-                    func.count(Equipment.id) >= len(required_equipment)
-                )
 
         if change_request.minimum_capacity > 0:
-            # Extract capacity requirement if present
-            available_rooms_query = available_rooms_query.filter(
-                Room.capacity >= change_request.minimum_capacity
-            )
+            base_query = base_query.filter(Room.capacity >= change_request.minimum_capacity)
+            
+        if change_request.room_requirements:
+            required_eq_names = [name.strip().lower() for name in change_request.room_requirements.split(',') if name.strip()]
+            if required_eq_names:
+                base_query = base_query.join(Room.equipment).filter(
+                    func.lower(Equipment.name).in_(required_eq_names)
+                ).group_by(Room.id).having(
+                    func.count(Equipment.id) >= len(required_eq_names)
+                )
 
-        available_rooms = available_rooms_query.all()
-
+        available_rooms = base_query.order_by(Room.capacity).all()
+        
         for room in available_rooms:
-            source_proposal = next(
-                (p for p in user1_proposals if p.time_slot_id == slot_id and p.day == day),
-                None
+            # Używamy ID propozycji źródłowej jako ID rekomendacji - to upraszcza logikę akceptacji
+            recommendations.append(
+                ChangeRecomendation(
+                    id=proposal.id, # KLUCZOWA ZMIANA: ID rekomendacji to ID propozycji źródłowej
+                    change_request_id=change_request_id,
+                    recommended_day=proposal.day,
+                    recommended_slot_id=proposal.time_slot_id,
+                    recommended_room_id=room.id,
+                    source_proposal_id=proposal.id,
+                    recommended_room=room,
+                    source_proposal=proposal
+                )
             )
-            recommendation = ChangeRecomendation(
-                change_request_id=change_request_id,
-                recommended_slot_id=slot_id,
-                recommended_day=day,
-                recommended_room_id=room.id,
-                source_proposal_id=source_proposal.id if source_proposal else None
-            )
-            recommendations.append(recommendation)
-            db.add(recommendation)
+            
+    return recommendations
 
-    if not recommendations:
-        raise HTTPException(
-            status_code=404, detail="No rooms available for the common intervals"
-        )
+@router.post("/{source_proposal_id}/accept", response_model=ChangeRequestResponse)
+def accept_recommendation(
+    source_proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    # Znajdujemy propozycję, która jest podstawą akceptacji
+    source_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == source_proposal_id).first()
+    if not source_proposal:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Source proposal for this recommendation not found.")
+
+    change_request = source_proposal.change_request
+    if not change_request:
+         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Associated change request not found.")
+
+    if change_request.status != ChangeRequestStatus.PENDING:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="This request has already been processed.")
+
+    # Rekonstruujemy zaakceptowaną rekomendację
+    # Musimy znaleźć pasującą salę
+    # Ta logika jest skomplikowana, ale wynika z obecnej struktury
+    all_recs = get_recommendations(change_request.id, db, current_user)
+    accepted_rec = next((rec for rec in all_recs if rec.id == source_proposal_id), None)
+
+    if not accepted_rec:
+         raise HTTPException(status_code=404, detail="Could not find a valid room for the selected time. It might have been taken.")
+
+    original_event = change_request.course_event
+    course = original_event.course
+    
+    is_leader = current_user.id == course.group.leader_id
+    is_teacher = current_user.id == course.teacher_id
+    if not (is_leader or is_teacher):
+        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authorized to accept this recommendation.")
+
+    # Ponowne sprawdzenie konfliktu na wszelki wypadek
+    conflict = db.query(CourseEvent).filter(
+        CourseEvent.room_id == accepted_rec.recommended_room_id,
+        CourseEvent.day == accepted_rec.recommended_day,
+        CourseEvent.time_slot_id == accepted_rec.recommended_slot_id,
+        CourseEvent.canceled == False,
+    ).first()
+    if conflict:
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Sala jest już zarezerwowana w tym terminie.")
+    
+    original_event.canceled = True
+    
+    new_event = CourseEvent(
+        course_id=original_event.course_id,
+        room_id=accepted_rec.recommended_room_id,
+        day=accepted_rec.recommended_day,
+        time_slot_id=accepted_rec.recommended_slot_id,
+        canceled=False,
+    )
+    db.add(new_event)
+
+    change_request.status = ChangeRequestStatus.ACCEPTED
+    
+    # Czyszczenie po udanej operacji
+    db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.change_request_id == change_request.id
+    ).delete(synchronize_session=False)
 
     db.commit()
-    return {"message": "Recommendations added successfully"}
-
-
-@router.get(
-    "/{change_request_id}/recommendations",
-    response_model=list[ChangeRecomendationResponse],
-)
-async def get_proposals(
-    change_request_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[ChangeRecomendationResponse]:
-    """
-    Get all recommendations for a specific change request.
-    
-    Args:
-        change_request_id (int): ID of the change request
-        db (Session): Database session
-        current_user (User): Current authenticated user
-        
-    Raises:
-        HTTPException: If change request is not found
-        
-    Returns:
-        list[ChangeRecomendation]: List of change recommendations
-    """
-    change_request = (
-        db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
-    )
-    if not change_request:
-        raise HTTPException(status_code=404, detail="Change request not found")
-
-    change_recommendations = (
-        db.query(ChangeRecomendation)
-        .filter(ChangeRecomendation.change_request_id == change_request_id)
-        .all()
-    )
-    return change_recommendations
-
-
-@router.delete("/{change_request_id}/recommendations", status_code=HTTP_204_NO_CONTENT)
-async def delete_recommendations(
-    change_request_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """
-    Delete all recommendations for a specific change request.
-    
-    Args:
-        change_request_id (int): ID of the change request
-        db (Session): Database session
-        current_user (User): Current authenticated user
-        
-    Raises:
-        HTTPException: If change request is not found
-    """
-    change_request = (
-        db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
-    )
-    if not change_request:
-        raise HTTPException(status_code=404, detail="Change request not found")
-
-    db.query(ChangeRecomendation).filter(
-        ChangeRecomendation.change_request_id == change_request_id
-    ).delete()
-    db.commit()
-    return
+    db.refresh(change_request)
+    return change_request

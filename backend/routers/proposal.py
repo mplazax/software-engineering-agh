@@ -1,64 +1,98 @@
-
+from typing import List
 from database import get_db
-from fastapi import APIRouter, Depends, HTTPException
-from model import AvailabilityProposal, ChangeRequest, User, ChangeRequestStatus, UserRole
+from fastapi import APIRouter, Depends, HTTPException, Query
+from model import (
+    AvailabilityProposal,
+    ChangeRequest,
+    User,
+    CourseEvent,
+    ChangeRequestStatus,
+    UserRole
+)
+# Ważne: importujemy funkcje z innych routerów
+from routers.change_recommendation import get_recommendations, accept_recommendation
 from routers.auth import get_current_user, role_required
-from routers.schemas import ProposalCreate, ProposalResponse, ProposalUpdate
+from routers.schemas import (
+    ProposalCreate,
+    ProposalResponse,
+)
 from sqlalchemy.orm import Session
 from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
-    HTTP_400_BAD_REQUEST,
+    HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
 
-router = APIRouter(prefix="/proposals", tags=["proposals"])
 
+router = APIRouter(prefix="/proposals", tags=["Availability Proposals"])
 
-@router.get("/", response_model=list[ProposalResponse], status_code=HTTP_200_OK)
-async def get_proposals(
-    skip: int = 0,
-    limit: int = 10,
+@router.get("", response_model=List[ProposalResponse], status_code=HTTP_200_OK)
+@router.get("/", response_model=List[ProposalResponse], status_code=HTTP_200_OK, include_in_schema=False)
+def get_proposals(
+    change_request_id: int = Query(..., description="Filter proposals by change request ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[AvailabilityProposal]:
-    """
-    Retrieve a paginated list of all availability proposals.
-
-    Args:
-        skip (int, optional): Number of records to skip. Defaults to 0.
-        limit (int, optional): Maximum number of records to return. Defaults to 10.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
-
-    Returns:
-        list[AvailabilityProposal]: List of availability proposals.
-    """
-    proposals = db.query(AvailabilityProposal).offset(skip).limit(limit).all()
+) -> List[AvailabilityProposal]:
+    proposals = (
+        db.query(AvailabilityProposal)
+        .filter(
+            AvailabilityProposal.change_request_id == change_request_id,
+            AvailabilityProposal.user_id == current_user.id,
+        )
+        .all()
+    )
     return proposals
 
 
-@router.get("/{proposal_id}", response_model=ProposalResponse, status_code=HTTP_200_OK)
-async def get_proposal(
-    proposal_id: int,
+@router.post("", status_code=HTTP_201_CREATED, response_model=ProposalResponse)
+@router.post("/", status_code=HTTP_201_CREATED, response_model=ProposalResponse, include_in_schema=False)
+def create_proposal(
+    proposal_data: ProposalCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AvailabilityProposal:
-    """
-    Retrieve a specific availability proposal by ID.
+    change_request = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.id == proposal_data.change_request_id)
+        .first()
+    )
+    if not change_request:
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Change request not found"
+        )
+    # ... walidacja ...
+    new_proposal = AvailabilityProposal(**proposal_data.dict(), user_id=current_user.id)
+    db.add(new_proposal)
+    db.commit()
+    db.refresh(new_proposal)
 
-    Args:
-        proposal_id (int): ID of the proposal to retrieve.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
+    # --- NOWA LOGIKA AUTO-AKCEPTACJI ---
+    # Po dodaniu propozycji sprawdzamy, czy obie strony już coś zaproponowały
+    teacher_id = change_request.course_event.course.teacher_id
+    leader_id = change_request.course_event.course.group.leader_id
+    
+    teacher_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.change_request_id == change_request.id, AvailabilityProposal.user_id == teacher_id).first()
+    leader_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.change_request_id == change_request.id, AvailabilityProposal.user_id == leader_id).first()
 
-    Raises:
-        HTTPException: If proposal with the specified ID is not found.
+    if teacher_proposal and leader_proposal:
+        # Obie strony podały dostępność, generujemy rekomendacje
+        recommendations = get_recommendations(change_request.id, db, current_user)
+        if recommendations:
+            # Wybieramy "najlepszą" (pierwszą z listy, która jest już posortowana)
+            best_recommendation = recommendations[0]
+            # Automatycznie akceptujemy
+            accept_recommendation(best_recommendation.source_proposal_id, db, current_user)
+            # Nie musimy tu nic zwracać, bo akceptacja modyfikuje stan,
+            # a frontend odświeży dane i zobaczy zmieniony status zgłoszenia
+    
+    return new_proposal
 
-    Returns:
-        AvailabilityProposal: The requested proposal.
-    """
+
+@router.delete("/{proposal_id}", status_code=HTTP_204_NO_CONTENT)
+def delete_proposal(proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:
+    # ... reszta funkcji bez zmian ...
     proposal = (
         db.query(AvailabilityProposal)
         .filter(AvailabilityProposal.id == proposal_id)
@@ -66,8 +100,15 @@ async def get_proposal(
     )
     if not proposal:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Proposal not found")
-    return proposal
 
+    if proposal.user_id != current_user.id:
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN, detail="Not authorized to delete this proposal"
+        )
+
+    db.delete(proposal)
+    db.commit()
+    return None
 
 @router.get(
     "/by-change-id/{change_request_id}",
@@ -103,69 +144,6 @@ async def get_change_request_proposals(
             status_code=HTTP_404_NOT_FOUND, detail="Change requests not found"
         )
     return proposals
-
-
-@router.post("/", status_code=HTTP_201_CREATED, response_model=ProposalResponse)
-async def create_proposal(
-    proposal: ProposalCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> AvailabilityProposal:
-    """
-    Create a new availability proposal.
-
-    Args:
-        proposal (ProposalCreate): Data for the new proposal.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
-
-    Raises:
-        HTTPException: If change request or user is not found, or if a proposal already exists
-                      for the same user and time slot.
-
-    Returns:
-        AvailabilityProposal: The newly created proposal.
-    """
-    change_request = (
-        db.query(ChangeRequest)
-        .filter(ChangeRequest.id == proposal.change_request_id)
-        .first()
-    )
-    if not change_request:
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND, detail="Change request not found"
-        )
-    user = db.query(User).filter(User.id == proposal.user_id).first()
-    if not user:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
-
-    proposal_exists = (
-        db.query(AvailabilityProposal)
-        .filter(
-            AvailabilityProposal.change_request_id == proposal.change_request_id,
-            AvailabilityProposal.user_id == proposal.user_id,
-            AvailabilityProposal.day == proposal.day,
-            AvailabilityProposal.time_slot_id == proposal.time_slot_id,
-        )
-        .first()
-    )
-
-    if proposal_exists:
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST,
-            detail="Proposal already exists for this user and time slot",
-        )
-
-    new_proposal = AvailabilityProposal(
-        change_request_id=proposal.change_request_id,
-        user_id=proposal.user_id,
-        time_slot_id=proposal.time_slot_id,
-        day=proposal.day,
-    )
-    db.add(new_proposal)
-    db.commit()
-    db.refresh(new_proposal)
-    return new_proposal
 
 
 @router.post("/{proposal_id}/changestatus/leader", response_model=ProposalResponse)
@@ -226,46 +204,6 @@ async def change_status_by_representative(
     db.refresh(request)
     db.refresh(proposal)
     return proposal
-
-@router.put("/{proposal_id}", response_model=ProposalResponse, status_code=HTTP_200_OK)
-async def update_proposal(
-    proposal_id: int,
-    proposal: ProposalUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> AvailabilityProposal:
-    """
-    Update an existing availability proposal.
-
-    Args:
-        proposal_id (int): ID of the proposal to update.
-        proposal (ProposalUpdate): Updated proposal data.
-        db (Session): Database session.
-        current_user (User): Current authenticated user.
-
-    Raises:
-        HTTPException: If proposal or user is not found.
-
-    Returns:
-        AvailabilityProposal: The updated proposal.
-    """
-    existing_proposal = (
-        db.query(AvailabilityProposal)
-        .filter(AvailabilityProposal.id == proposal_id)
-        .first()
-    )
-    if not existing_proposal:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Proposal not found")
-    user = db.query(User).filter(User.id == proposal.user_id).first()
-    if not user:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="User not found")
-
-    existing_proposal.user_id = proposal.user_id
-    existing_proposal.day = proposal.day
-    existing_proposal.time_slot_id = proposal.time_slot_id
-    db.commit()
-    db.refresh(existing_proposal)
-    return existing_proposal
 
 
 @router.delete("/{proposal_id}", status_code=HTTP_204_NO_CONTENT)

@@ -1,274 +1,188 @@
 from datetime import date, datetime
+from typing import Optional, List
 
 from model import ChangeRequestStatus, RoomType, UserRole
-from pydantic import BaseModel, EmailStr
-from pydantic.v1 import validator
+from pydantic import BaseModel, EmailStr, Field
 
-
-# User
-class UserResponse(BaseModel):
-    id: int
-    name: str
-    surname: str
-    email: str
-    role: UserRole
-
+class OrmBase(BaseModel):
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-class UserPublicResponse(BaseModel):
+# UserResponse musi być zdefiniowany przed użyciem go w innych schematach
+class UserResponse(OrmBase):
     id: int
-    name: str
-    surname: str
-
-    class Config:
-        orm_mode = True
-
-class UserCreate(BaseModel):
-    name: str
-    surname: str
     email: EmailStr
-    password: str
+    name: str = Field(..., min_length=2, max_length=100)
+    surname: str = Field(..., min_length=2, max_length=100)
     role: UserRole
-
-    @validator("password")
-    def check_password(cls, value):
-        if len(value) < 6:
-            raise ValueError("Password must be at least 6 characters")
-        return value
-
-
-# Auth
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    email: str | None = None
-
-
-# Room
-class RoomCreate(BaseModel):
-    name: str
-    capacity: int
-    type: RoomType
-    equipment_ids: list[int] = []
-
-    @validator("capacity")
-    def capacity_must_be_positive(cls, value):
-        if value <= 0:
-            raise ValueError("Capacity must be greater than zero")
-        return value
-
-
-class RoomUpdate(BaseModel):
-    capacity: int | None
-    type: RoomType | None
-    equipment_ids: list[int] | None = None
-
-    @validator("capacity")
-    def check_capacity(cls, value):
-        if value <= 0:
-            raise ValueError("Capacity must be greater than zero")
 
 class EquipmentBase(BaseModel):
-    name: str
+    name: str = Field(..., min_length=2, max_length=100)
 
 class EquipmentCreate(EquipmentBase):
-    name: str
+    pass
 
-class EquipmentResponse(EquipmentBase):
+class EquipmentResponse(EquipmentBase, OrmBase):
     id: int
-    name: str
 
-    class Config:
-        orm_mode = True
-
-class RoomResponse(BaseModel):
-    id: int
-    name: str
-    capacity: int
+class RoomBase(BaseModel):
+    name: str = Field(..., min_length=3, max_length=100)
+    capacity: int = Field(..., gt=0)
     type: RoomType
-    equipment: list[EquipmentResponse] = []
 
-    class Config:
-        orm_mode = True
+class RoomCreate(RoomBase):
+    equipment_ids: List[int] = []
 
+class RoomUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=3, max_length=100)
+    capacity: Optional[int] = Field(None, gt=0)
+    type: Optional[RoomType] = None
+    equipment_ids: Optional[List[int]] = None
 
-# Group
-class GroupCreate(BaseModel):
-    name: str
-    year: int | None
-    leader_id: int
-
-    @validator("year")
-    def valid_study_year(cls, value):
-        if value is None:
-            return value
-        if 0 <= value <= 6:
-            return value
-        raise ValueError("Year must be between 1 and 6")
-
-
-class GroupResponse(BaseModel):
+class RoomResponse(RoomBase, OrmBase):
     id: int
-    name: str
-    year: int
+    equipment: List[EquipmentResponse] = []
+
+class UserBase(BaseModel):
+    email: EmailStr
+    name: str = Field(..., min_length=2, max_length=100)
+    surname: str = Field(..., min_length=2, max_length=100)
+    role: UserRole
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8)
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    surname: Optional[str] = Field(None, min_length=2, max_length=100)
+    password: Optional[str] = Field(None, min_length=8)
+    role: Optional[UserRole] = None
+
+class GroupBase(BaseModel):
+    name: str = Field(..., min_length=3, max_length=100)
+    year: Optional[int] = Field(None, ge=1, le=5)
     leader_id: int
 
-    class Config:
-        orm_mode = True
-
+class GroupCreate(GroupBase):
+    pass
 
 class GroupUpdate(BaseModel):
-    name: str | None
-    year: int | None
-    leader_id: int | None
+    name: Optional[str] = Field(None, min_length=3, max_length=100)
+    year: Optional[int] = Field(None, ge=1, le=5)
+    leader_id: Optional[int] = None
 
-    @validator("year")
-    def valid_study_year(cls, value):
-        if value is None:
-            return value
-        if 0 <= value <= 6:
-            return value
-        raise ValueError("Year must be between 1 and 6")
-
-
-# Change requests
-class ChangeRequestCreate(BaseModel):
-    course_event_id: int
-    initiator_id: int  # should be assigned automatically
-    status: ChangeRequestStatus
-    reason: str
-    room_requirements: str
-    minimum_capacity: int
-    created_at: datetime
-
-
-class ChangeRequestUpdate(BaseModel):
-    change_request_id: int
-    course_event_id: int
-    initiator_id: int
-    status: ChangeRequestStatus | None
-    reason: str | None
-    room_requirements: str | None
-    minimum_capacity: int
-    created_at: datetime
-
-
-class ChangeRequestResponse(BaseModel):
+class GroupResponse(GroupBase, OrmBase):
     id: int
-    course_event_id: int
-    initiator_id: int
-    status: ChangeRequestStatus
-    reason: str
-    room_requirements: str
-    minimum_capacity: int
-    created_at: datetime
+    leader: UserResponse # Dołączamy pełne dane lidera
 
-    class Config:
-        orm_mode = True
-
-
-# Proposal
-class ProposalCreate(BaseModel):
-    change_request_id: int
-    user_id: int
-    day: date
-    time_slot_id: int
-
-
-class ProposalUpdate(BaseModel):
-    user_id: int
-    day: date
-    time_slot_id: int
-
-
-class ProposalResponse(BaseModel):
-    id: int
-    change_request_id: int
-    accepted_by_leader: bool
-    accepted_by_representative: bool
-    user_id: int
-    day: date
-    time_slot_id: int
-
-    class Config:
-        orm_mode = True
-
-
-class CourseCreate(BaseModel):
+class CourseBase(BaseModel):
     name: str
     teacher_id: int
     group_id: int
 
+class CourseCreate(CourseBase):
+    pass
 
-class CourseResponse(CourseCreate):
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    teacher_id: Optional[int] = None
+    group_id: Optional[int] = None
+
+class CourseResponse(CourseBase, OrmBase):
     id: int
+    teacher: UserResponse # Dołączamy pełne dane prowadzącego
+    group: GroupResponse # Dołączamy pełne dane grupy (z liderem)
 
-    class Config:
-        orm_mode = True
-
-
-class CourseEventCreate(BaseModel):
+class CourseEventBase(BaseModel):
     course_id: int
-    room_id: int
+    room_id: Optional[int] = None
     day: date
     time_slot_id: int
     canceled: bool = False
 
+class CourseEventCreate(CourseEventBase):
+    pass
 
-class CourseEventUpdate(BaseModel):
-    room_id: int
-    day: date
-    time_slot_id: int
-    canceled: bool = False
-
-
-class CourseEventResponse(CourseEventCreate):
+class CourseEventResponse(CourseEventBase, OrmBase):
     id: int
 
-    class Config:
-        orm_mode = True
+class ChangeRequestBase(BaseModel):
+    reason: str
+    room_requirements: Optional[str] = None
+    minimum_capacity: int = Field(0, ge=0)
 
-class AvailabilityProposalResponse(BaseModel):
+class ChangeRequestCreate(ChangeRequestBase):
+    course_event_id: int
+    cyclical: bool = False
+
+class ChangeRequestUpdate(BaseModel):
+    status: Optional[ChangeRequestStatus] = None
+
+class CourseEventForRequestResponse(OrmBase):
+    id: int
+    day: date
+    course_id: int
+    course: CourseResponse # Zagnieżdżamy pełne dane kursu
+
+class ChangeRequestResponse(ChangeRequestBase, OrmBase):
+    id: int
+    course_event_id: int
+    initiator_id: int
+    status: ChangeRequestStatus
+    created_at: datetime
+    course_event: CourseEventForRequestResponse # Zagnieżdżamy dane wydarzenia
+    initiator: UserResponse # Dołączamy pełne dane inicjatora
+
+class ProposalBase(BaseModel):
+    change_request_id: int
+    day: date
+    time_slot_id: int
+
+class ProposalCreate(ProposalBase):
+    pass
+
+class ProposalResponse(ProposalBase, OrmBase):
     id: int
     user_id: int
-    day: date
-    time_slot_id: int
 
-    class Config:
-        orm_mode = True
-
-class ChangeRecomendationResponse(BaseModel):
-    id: int
+class ChangeRecomendationBase(BaseModel):
     change_request_id: int
     recommended_day: date
     recommended_slot_id: int
     recommended_room_id: int
-    source_proposal: AvailabilityProposalResponse | None = None
+    source_proposal_id: Optional[int] = None
 
-    class Config:
-        orm_mode = True
+class ChangeRecomendationResponse(ChangeRecomendationBase, OrmBase):
+    id: int
+    recommended_room: Optional[RoomResponse] = None
+    source_proposal: Optional[ProposalResponse] = None
 
-
-class RoomUnavailabilityCreate(BaseModel):
+# ... reszta schematów bez zmian
+class RoomUnavailabilityBase(BaseModel):
     room_id: int
-    start_datetime: date
-    end_datetime: date
+    start_datetime: datetime
+    end_datetime: datetime
+    reason: Optional[str] = None
 
+class RoomUnavailabilityCreate(RoomUnavailabilityBase):
+    pass
 
 class RoomUnavailabilityUpdate(BaseModel):
-    start_datetime: date
-    end_datetime: date
+    start_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
+    reason: Optional[str] = None
 
-
-class RoomUnavailabilityResponse(BaseModel):
+class RoomUnavailabilityResponse(RoomUnavailabilityBase, OrmBase):
     id: int
-    room_id: int
-    start_datetime: date
-    end_datetime: date
 
-    class Config:
-        orm_mode = True
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
+class ProposalStatusResponse(BaseModel):
+    teacher_has_proposed: bool
+    leader_has_proposed: bool
