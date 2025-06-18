@@ -6,10 +6,10 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFnsV3";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { pl } from "date-fns/locale";
 
-import { AuthProvider } from "./contexts/AuthContext";
-import { NotificationProvider } from "./contexts/NotificationContext";
-import AppRoutes from "./AppRoutes";
-import theme from "./theme/theme";
+import { AuthProvider } from "./contexts/AuthContext.jsx"; // ZMIANA: .js -> .jsx
+import { NotificationProvider } from "./contexts/NotificationContext.jsx"; // ZMIANA: .js -> .jsx
+import AppRoutes from "./AppRoutes.jsx"; // ZMIANA: .js -> .jsx
+import theme from "./theme/theme.js"; // Bez zmian, to czysty JS
 
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";

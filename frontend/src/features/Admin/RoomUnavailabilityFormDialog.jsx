@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -11,12 +11,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Alert,
   FormHelperText,
 } from "@mui/material";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../../api/apiService";
+import { apiRequest } from "../../api/apiService.js";
 
 const useRooms = () =>
   useQuery({ queryKey: ["rooms"], queryFn: () => apiRequest("/rooms/") });
@@ -52,14 +51,19 @@ const RoomUnavailabilityFormDialog = ({
 }) => {
   const { data: rooms = [], isLoading: isLoadingRooms } = useRooms();
 
-  const getInitialState = () => ({
-    room_id: unavailability?.room_id || "",
-    start_datetime: unavailability
-      ? new Date(unavailability.start_datetime)
-      : null,
-    end_datetime: unavailability ? new Date(unavailability.end_datetime) : null,
-    reason: unavailability?.reason || "",
-  });
+  const getInitialState = useCallback(
+    () => ({
+      room_id: unavailability?.room_id || "",
+      start_datetime: unavailability
+        ? new Date(unavailability.start_datetime)
+        : null,
+      end_datetime: unavailability
+        ? new Date(unavailability.end_datetime)
+        : null,
+      reason: unavailability?.reason || "",
+    }),
+    [unavailability]
+  );
 
   const [formData, setFormData] = useState(getInitialState());
   const [errors, setErrors] = useState({});
@@ -69,7 +73,7 @@ const RoomUnavailabilityFormDialog = ({
       setFormData(getInitialState());
       setErrors({});
     }
-  }, [unavailability, open]);
+  }, [unavailability, open, getInitialState]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

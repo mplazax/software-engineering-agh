@@ -30,12 +30,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
 import EditIcon from "@mui/icons-material/Edit";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "../api/apiService";
+import { apiRequest } from "../api/apiService.js";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
-import { AuthContext } from "../contexts/AuthContext";
-import { useNotification } from "../contexts/NotificationContext";
-import AvailabilitySelector from "../features/Proposals/AvailabilitySelector";
+import { AuthContext } from "../contexts/AuthContext.jsx";
+import { useNotification } from "../contexts/NotificationContext.jsx";
+import AvailabilitySelector from "../features/Proposals/AvailabilitySelector.jsx";
 
 const statusConfig = {
   PENDING: { label: "Oczekujące", color: "warning" },

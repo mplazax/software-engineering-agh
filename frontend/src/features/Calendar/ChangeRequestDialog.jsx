@@ -18,13 +18,12 @@ import {
   OutlinedInput,
   Chip,
   Box,
-  FormHelperText,
   ListItemText,
 } from "@mui/material";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../../api/apiService";
-import { useNotification } from "../../contexts/NotificationContext";
+import { apiRequest } from "../../api/apiService.js";
+import { useNotification } from "../../contexts/NotificationContext.jsx";
 
 const useEquipment = () =>
   useQuery({

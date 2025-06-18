@@ -4,9 +4,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import BuildIcon from "@mui/icons-material/Build"; // Ikona dla wyposażenia
 
-import { useCrud } from "../hooks/useCrud";
-import AdminDataGrid from "../features/Admin/AdminDataGrid";
-import EquipmentFormDialog from "../features/Admin/EquipmentFormDialog";
+import { useCrud } from "../hooks/useCrud.js";
+import AdminDataGrid from "../features/Admin/AdminDataGrid.jsx";
+import EquipmentFormDialog from "../features/Admin/EquipmentFormDialog.jsx";
 
 const EquipmentPage = () => {
   const {

@@ -10,7 +10,7 @@ import {
   ListItemIcon,
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AuthContext } from "../../contexts/AuthContext";
+import { AuthContext } from "../../contexts/AuthContext.jsx";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import Logout from "@mui/icons-material/Logout";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
