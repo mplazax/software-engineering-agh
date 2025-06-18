@@ -19,11 +19,11 @@ def create_users_data():
         'teacher1': User(email="j.kowalski@example.com", password=teach_psw, name="Jan", surname="Kowalski", role=UserRole.PROWADZACY),
         'teacher2': User(email="p.zielinski@example.com", password=teach_psw, name="Piotr", surname="Zieliński", role=UserRole.PROWADZACY),
         'teacher3': User(email="c.sanders@example.com", password=teach_psw, name="Colonel", surname="Sanders", role=UserRole.PROWADZACY),
-        'teacher4': User(email="m.sklodowska@example.com", password=teach_psw, name="Maria", surname="Curie-Skłodowska", role=UserRole.PROWADZACY),
+        'teacher4': User(email="m.sklodowksa@example.com", password=teach_psw, name="Maria", surname="Curie-Skłodowska", role=UserRole.PROWADZACY),
         'starosta1': User(email="a.nowak@example.com", password=stud_psw, name="Anna", surname="Nowak", role=UserRole.STAROSTA),
         'starosta2': User(email="k.wojcik@example.com", password=stud_psw, name="Kamil", surname="Wójcik", role=UserRole.STAROSTA),
         'starosta3': User(email="j.zalno@example.com", password=stud_psw, name="Jakub", surname="Żalno", role=UserRole.STAROSTA),
-        'starosta4': User(email="m.pudzianowski@example.com", password=stud_psw, name="Mariusz", surname="Pudzianowski", role=UserRole.STAROSTA),
+        'starosta4': User(email="m.pudzianowski@example.com", password= stud_psw, name="Mariusz", surname="Pudzianowski", role=UserRole.STAROSTA),
         'starosta5': User(email="p.pascal@example.com", password=stud_psw, name="Pedro", surname="Pascal", role=UserRole.STAROSTA),
         'starosta6': User(email="r.lewandowski@example.com", password=stud_psw, name="Robert", surname="Lewandowski", role=UserRole.STAROSTA),
         'starosta7': User(email="r.kubica@example.com", password=stud_psw, name="Robert", surname="Kubica", role=UserRole.STAROSTA),
@@ -31,6 +31,40 @@ def create_users_data():
         'starosta9': User(email="p.luszcz@example.com", password=stud_psw, name="Piotr", surname="Łuszcz", role=UserRole.STAROSTA),
         'starosta10': User(email="speed@example.com", password=stud_psw, name="Darren", surname="Watkins", role=UserRole.STAROSTA),
     }
+    return users
+
+def create_groups(users):
+    groups = {
+        'g1': Group(name="Podstawy Zarządzania, Grupa A", year=1, leader_id=users['starosta1'].id),
+        'g2': Group(name="Podstawy Zarządzania, Grupa B", year=1, leader_id=users['starosta2'].id),
+        'g3': Group(name="Podstawy Zarządzania, Grupa C", year=1, leader_id=users['starosta3'].id),
+        'g4': Group(name="Marketing, Grupa A", year=2, leader_id=users['starosta4'].id),
+        'g5': Group(name="Marketing, Grupa B", year=2, leader_id=users['starosta5'].id),
+        'g6': Group(name="Marketing, Grupa C", year=2, leader_id=users['starosta2'].id),
+        'g7': Group(name="Podbijanie Planet, Grupa A", year=3, leader_id=users['starosta6'].id),
+        'g8': Group(name="Podbijanie Planet, Grupa B", year=3, leader_id=users['starosta7'].id),
+        'g9': Group(name="Podbijanie Planet, Grupa C", year=3, leader_id=users['starosta8'].id),
+        'g10': Group(name="Podbijanie Planet, Grupa D", year=3, leader_id=users['starosta8'].id),
+        'g11': Group(name="Zarządzanie Projektami, Grupa A", year=1, leader_id=users['starosta3'].id),
+        'g12': Group(name="Zarządzanie Projektami, Grupa B", year=1, leader_id=users['starosta1'].id),
+        'g13': Group(name="Zarządzanie Projektami, Grupa C", year=1, leader_id=users['starosta2'].id),
+    }
+    return groups
+
+def create_equipment():
+    equipments = {
+        'proj': Equipment(name="Rzutnik"),
+        'whiteboard': Equipment(name="Tablica interaktywna"),
+        'pc_lab': Equipment(name="Pracownia komputerowa"),
+        'audio': Equipment(name="Sprzęt audio"),
+        'vr' : Equipment(name="Zestaw VR"),
+        '3d_printer': Equipment(name="Drukarka 3D"),
+        'clickers': Equipment(name="Klikery do głosowania"),
+    }
+    return equipments
+
+def create_rooms(equipments):
+    rooms = {
 
 def create_groups_data(users):
     return {
@@ -60,6 +94,7 @@ def create_rooms_data(equipments):
         'r102': Room(name="Sala 102", capacity=30, type=RoomType.SEMINAR_ROOM, equipment=[equipments['proj']]),
         'r103': Room(name="Sala 103", capacity=44, type=RoomType.LABORATORY, equipment=[]),
         'r104': Room(name="Sala 104", capacity=22, type=RoomType.CONFERENCE_ROOM, equipment=[equipments['proj'], equipments['audio']]),
+        'r105': Room(name="Sala 105", capacity=90, type=RoomType.LECTURE_HALL, equipment=[]),
         'r201': Room(name="Sala 201", capacity=20, type=RoomType.LABORATORY, equipment=[equipments['vr'], equipments['proj']]),
         'r202': Room(name="Sala 202", capacity=20, type=RoomType.SEMINAR_ROOM, equipment=[equipments['audio'], equipments['proj'], equipments['pc_lab']]),
         'r203': Room(name="Sala 203", capacity=18, type=RoomType.LABORATORY, equipment=[equipments['3d_printer'], equipments['pc_lab']]),
@@ -68,6 +103,55 @@ def create_rooms_data(equipments):
         'aula_a': Room(name="Aula A", capacity=120, type=RoomType.LECTURE_HALL, equipment=[equipments['proj']]),
         'aula_b': Room(name="Aula B", capacity=150, type=RoomType.LECTURE_HALL, equipment=[equipments['proj'], equipments['clickers']]),
     }
+    return rooms
+
+def create_courses(users, groups):
+    courses = {
+        'c1': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g1'].id),
+        'c2': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g2'].id),
+        'c3': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g3'].id),
+        'c4': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g4'].id),
+        'c5': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g5'].id),
+        'c6': Course(name="Marketing", teacher_id=users['teacher2'].id, group_id=groups['g6'].id),
+        'c7': Course(name="Zarządzanie Projektami", teacher_id=users['teacher1'].id, group_id=groups['g11'].id),
+        'c8': Course(name="Zarządzanie Projektami", teacher_id=users['teacher1'].id, group_id=groups['g12'].id),
+        'c9': Course(name="Zarządzanie Projektami", teacher_id=users['teacher1'].id, group_id=groups['g13'].id),
+        'c10': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g7'].id),
+        'c11': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g8'].id),
+        'c12': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g9'].id),
+        'c13': Course(name="Podbijanie Planet", teacher_id=users['teacher3'].id, group_id=groups['g10'].id),
+    }
+    return courses
+
+def create_course_events(courses, rooms, time_slots):
+    events = {}
+    def repeat_course(course_id, room_id, day, time_slot_id, course_name):
+        nonlocal events
+        for week in range(0, 10):  # Repeat for 10 weeks
+            event = CourseEvent(course_id=course_id, room_id=room_id, day=day + timedelta(weeks=week), time_slot_id=time_slot_id)
+            events[f'{course_name}_week{week}'] = event
+
+    today = date.today()
+    repeat_course(courses['c1'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[1].id, 'c1')  # Podstawy Zarządzania, Grupa A
+    repeat_course(courses['c2'].id, rooms['r205'].id, today + timedelta(days=-1), time_slots[3].id, 'c2')  # Podstawy Zarządzania, Grupa B
+    repeat_course(courses['c3'].id, rooms['r205'].id, today + timedelta(days=0), time_slots[1].id, 'c3')  # Podstawy Zarządzania, Grupa C
+    repeat_course(courses['c4'].id, rooms['r202'].id, today + timedelta(days=-1), time_slots[3].id, 'c4')  # Marketing, Grupa A
+    repeat_course(courses['c5'].id, rooms['r202'].id, today + timedelta(days=0), time_slots[4].id, 'c5')  # Marketing, Grupa B
+    repeat_course(courses['c6'].id, rooms['r202'].id, today + timedelta(days=1), time_slots[2].id, 'c6')  # Marketing, Grupa C
+    repeat_course(courses['c7'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[0].id, 'c7')  # Zarządzanie Projektami, Grupa A
+    repeat_course(courses['c8'].id, rooms['r101'].id, today + timedelta(days=1), time_slots[2].id, 'c8')  # Zarządzanie Projektami, Grupa B
+    repeat_course(courses['c9'].id, rooms['r101'].id, today + timedelta(days=2), time_slots[0].id, 'c9')  # Zarządzanie Projektami, Grupa C
+    repeat_course(courses['c10'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[1].id, 'c10')  # Podbijanie Planet, Grupa A
+    repeat_course(courses['c11'].id, rooms['r104'].id, today + timedelta(days=2), time_slots[3].id, 'c11')  # Podbijanie Planet, Grupa B
+    repeat_course(courses['c12'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[1].id, 'c12')  # Podbijanie Planet, Grupa C
+    repeat_course(courses['c13'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[0].id, 'c13')  # Podbijanie Planet, Grupa D
+    return events
+
+def create_change_requests(users, course_events):
+    change_requests = {
+        'cr1':
+        ChangeRequest(
+            course_event_id=course_events['c1_week0'].id,
 
 def create_courses_data(users, groups):
     return {
@@ -117,8 +201,47 @@ def create_change_requests_data(db, users, courses):
             minimum_capacity=20,
             room_requirements="Rzutnik",
             created_at=datetime.utcnow()
+        ),
+        'cr2':
+        ChangeRequest(
+            course_event_id=course_events['c10_week0'].id,
+            initiator_id=users['starosta6'].id,
+            reason="Potrzebujemy większej sali",
+            minimum_capacity=50,
+            room_requirements="Rzutnik",
+            created_at=datetime.utcnow()
         )
-    ]
+    }
+    return change_requests
+
+def create_proposals(change_requests, users, time_slots):
+    proposals = {
+        'prop1': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['starosta1'].id,
+            day=date.today() + timedelta(days=8),
+            time_slot_id=time_slots[2].id
+        ),
+        'prop2': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['starosta1'].id,
+            day=date.today() + timedelta(days=8),
+            time_slot_id=time_slots[3].id
+        ),
+        'prop3': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['teacher1'].id,
+            day=date.today() + timedelta(days=8),
+            time_slot_id=time_slots[3].id
+        ),
+        'prop4': AvailabilityProposal(
+            change_request_id=change_requests['cr1'].id,
+            user_id=users['teacher1'].id,
+            day=date.today() + timedelta(days=9),
+            time_slot_id=time_slots[4].id
+        )
+    }
+    return proposals
 
 # Main population function
 def populate_db():
