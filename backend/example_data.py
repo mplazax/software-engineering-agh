@@ -63,9 +63,6 @@ def create_equipment():
     }
     return equipments
 
-def create_rooms(equipments):
-    rooms = {
-
 def create_groups_data(users):
     return {
         'g1': Group(name="Zarządzanie St. I, gr. A", year=1, leader_id=users['starosta1'].id),
@@ -147,12 +144,6 @@ def create_course_events(courses, rooms, time_slots):
     repeat_course(courses['c13'].id, rooms['r104'].id, today + timedelta(days=3), time_slots[0].id, 'c13')  # Podbijanie Planet, Grupa D
     return events
 
-def create_change_requests(users, course_events):
-    change_requests = {
-        'cr1':
-        ChangeRequest(
-            course_event_id=course_events['c1_week0'].id,
-
 def create_courses_data(users, groups):
     return {
         'c1': Course(name="Podstawy Zarządzania", teacher_id=users['teacher1'].id, group_id=groups['g1'].id),
@@ -201,18 +192,8 @@ def create_change_requests_data(db, users, courses):
             minimum_capacity=20,
             room_requirements="Rzutnik",
             created_at=datetime.utcnow()
-        ),
-        'cr2':
-        ChangeRequest(
-            course_event_id=course_events['c10_week0'].id,
-            initiator_id=users['starosta6'].id,
-            reason="Potrzebujemy większej sali",
-            minimum_capacity=50,
-            room_requirements="Rzutnik",
-            created_at=datetime.utcnow()
         )
-    }
-    return change_requests
+    ]
 
 def create_proposals(change_requests, users, time_slots):
     proposals = {
