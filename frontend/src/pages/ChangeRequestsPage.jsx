@@ -5,10 +5,10 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 
-import { apiRequest } from "../api/apiService";
-import { AuthContext } from "../contexts/AuthContext";
-import EventDialog from "../features/Calendar/EventDialog";
-import ChangeRequestDialog from "../features/Calendar/ChangeRequestDialog";
+import { apiRequest } from "../api/apiService.js";
+import { AuthContext } from "../contexts/AuthContext.jsx";
+import EventDialog from "../features/Calendar/EventDialog.jsx";
+import ChangeRequestDialog from "../features/Calendar/ChangeRequestDialog.jsx";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 

@@ -5,10 +5,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import GroupIcon from "@mui/icons-material/Group";
 import { useQuery } from "@tanstack/react-query";
 
-import { useCrud } from "../hooks/useCrud";
-import AdminDataGrid from "../features/Admin/AdminDataGrid";
-import GroupFormDialog from "../features/Admin/GroupFormDialog";
-import { apiRequest } from "../api/apiService";
+import { useCrud } from "../hooks/useCrud.js";
+import AdminDataGrid from "../features/Admin/AdminDataGrid.jsx";
+import GroupFormDialog from "../features/Admin/GroupFormDialog.jsx";
+import { apiRequest } from "../api/apiService.js";
 
 const useUsersMap = () => {
   const { data: users = [] } = useQuery({

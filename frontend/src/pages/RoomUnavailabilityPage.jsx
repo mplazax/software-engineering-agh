@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { Container, Stack, IconButton, Box } from "@mui/material";
+import { Container, Stack, IconButton } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import BlockIcon from "@mui/icons-material/Block";
 import { useQuery } from "@tanstack/react-query";
-import { useCrud } from "../hooks/useCrud";
-import AdminDataGrid from "../features/Admin/AdminDataGrid";
-import RoomUnavailabilityFormDialog from "../features/Admin/RoomUnavailabilityFormDialog";
-import { apiRequest } from "../api/apiService";
+import { useCrud } from "../hooks/useCrud.js";
+import AdminDataGrid from "../features/Admin/AdminDataGrid.jsx";
+import RoomUnavailabilityFormDialog from "../features/Admin/RoomUnavailabilityFormDialog.jsx";
+import { apiRequest } from "../api/apiService.js";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 

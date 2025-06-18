@@ -12,7 +12,7 @@ import {
   Divider,
 } from "@mui/material";
 import { NavLink } from "react-router-dom";
-import { AuthContext } from "../../contexts/AuthContext";
+import { AuthContext } from "../../contexts/AuthContext.jsx";
 
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";

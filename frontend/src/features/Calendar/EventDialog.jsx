@@ -13,7 +13,7 @@ import {
   Chip,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../../api/apiService";
+import { apiRequest } from "../../api/apiService.js";
 
 const EventDialog = ({ event, open, onClose, onProposeChange }) => {
   const { data: room, isLoading: isLoadingRoom } = useQuery({

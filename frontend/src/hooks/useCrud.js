@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "../api/apiService";
-import { useNotification } from "../contexts/NotificationContext";
+import { apiRequest } from "../api/apiService.js";
+import { useNotification } from "../contexts/NotificationContext.jsx";
 
 export const useCrud = (resourceName, endpoint) => {
   const queryClient = useQueryClient();

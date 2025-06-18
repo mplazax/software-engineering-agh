@@ -4,9 +4,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonIcon from "@mui/icons-material/Person";
 
-import { useCrud } from "../hooks/useCrud";
-import AdminDataGrid from "../features/Admin/AdminDataGrid";
-import UserFormDialog from "../features/Admin/UserFormDialog";
+import { useCrud } from "../hooks/useCrud.js";
+import AdminDataGrid from "../features/Admin/AdminDataGrid.jsx";
+import UserFormDialog from "../features/Admin/UserFormDialog.jsx";
 
 const roleTranslations = {
   ADMIN: "Administrator",
