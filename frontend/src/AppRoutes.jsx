@@ -16,6 +16,7 @@ import EquipmentPage from "./pages/EquipmentPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import MyRecommendationsPage from "./pages/MyRecommendationsPage";
 import RoomUnavailabilityPage from "./pages/RoomUnavailabilityPage";
+import EventsPage from "./pages/EventsPage.jsx";
 
 const AppRoutes = () => {
   const { loading, isAuthenticated } = useContext(AuthContext);
@@ -49,6 +50,7 @@ const AppRoutes = () => {
         <Route path="/equipment" element={<EquipmentPage />} />
         <Route path="/calendar" element={<ChangeRequestsPage />} />
         <Route path="/recommendations" element={<MyRecommendationsPage />} />
+          <Route path="/events" element={<EventsPage />} />
         <Route
           path="/room-unavailability"
           element={<RoomUnavailabilityPage />}

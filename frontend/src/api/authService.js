@@ -9,7 +9,7 @@ export const login = async (email, password) => {
   if (!response.ok) {
     const errorData = await response
       .json()
-      .catch(() => ({ detail: "Invalid credentials" }));
+      .catch(() => ({ detail: "Nieprawidłowe dane" }));
     throw new Error(errorData.detail);
   }
   const data = await response.json();

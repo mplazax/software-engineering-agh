@@ -17,13 +17,14 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
 const getPageTitle = (pathname) => {
   const titles = {
-    "/": "Dashboard",
+    "/": "Panel główny",
     "/calendar": "Kalendarz",
     "/recommendations": "Rekomendacje i Propozycje",
-    "/users": "Zarządzaj Użytkownikami",
-    "/groups": "Zarządzaj Grupami",
-    "/rooms": "Zarządzaj Salami",
-    "/courses": "Zarządzaj Kursami",
+    "/users": "Użytkownicy",
+    "/groups": "Grupy",
+    "/rooms": "Sale",
+    "/courses": "Kursy",
+    "/events": "Zajęcia"
   };
   return titles[pathname] || "System Rezerwacji Sal";
 };
