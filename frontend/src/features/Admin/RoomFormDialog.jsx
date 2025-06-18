@@ -18,7 +18,7 @@ import {
   FormHelperText,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../../api/apiService";
+import { apiRequest } from "../../api/apiService.js";
 
 const roomTypeTranslations = {
   LECTURE_HALL: "Sala wykładowa",

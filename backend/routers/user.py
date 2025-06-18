@@ -2,6 +2,7 @@ from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import User, UserRole
+
 from routers.auth import get_current_user, get_password_hash, role_required
 from routers.schemas import UserCreate, UserResponse, UserUpdate
 from sqlalchemy.orm import Session
@@ -64,5 +65,5 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
         raise HTTPException(status_code=400, detail="Nie możesz usunąć własnego konta.")
     db_user.active = False
     db.commit()
-    db.refresh(db_user)
-    return None
+    return
+

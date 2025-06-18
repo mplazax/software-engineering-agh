@@ -1,14 +1,14 @@
 import React, { useState, useContext, useMemo } from "react";
-import { Box, Typography, Container, CircularProgress } from "@mui/material";
+import { Box, Container, CircularProgress } from "@mui/material";
 import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 
-import { apiRequest } from "../api/apiService";
-import { AuthContext } from "../contexts/AuthContext";
-import EventDialog from "../features/Calendar/EventDialog";
-import ChangeRequestDialog from "../features/Calendar/ChangeRequestDialog";
+import { apiRequest } from "../api/apiService.js";
+import { AuthContext } from "../contexts/AuthContext.jsx";
+import EventDialog from "../features/Calendar/EventDialog.jsx";
+import ChangeRequestDialog from "../features/Calendar/ChangeRequestDialog.jsx";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -104,16 +104,19 @@ const useCalendarEvents = () => {
 
   const calendarEvents = useMemo(() => {
     if (!rawEvents) return [];
-    return rawEvents.map((event) => {
-      const { start, end } = getSlotTimes(event.day, event.time_slot_id);
-      return {
-        ...event,
-        id: `${event.courseId}-${event.id}`,
-        title: event.courseName,
-        start,
-        end,
-      };
-    });
+    return rawEvents
+      .map((event) => {
+        if (event.canceled) return null;
+        const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+        return {
+          ...event,
+          id: `${event.courseId}-${event.id}`,
+          title: event.courseName,
+          start,
+          end,
+        };
+      })
+      .filter(Boolean);
   }, [rawEvents]);
 
   return { events: calendarEvents, isLoading, isError, error };

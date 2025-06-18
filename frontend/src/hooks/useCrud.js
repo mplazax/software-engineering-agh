@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "../api/apiService";
+import { apiRequest } from "../api/apiService.js";
+import { useNotification } from "../contexts/NotificationContext.jsx";
 
 export const useCrud = (resourceName, endpoint) => {
   const queryClient = useQueryClient();
+  const { showNotification } = useNotification();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: [resourceName],
@@ -13,10 +15,20 @@ export const useCrud = (resourceName, endpoint) => {
     queryClient.invalidateQueries({ queryKey: [resourceName] });
   };
 
+  const mutationOptions = (action) => ({
+    onSuccess: () => {
+      invalidateQuery();
+      showNotification(`Element został pomyślnie ${action}.`, "success");
+    },
+    onError: (err) => {
+      showNotification(`Błąd operacji: ${err.message}`, "error");
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: (newItem) =>
       apiRequest(endpoint, { method: "POST", body: JSON.stringify(newItem) }),
-    onSuccess: invalidateQuery,
+    ...mutationOptions("utworzony"),
   });
 
   const updateMutation = useMutation({
@@ -25,12 +37,18 @@ export const useCrud = (resourceName, endpoint) => {
         method: "PUT",
         body: JSON.stringify(updatedItem),
       }),
-    onSuccess: invalidateQuery,
+    ...mutationOptions("zaktualizowany"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => apiRequest(`${endpoint}/${id}`, { method: "DELETE" }),
-    onSuccess: invalidateQuery,
+    onSuccess: () => {
+      invalidateQuery();
+      showNotification("Element został pomyślnie usunięty.", "success");
+    },
+    onError: (err) => {
+      showNotification(`Błąd usuwania: ${err.message}`, "error");
+    },
   });
 
   return {

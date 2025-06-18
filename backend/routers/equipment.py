@@ -28,7 +28,6 @@ def create_equipment(equipment: EquipmentCreate, db: Session = Depends(get_db), 
     db.refresh(new_equipment)
     return new_equipment
 
-# DODANY ENDPOINT: Pobieranie pojedynczego elementu
 @router.get("/{equipment_id}", response_model=EquipmentResponse)
 def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
@@ -36,7 +35,6 @@ def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wyposażenie nie znalezione.")
     return equipment
 
-# DODANY ENDPOINT: Aktualizacja
 @router.put("/{equipment_id}", response_model=EquipmentResponse)
 def update_equipment(equipment_id: int, equipment_data: EquipmentCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     db_equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()

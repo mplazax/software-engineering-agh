@@ -12,7 +12,7 @@ import {
   Divider,
 } from "@mui/material";
 import { NavLink } from "react-router-dom";
-import { AuthContext } from "../../contexts/AuthContext";
+import { AuthContext } from "../../contexts/AuthContext.jsx";
 
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
@@ -21,7 +21,8 @@ import PeopleIcon from "@mui/icons-material/People";
 import GroupsIcon from "@mui/icons-material/Groups";
 import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
-import BuildIcon from "@mui/icons-material/Build"; // Nowa ikona
+import BuildIcon from "@mui/icons-material/Build";
+import BlockIcon from "@mui/icons-material/Block"; // <-- Nowa ikona
 
 const drawerWidth = 280;
 
@@ -51,8 +52,9 @@ const adminNavItems = [
   { text: "Użytkownicy", icon: <PeopleIcon />, path: "/users" },
   { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
   { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
-  { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" }, // Nowy link
+  { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" },
   { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
+  { text: "Blokady Sal", icon: <BlockIcon />, path: "/room-unavailability" }, // <-- Nowy link
 ];
 
 const Sidebar = () => {
@@ -63,7 +65,11 @@ const Sidebar = () => {
       case "ADMIN":
         return [...commonNavItems, ...adminNavItems];
       case "KOORDYNATOR":
-        return [...commonNavItems, ...adminNavItems.slice(1)]; // Wszystko oprócz Użytkowników
+        // Koordynator widzi wszystko oprócz zarządzania użytkownikami
+        const coordinatorItems = adminNavItems.filter(
+          (item) => item.path !== "/users"
+        );
+        return [...commonNavItems, ...coordinatorItems];
       case "PROWADZACY":
       case "STAROSTA":
         return commonNavItems;

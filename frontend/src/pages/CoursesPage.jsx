@@ -5,10 +5,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import SchoolIcon from "@mui/icons-material/School";
 import { useQuery } from "@tanstack/react-query";
 
-import { useCrud } from "../hooks/useCrud";
-import AdminDataGrid from "../features/Admin/AdminDataGrid";
-import CourseFormDialog from "../features/Admin/CourseFormDialog";
-import { apiRequest } from "../api/apiService";
+import { useCrud } from "../hooks/useCrud.js";
+import AdminDataGrid from "../features/Admin/AdminDataGrid.jsx";
+import CourseFormDialog from "../features/Admin/CourseFormDialog.jsx";
+import { apiRequest } from "../api/apiService.js";
 
 const useIdToNameMap = (
   queryKey,

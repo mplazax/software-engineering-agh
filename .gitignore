@@ -25,3 +25,7 @@ yarn-error.log*
 
 .idea
 **/__pycache__/
+
+project_source_code.txt
+project_essentials.txt
+collect_source_code.sh

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Table,
 )
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
@@ -116,7 +117,7 @@ class CourseEvent(Base):
     time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
     day = Column(Date, nullable=False)
     canceled = Column(Boolean, default=False)
-    course = relationship("Course", back_populates="events")
+    course = relationship("Course", back_populates="events", lazy="joined")
     room = relationship("Room", back_populates="course_events")
     change_requests = relationship("ChangeRequest", back_populates="course_event", cascade="all, delete-orphan")
 
@@ -143,8 +144,9 @@ class AvailabilityProposal(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     day = Column(Date, nullable=False)
     time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
-    accepted_by_leader = Column(Boolean, default=False)
-    accepted_by_representative = Column(Boolean, default=False)
+    # PONIŻSZE KOLUMNY ZOSTAŁY USUNIĘTE, PONIEWAŻ SĄ JUŻ ZBĘDNE
+    # accepted_by_leader = Column(Boolean, default=False)
+    # accepted_by_representative = Column(Boolean, default=False)
     change_request = relationship("ChangeRequest", back_populates="availability_proposals")
     user = relationship("User", back_populates="availability_proposals")
 
