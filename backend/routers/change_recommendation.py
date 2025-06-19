@@ -15,9 +15,9 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_
 router = APIRouter(prefix="/recommendations", tags=["Change Recommendations"])
 
 
-@router.get("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
-def get_recommendations(change_request_id: int, db: Session = Depends(get_db),
-                        current_user: User = Depends(get_current_user)) -> List[ChangeRecomendation]:
+@router.post("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
+def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)) -> List[ChangeRecomendation]:
     change_request = db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
     if not change_request:
         raise HTTPException(status_code=404, detail="Change request not found")
@@ -100,22 +100,10 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db),
                 source_proposal_id=proposal.id,
             )
             db.add(recommendation)
-            db.flush()  # Żeby mieć ID
+            db.flush()
             recommendations.append(recommendation)
-            # recommendations.append(
-            #     ChangeRecomendation(
-            #         id=proposal.id, # KLUCZOWA ZMIANA: ID rekomendacji to ID propozycji źródłowej
-            #         change_request_id=change_request_id,
-            #         recommended_day=proposal.day,
-            #         recommended_slot_id=proposal.time_slot_id,
-            #         recommended_room_id=room.id,
-            #         source_proposal_id=proposal.id,
-            #         recommended_room=room,
-            #         source_proposal=proposal
-            #     )
-            # )
-    print(len(recommendations))
-    return recommendations
+
+    return [ChangeRecomendationResponse.from_orm(r) for r in recommendations]
 
 
 def shift_to_weekday(original_date: date, target_weekday: int) -> date:
@@ -123,6 +111,29 @@ def shift_to_weekday(original_date: date, target_weekday: int) -> date:
     current_weekday = original_date.weekday()
     return original_date + timedelta(days=(target_weekday - current_weekday))
 
+@router.post("/{recommendation_id}/reject", status_code=204)
+def reject_single_recommendation(
+    recommendation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    recommendation = db.query(ChangeRecomendation).filter(
+        ChangeRecomendation.id == recommendation_id
+    ).first()
+
+    if not recommendation:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    change_request = recommendation.change_request
+    course = change_request.course_event.course
+    is_leader = current_user.id == course.group.leader_id
+    is_teacher = current_user.id == course.teacher_id
+    if not (is_leader or is_teacher):
+        raise HTTPException(status_code=403, detail="Not authorized to reject recommendation")
+
+    db.delete(recommendation)
+    db.commit()
+    return
 
 @router.post("/{source_proposal_id}/accept", response_model=ChangeRequestResponse)
 def accept_recommendation(

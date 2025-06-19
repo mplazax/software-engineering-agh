@@ -10,7 +10,7 @@ from model import (
     UserRole
 )
 # Ważne: importujemy funkcje z innych routerów
-from routers.change_recommendation import get_recommendations, accept_recommendation
+from routers.change_recommendation import find_recommendations, accept_recommendation
 from routers.auth import get_current_user, role_required
 from routers.schemas import (
     ProposalCreate,
@@ -78,7 +78,7 @@ def create_proposal(
 
     if teacher_proposal and leader_proposal:
         # Obie strony podały dostępność, generujemy rekomendacje
-        recommendations = get_recommendations(change_request.id, db, current_user)
+        recommendations = find_recommendations(change_request.id, db, current_user)
         if recommendations:
             return recommendations
     

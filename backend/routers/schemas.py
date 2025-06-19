@@ -2,7 +2,8 @@ from datetime import date, datetime
 from typing import Optional, List
 
 from model import ChangeRequestStatus, RoomType, UserRole
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
 
 class OrmBase(BaseModel):
     class Config:
@@ -181,9 +182,9 @@ class ChangeRecomendationResponse(BaseModel):
     recommended_room_id: int
     source_proposal_id: Optional[int]
     recommended_room: Optional[RoomResponse]
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+    # class Config:
+    #     orm_mode = True
 
 # ... reszta schematów bez zmian
 class RoomUnavailabilityBase(BaseModel):
