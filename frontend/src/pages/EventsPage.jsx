@@ -1,36 +1,82 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Container, Stack, IconButton } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import AdminDataGrid from "../features/Admin/AdminDataGrid";
 import EventFormDialog from "../features/Admin/EventFormDialog";
-import { useAllEvents } from "../hooks/useAllEvents";
+import { useCrud } from "../hooks/useCrud"; // Twój gotowy useCrud
 import { apiRequest } from "../api/apiService";
 
 const EventsPage = () => {
-    const { data: events, isLoading, isError, error, refetch } = useAllEvents();
+    const queryClient = useQueryClient();
+
+    // Funkcja pobierająca wszystkie eventy z kursów (odpowiednik useAllEvents)
+    const fetchAllEvents = async () => {
+        const courses = await apiRequest("/courses");
+
+        const eventPromises = courses.map((course) =>
+            apiRequest(`/courses/${course.id}/events`).then((events) =>
+                events.map((event) => ({
+                    ...event,
+                    courseName: course.name,
+                    courseId: course.id,
+                }))
+            )
+        );
+
+        const eventsByCourse = await Promise.all(eventPromises);
+        return eventsByCourse.flat();
+    };
+
+    // Query do pobrania wszystkich eventów
+    const {
+        data: events,
+        isLoading,
+        isError,
+        error,
+        refetch,
+    } = useQuery({
+        queryKey: ["allEvents"],
+        queryFn: fetchAllEvents,
+    });
+
+    // useCrud dla mutacji, z endpointem "/courses/events"
+    const {
+        createItem,
+        updateItem,
+        deleteItem,
+        isCreating,
+        isUpdating,
+        isDeleting,
+    } = useCrud("events", "/courses/events");
+
     const [dialogOpen, setDialogOpen] = useState(false);
     const [initialData, setInitialData] = useState(null);
 
+    // Otwarcie formularza do dodania nowego eventu
     const handleAdd = () => {
         setInitialData(null);
         setDialogOpen(true);
     };
 
+    // Usuwanie eventu - wywołujemy deleteItem z useCrud
     const handleDelete = useCallback(
         async (eventId) => {
             if (window.confirm("Czy na pewno chcesz usunąć to wydarzenie?")) {
                 try {
-                    await apiRequest(`/courses/events/${eventId}`, "DELETE");
-                    await refetch();
+                    await deleteItem(eventId);
+                    // Odświeżamy listę eventów po usunięciu
+                    queryClient.invalidateQueries(["allEvents"]);
                 } catch (e) {
                     alert("Błąd podczas usuwania: " + e.message);
                 }
             }
         },
-        [refetch]
+        [deleteItem, queryClient]
     );
 
+    // Zapis (dodanie nowego eventu), wspiera repeatWeekly
     const handleSave = async (formData, repeatWeekly) => {
         try {
             const today = new Date();
@@ -41,13 +87,14 @@ const EventsPage = () => {
                 course_id: parseInt(formData.course_id),
                 room_id: parseInt(formData.room_id),
                 time_slot_id: parseInt(formData.time_slot_id),
+                canceled: false,
             };
 
             if (repeatWeekly) {
                 let date = new Date(formData.day);
                 while (date <= endDate) {
                     const payload = { ...base, day: date.toISOString().split("T")[0] };
-                    requests.push(apiRequest("/courses/events", "POST", payload));
+                    requests.push(createItem(payload));
                     date.setDate(date.getDate() + 7);
                 }
                 await Promise.all(requests);
@@ -56,10 +103,11 @@ const EventsPage = () => {
                     ...base,
                     day: formData.day,
                 };
-                await apiRequest("/courses/events", "POST", payload);
+                await createItem(payload);
             }
 
-            await refetch();
+            // Odświeżamy eventy po zapisie
+            queryClient.invalidateQueries(["allEvents"]);
             setDialogOpen(false);
         } catch (e) {
             console.error(e);
@@ -92,6 +140,7 @@ const EventsPage = () => {
                             size="small"
                             color="error"
                             onClick={() => handleDelete(params.row.id)}
+                            disabled={isDeleting}
                         >
                             <DeleteIcon />
                         </IconButton>
@@ -99,7 +148,7 @@ const EventsPage = () => {
                 ),
             },
         ],
-        [handleDelete]
+        [handleDelete, isDeleting]
     );
 
     return (
@@ -107,7 +156,7 @@ const EventsPage = () => {
             <AdminDataGrid
                 columns={columns}
                 rows={events || []}
-                isLoading={isLoading}
+                isLoading={isLoading || isCreating || isUpdating || isDeleting}
                 isError={isError}
                 error={error}
                 onAddItem={handleAdd}

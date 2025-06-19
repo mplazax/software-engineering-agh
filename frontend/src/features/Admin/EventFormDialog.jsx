@@ -12,7 +12,7 @@ import {
     Stack,
     CircularProgress,
 } from "@mui/material";
-import axios from "axios";
+import { apiRequest } from "../../api/apiService.js";
 
 const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
     const [form, setForm] = useState({
@@ -24,26 +24,32 @@ const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
     const [repeatWeekly, setRepeatWeekly] = useState(false);
     const [courses, setCourses] = useState([]);
     const [rooms, setRooms] = useState([]);
-    const [timeSlots, setTimeSlots] = useState([]);
     const [loading, setLoading] = useState(true);
+    const predefinedTimeSlots = [
+        { id: 1, start_time: "08:00", end_time: "09:30" },
+        { id: 2, start_time: "09:45", end_time: "11:15" },
+        { id: 3, start_time: "11:30", end_time: "13:00" },
+        { id: 4, start_time: "13:15", end_time: "14:45" },
+        { id: 5, start_time: "15:00", end_time: "16:30" },
+        { id: 6, start_time: "16:45", end_time: "18:15" },
+        { id: 7, start_time: "18:30", end_time: "20:00" },
+    ];
+
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const [coursesRes, roomsRes, slotsRes] = await Promise.all([
-                    axios.get("/courses"),
-                    axios.get("/rooms"),
-                    axios.get("/timeslots"),
+                const [coursesData, roomsData] = await Promise.all([
+                    apiRequest("/courses"),
+                    apiRequest("/rooms"),
                 ]);
-                setCourses(coursesRes?.data || []);
-                setRooms(roomsRes?.data || []);
-                setTimeSlots(slotsRes?.data || []);
+                setCourses(coursesData || []);
+                setRooms(roomsData || []);
             } catch (err) {
                 console.error("Błąd ładowania danych formularza:", err);
                 setCourses([]);
                 setRooms([]);
-                setTimeSlots([]);
             } finally {
                 setLoading(false);
             }
@@ -72,14 +78,35 @@ const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
         }));
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!form.course_id || !form.room_id || !form.day || !form.time_slot_id) {
             alert("Wypełnij wszystkie pola.");
             return;
         }
 
-        onSave(form, repeatWeekly);
+        const payload = {
+            ...form,
+            course_id: parseInt(form.course_id, 10),
+            room_id: parseInt(form.room_id, 10),
+            day: form.day,
+            time_slot_id: parseInt(form.time_slot_id, 10),
+        };
+
+        try {
+            await onSave(payload, repeatWeekly);
+            onClose();
+        } catch (error) {
+            console.error("Błąd przy zapisie wydarzenia:", error);
+            alert(
+                error?.response?.data?.detail ||
+                error.message ||
+                "Wystąpił błąd podczas zapisu wydarzenia."
+            );
+        }
     };
+
+
+
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -103,7 +130,7 @@ const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
                             {Array.isArray(courses) && courses.length > 0 ? (
                                 courses.map((c) => (
                                     <MenuItem key={c.id} value={c.id}>
-                                        {c.name}
+                                        {c.name} ({c.group?.name || "brak grupy"})
                                     </MenuItem>
                                 ))
                             ) : (
@@ -134,6 +161,19 @@ const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
                                 </MenuItem>
                             )}
                         </TextField>
+                        {/* Dzień */}
+                        <TextField
+                            label="Data wydarzenia"
+                            name="day"
+                            type="date"
+                            value={form.day}
+                            onChange={handleChange}
+                            fullWidth
+                            InputLabelProps={{
+                                shrink: true,
+                            }}
+                        />
+
 
                         {/* Slot czasowy */}
                         <TextField
@@ -144,17 +184,11 @@ const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
                             onChange={handleChange}
                             fullWidth
                         >
-                            {Array.isArray(timeSlots) && timeSlots.length > 0 ? (
-                                timeSlots.map((t) => (
-                                    <MenuItem key={t.id} value={t.id}>
-                                        {t.start_time} - {t.end_time}
-                                    </MenuItem>
-                                ))
-                            ) : (
-                                <MenuItem disabled value="">
-                                    Brak slotów czasowych
+                            {predefinedTimeSlots.map((t) => (
+                                <MenuItem key={t.id} value={t.id}>
+                                    {t.start_time} - {t.end_time}
                                 </MenuItem>
-                            )}
+                            ))}
                         </TextField>
 
                         {/* Checkbox */}
