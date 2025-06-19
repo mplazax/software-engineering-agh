@@ -1,178 +1,195 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { Container, Stack, IconButton } from "@mui/material";
+import {
+  Container,
+  Stack,
+  IconButton,
+  Box,
+  Chip,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import EditIcon from "@mui/icons-material/Edit";
+import { useQuery } from "@tanstack/react-query";
 
+import { useCrud } from "../hooks/useCrud";
 import AdminDataGrid from "../features/Admin/AdminDataGrid";
 import EventFormDialog from "../features/Admin/EventFormDialog";
-import { useCrud } from "../hooks/useCrud"; // Twój gotowy useCrud
 import { apiRequest } from "../api/apiService";
 
-const EventsPage = () => {
-    const queryClient = useQueryClient();
+const timeSlotMap = {
+  1: "08:00-09:30",
+  2: "09:45-11:15",
+  3: "11:30-13:00",
+  4: "13:15-14:45",
+  5: "15:00-16:30",
+  6: "16:45-18:15",
+  7: "18:30-20:00",
+};
 
-    // Funkcja pobierająca wszystkie eventy z kursów (odpowiednik useAllEvents)
-    const fetchAllEvents = async () => {
-        const courses = await apiRequest("/courses");
-
-        const eventPromises = courses.map((course) =>
-            apiRequest(`/courses/${course.id}/events`).then((events) =>
-                events.map((event) => ({
-                    ...event,
-                    courseName: course.name,
-                    courseId: course.id,
-                }))
-            )
-        );
-
-        const eventsByCourse = await Promise.all(eventPromises);
-        return eventsByCourse.flat();
-    };
-
-    // Query do pobrania wszystkich eventów
-    const {
-        data: events,
-        isLoading,
-        isError,
-        error,
-        refetch,
-    } = useQuery({
-        queryKey: ["allEvents"],
-        queryFn: fetchAllEvents,
-    });
-
-    // useCrud dla mutacji, z endpointem "/courses/events"
-    const {
-        createItem,
-        updateItem,
-        deleteItem,
-        isCreating,
-        isUpdating,
-        isDeleting,
-    } = useCrud("events", "/courses/events");
-
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [initialData, setInitialData] = useState(null);
-
-    // Otwarcie formularza do dodania nowego eventu
-    const handleAdd = () => {
-        setInitialData(null);
-        setDialogOpen(true);
-    };
-
-    // Usuwanie eventu - wywołujemy deleteItem z useCrud
-    const handleDelete = useCallback(
-        async (eventId) => {
-            if (window.confirm("Czy na pewno chcesz usunąć to wydarzenie?")) {
-                try {
-                    await deleteItem(eventId);
-                    // Odświeżamy listę eventów po usunięciu
-                    queryClient.invalidateQueries(["allEvents"]);
-                } catch (e) {
-                    alert("Błąd podczas usuwania: " + e.message);
-                }
-            }
-        },
-        [deleteItem, queryClient]
-    );
-
-    // Zapis (dodanie nowego eventu), wspiera repeatWeekly
-    const handleSave = async (formData, repeatWeekly) => {
-        try {
-            const today = new Date();
-            const endDate = new Date(today.getFullYear(), 6, 1); // do 1 lipca
-            const requests = [];
-
-            const base = {
-                course_id: parseInt(formData.course_id),
-                room_id: parseInt(formData.room_id),
-                time_slot_id: parseInt(formData.time_slot_id),
-                canceled: false,
-            };
-
-            if (repeatWeekly) {
-                let date = new Date(formData.day);
-                while (date <= endDate) {
-                    const payload = { ...base, day: date.toISOString().split("T")[0] };
-                    requests.push(createItem(payload));
-                    date.setDate(date.getDate() + 7);
-                }
-                await Promise.all(requests);
-            } else {
-                const payload = {
-                    ...base,
-                    day: formData.day,
-                };
-                await createItem(payload);
-            }
-
-            // Odświeżamy eventy po zapisie
-            queryClient.invalidateQueries(["allEvents"]);
-            setDialogOpen(false);
-        } catch (e) {
-            console.error(e);
-            alert("Błąd podczas zapisu: " + e.message);
-        }
-    };
-
-    const columns = useMemo(
-        () => [
-            { field: "id", headerName: "ID", width: 70 },
-            { field: "courseId", headerName: "Kurs ID", width: 100 },
-            { field: "courseName", headerName: "Kurs", flex: 1 },
-            { field: "room_id", headerName: "Sala ID", width: 100 },
-            { field: "day", headerName: "Dzień", width: 120 },
-            { field: "time_slot_id", headerName: "Slot", width: 100 },
-            {
-                field: "canceled",
-                headerName: "Anulowane",
-                width: 100,
-                valueGetter: ({ row }) => (row?.canceled ? "Tak" : "Nie"),
-            },
-            {
-                field: "actions",
-                headerName: "Akcje",
-                width: 120,
-                sortable: false,
-                renderCell: (params) => (
-                    <Stack direction="row" spacing={1}>
-                        <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDelete(params.row.id)}
-                            disabled={isDeleting}
-                        >
-                            <DeleteIcon />
-                        </IconButton>
-                    </Stack>
-                ),
-            },
-        ],
-        [handleDelete, isDeleting]
-    );
-
+const filterEvents = (rows, searchText) => {
+  return rows.filter((row) => {
+    const courseName = row.course?.name || "";
+    const roomName = row.room?.name || "";
+    const day = row.day || "";
     return (
-        <Container maxWidth="lg" sx={{ p: "0 !important" }}>
-            <AdminDataGrid
-                columns={columns}
-                rows={events || []}
-                isLoading={isLoading || isCreating || isUpdating || isDeleting}
-                isError={isError}
-                error={error}
-                onAddItem={handleAdd}
-                toolbarConfig={{
-                    searchPlaceholder: "Szukaj po kursie, dacie, sali...",
-                    addLabel: "Dodaj wydarzenie",
-                }}
-            />
-            <EventFormDialog
-                open={dialogOpen}
-                onClose={() => setDialogOpen(false)}
-                onSave={handleSave}
-                initialData={initialData}
-            />
-        </Container>
+      courseName.toLowerCase().includes(searchText) ||
+      roomName.toLowerCase().includes(searchText) ||
+      day.toLowerCase().includes(searchText)
     );
+  });
+};
+
+const EventsPage = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
+  const {
+    data: events,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["allEvents"],
+    queryFn: () => apiRequest("/courses/events/all"),
+  });
+
+  const {
+    createItem,
+    updateItem,
+    deleteItem,
+    isCreating,
+    isUpdating,
+    isDeleting,
+  } = useCrud("allEvents", "/courses/events", { runQuery: false });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentEvent, setCurrentEvent] = useState(null);
+
+  const handleAdd = () => {
+    setCurrentEvent(null);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = useCallback((event) => {
+    setCurrentEvent(event);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (eventId) => {
+      if (
+        window.confirm(
+          "Czy na pewno chcesz usunąć to wydarzenie? Tej operacji nie można cofnąć."
+        )
+      ) {
+        await deleteItem(eventId);
+      }
+    },
+    [deleteItem]
+  );
+
+  const handleSave = async (formData) => {
+    if (currentEvent) {
+      await updateItem({ id: currentEvent.id, updatedItem: formData });
+    } else {
+      await createItem(formData);
+    }
+  };
+
+  const columns = useMemo(() => {
+    const baseColumns = [
+      {
+        field: "course",
+        headerName: "Kurs",
+        flex: 1,
+        minWidth: 180,
+        valueGetter: ({ row }) => row?.course?.name ?? "",
+        renderCell: ({ row }) => row?.course?.name ?? "Brak kursu",
+      },
+      {
+        field: "room",
+        headerName: "Sala",
+        width: 130,
+        valueGetter: ({ row }) => row?.room?.name ?? "",
+        renderCell: ({ row }) => row?.room?.name ?? "Brak sali",
+      },
+      { field: "day", headerName: "Data", width: 110 },
+      {
+        field: "time_slot_id",
+        headerName: "Godziny",
+        width: 120,
+        renderCell: ({ value }) => timeSlotMap[value] || "Nieznany slot",
+      },
+      {
+        field: "canceled",
+        headerName: "Status",
+        width: 110,
+        renderCell: ({ value }) => (
+          <Chip
+            label={value ? "Anulowane" : "Aktywne"}
+            color={value ? "error" : "success"}
+            size="small"
+            variant="outlined"
+          />
+        ),
+      },
+      {
+        field: "actions",
+        headerName: "Akcje",
+        width: 100,
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={1}>
+            <IconButton size="small" onClick={() => handleEdit(params.row)}>
+              <EditIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => handleDelete(params.row.id)}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Stack>
+        ),
+      },
+    ];
+
+    if (isMobile) {
+      return baseColumns;
+    }
+
+    // Dodaj kolumny dla większych ekranów
+    return [{ field: "id", headerName: "ID", width: 70 }, ...baseColumns];
+  }, [isMobile, handleEdit, handleDelete]);
+
+  const anyMutationLoading = isCreating || isUpdating || isDeleting;
+
+  return (
+    <Container maxWidth="xl" sx={{ p: "0 !important" }}>
+      <AdminDataGrid
+        columns={columns}
+        rows={events || []}
+        isLoading={isLoading || anyMutationLoading}
+        isError={isError}
+        error={error}
+        onAddItem={handleAdd}
+        toolbarConfig={{
+          searchPlaceholder: "Szukaj po kursie, dacie, sali...",
+          addLabel: "Dodaj wydarzenie",
+        }}
+        customFilterFn={filterEvents}
+      />
+      <EventFormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+        event={currentEvent}
+      />
+    </Container>
+  );
 };
 
 export default EventsPage;

@@ -1,217 +1,268 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    TextField,
-    MenuItem,
-    FormControlLabel,
-    Checkbox,
-    Stack,
-    CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  MenuItem,
+  Stack,
+  CircularProgress,
+  Alert,
+  FormHelperText,
+  FormControl,
+  InputLabel,
+  Select,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService.js";
 
-const EventFormDialog = ({ open, onClose, onSave, initialData }) => {
-    const [form, setForm] = useState({
-        course_id: "",
-        room_id: "",
-        day: "",
-        time_slot_id: "",
-    });
-    const [repeatWeekly, setRepeatWeekly] = useState(false);
-    const [courses, setCourses] = useState([]);
-    const [rooms, setRooms] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const predefinedTimeSlots = [
-        { id: 1, start_time: "08:00", end_time: "09:30" },
-        { id: 2, start_time: "09:45", end_time: "11:15" },
-        { id: 3, start_time: "11:30", end_time: "13:00" },
-        { id: 4, start_time: "13:15", end_time: "14:45" },
-        { id: 5, start_time: "15:00", end_time: "16:30" },
-        { id: 6, start_time: "16:45", end_time: "18:15" },
-        { id: 7, start_time: "18:30", end_time: "20:00" },
-    ];
+const useEventFormData = () => {
+  const { data: courses, isLoading: isLoadingCourses } = useQuery({
+    queryKey: ["courses"],
+    queryFn: () => apiRequest("/courses/"),
+  });
+  const { data: rooms, isLoading: isLoadingRooms } = useQuery({
+    queryKey: ["rooms"],
+    queryFn: () => apiRequest("/rooms/"),
+  });
+  return {
+    courses: courses || [],
+    rooms: rooms || [],
+    isLoading: isLoadingCourses || isLoadingRooms,
+  };
+};
 
+const predefinedTimeSlots = [
+  { id: 1, label: "08:00 - 09:30" },
+  { id: 2, label: "09:45 - 11:15" },
+  { id: 3, label: "11:30 - 13:00" },
+  { id: 4, label: "13:15 - 14:45" },
+  { id: 5, label: "15:00 - 16:30" },
+  { id: 6, label: "16:45 - 18:15" },
+  { id: 7, label: "18:30 - 20:00" },
+];
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                const [coursesData, roomsData] = await Promise.all([
-                    apiRequest("/courses"),
-                    apiRequest("/rooms"),
-                ]);
-                setCourses(coursesData || []);
-                setRooms(roomsData || []);
-            } catch (err) {
-                console.error("Błąd ładowania danych formularza:", err);
-                setCourses([]);
-                setRooms([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+const validate = (formData) => {
+  const newErrors = {};
+  if (!formData.course_id) newErrors.course_id = "Wybór kursu jest wymagany.";
+  if (!formData.room_id) newErrors.room_id = "Wybór sali jest wymagany.";
+  if (!formData.day) newErrors.day = "Data wydarzenia jest wymagana.";
+  if (!formData.time_slot_id)
+    newErrors.time_slot_id = "Wybór slotu czasowego jest wymagany.";
+  return newErrors;
+};
 
-        fetchData();
-    }, []);
+const EventFormDialog = ({ open, onClose, onSave, event }) => {
+  const { courses, rooms, isLoading: isLoadingData } = useEventFormData();
+  const [formData, setFormData] = useState({
+    course_id: "",
+    room_id: "",
+    day: "",
+    time_slot_id: "",
+    canceled: false, // Dodane pole
+  });
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        if (initialData) {
-            setForm(initialData);
-        } else {
-            setForm({
-                course_id: "",
-                room_id: "",
-                day: "",
-                time_slot_id: "",
-            });
-        }
-    }, [initialData]);
+  const editMode = !!event;
 
-    const handleChange = (e) => {
-        setForm((prev) => ({
-            ...prev,
-            [e.target.name]: e.target.value,
-        }));
-    };
+  useEffect(() => {
+    if (open) {
+      if (event) {
+        setFormData({
+          course_id: event.course?.id || event.course_id || "",
+          room_id: event.room?.id || event.room_id || "",
+          day: event.day || "",
+          time_slot_id: event.time_slot_id || "",
+          canceled: event.canceled || false, // Inicjalizacja z danych wydarzenia
+        });
+      } else {
+        setFormData({
+          course_id: "",
+          room_id: "",
+          day: "",
+          time_slot_id: "",
+          canceled: false,
+        });
+      }
+      setErrors({});
+      setIsSubmitting(false);
+    }
+  }, [event, open]);
 
-    const handleSubmit = async () => {
-        if (!form.course_id || !form.room_id || !form.day || !form.time_slot_id) {
-            alert("Wypełnij wszystkie pola.");
-            return;
-        }
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    if (errors[name]) {
+      const newErrors = { ...errors };
+      delete newErrors[name];
+      setErrors(newErrors);
+    }
+  };
 
-        const payload = {
-            ...form,
-            course_id: parseInt(form.course_id, 10),
-            room_id: parseInt(form.room_id, 10),
-            day: form.day,
-            time_slot_id: parseInt(form.time_slot_id, 10),
-        };
+  const handleSaveAttempt = async () => {
+    const validationErrors = validate(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors({});
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        ...formData,
+        course_id: parseInt(formData.course_id, 10),
+        room_id: parseInt(formData.room_id, 10),
+        time_slot_id: parseInt(formData.time_slot_id, 10),
+      };
+      await onSave(payload);
+      onClose();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.detail ||
+        error.message ||
+        "Wystąpił nieznany błąd.";
+      setErrors({ general: errorMsg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-        try {
-            await onSave(payload, repeatWeekly);
-            onClose();
-        } catch (error) {
-            console.error("Błąd przy zapisie wydarzenia:", error);
-            alert(
-                error?.response?.data?.detail ||
-                error.message ||
-                "Wystąpił błąd podczas zapisu wydarzenia."
-            );
-        }
-    };
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      aria-labelledby="event-form-dialog-title"
+    >
+      <DialogTitle id="event-form-dialog-title">
+        {editMode ? "Edytuj wydarzenie" : "Dodaj nowe wydarzenie"}
+      </DialogTitle>
+      <DialogContent>
+        {isLoadingData ? (
+          <Stack alignItems="center" sx={{ mt: 3, p: 2 }}>
+            <CircularProgress />
+          </Stack>
+        ) : (
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            {errors.general && <Alert severity="error">{errors.general}</Alert>}
 
+            <FormControl fullWidth required error={!!errors.course_id}>
+              <InputLabel>Kurs</InputLabel>
+              <Select
+                name="course_id"
+                value={formData.course_id}
+                label="Kurs"
+                onChange={handleChange}
+                disabled={isSubmitting || editMode}
+              >
+                {courses.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name} ({c.group?.name || "Brak grupy"})
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.course_id && (
+                <FormHelperText>{errors.course_id}</FormHelperText>
+              )}
+            </FormControl>
 
+            <FormControl fullWidth required error={!!errors.room_id}>
+              <InputLabel>Sala</InputLabel>
+              <Select
+                name="room_id"
+                value={formData.room_id}
+                label="Sala"
+                onChange={handleChange}
+                disabled={isSubmitting}
+              >
+                {rooms.map((r) => (
+                  <MenuItem key={r.id} value={r.id}>
+                    {r.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.room_id && (
+                <FormHelperText>{errors.room_id}</FormHelperText>
+              )}
+            </FormControl>
 
+            <TextField
+              label="Data wydarzenia"
+              name="day"
+              type="date"
+              value={formData.day}
+              onChange={handleChange}
+              required
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              error={!!errors.day}
+              helperText={errors.day}
+              disabled={isSubmitting}
+            />
 
-    return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-            <DialogTitle>Dodaj wydarzenie</DialogTitle>
-            <DialogContent>
-                {loading ? (
-                    <Stack alignItems="center" mt={3}>
-                        <CircularProgress />
-                    </Stack>
-                ) : (
-                    <Stack spacing={2} mt={1}>
-                        {/* Kurs */}
-                        <TextField
-                            select
-                            label="Kurs"
-                            name="course_id"
-                            value={form.course_id}
-                            onChange={handleChange}
-                            fullWidth
-                        >
-                            {Array.isArray(courses) && courses.length > 0 ? (
-                                courses.map((c) => (
-                                    <MenuItem key={c.id} value={c.id}>
-                                        {c.name} ({c.group?.name || "brak grupy"})
-                                    </MenuItem>
-                                ))
-                            ) : (
-                                <MenuItem disabled value="">
-                                    Brak dostępnych kursów
-                                </MenuItem>
-                            )}
-                        </TextField>
+            <FormControl fullWidth required error={!!errors.time_slot_id}>
+              <InputLabel>Slot czasowy</InputLabel>
+              <Select
+                name="time_slot_id"
+                value={formData.time_slot_id}
+                label="Slot czasowy"
+                onChange={handleChange}
+                disabled={isSubmitting}
+              >
+                {predefinedTimeSlots.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.time_slot_id && (
+                <FormHelperText>{errors.time_slot_id}</FormHelperText>
+              )}
+            </FormControl>
 
-                        {/* Sala */}
-                        <TextField
-                            select
-                            label="Sala"
-                            name="room_id"
-                            value={form.room_id}
-                            onChange={handleChange}
-                            fullWidth
-                        >
-                            {Array.isArray(rooms) && rooms.length > 0 ? (
-                                rooms.map((r) => (
-                                    <MenuItem key={r.id} value={r.id}>
-                                        {r.name}
-                                    </MenuItem>
-                                ))
-                            ) : (
-                                <MenuItem disabled value="">
-                                    Brak dostępnych sal
-                                </MenuItem>
-                            )}
-                        </TextField>
-                        {/* Dzień */}
-                        <TextField
-                            label="Data wydarzenia"
-                            name="day"
-                            type="date"
-                            value={form.day}
-                            onChange={handleChange}
-                            fullWidth
-                            InputLabelProps={{
-                                shrink: true,
-                            }}
-                        />
-
-
-                        {/* Slot czasowy */}
-                        <TextField
-                            select
-                            label="Slot czasowy"
-                            name="time_slot_id"
-                            value={form.time_slot_id}
-                            onChange={handleChange}
-                            fullWidth
-                        >
-                            {predefinedTimeSlots.map((t) => (
-                                <MenuItem key={t.id} value={t.id}>
-                                    {t.start_time} - {t.end_time}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-
-                        {/* Checkbox */}
-                        <FormControlLabel
-                            control={
-                                <Checkbox
-                                    checked={repeatWeekly}
-                                    onChange={() => setRepeatWeekly((prev) => !prev)}
-                                />
-                            }
-                            label="Powtarzaj co tydzień do końca czerwca"
-                        />
-                    </Stack>
-                )}
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Anuluj</Button>
-                <Button onClick={handleSubmit} variant="contained">
-                    Zapisz
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
+            {editMode && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.canceled}
+                    onChange={handleChange}
+                    name="canceled"
+                    disabled={isSubmitting}
+                  />
+                }
+                label="Zajęcia anulowane"
+              />
+            )}
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ p: "16px 24px" }}>
+        <Button onClick={onClose} disabled={isSubmitting}>
+          Anuluj
+        </Button>
+        <Button
+          onClick={handleSaveAttempt}
+          variant="contained"
+          disabled={isSubmitting || isLoadingData}
+        >
+          {isSubmitting
+            ? "Zapisywanie..."
+            : editMode
+            ? "Zapisz zmiany"
+            : "Dodaj"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
 };
 
 export default EventFormDialog;

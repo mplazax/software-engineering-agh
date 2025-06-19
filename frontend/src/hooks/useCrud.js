@@ -2,13 +2,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../api/apiService.js";
 import { useNotification } from "../contexts/NotificationContext.jsx";
 
-export const useCrud = (resourceName, endpoint) => {
+// Wprowadzono opcję 'runQuery' aby zapobiec niechcianym zapytaniom GET
+export const useCrud = (
+  resourceName,
+  endpoint,
+  options = { runQuery: true }
+) => {
   const queryClient = useQueryClient();
   const { showNotification } = useNotification();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: [resourceName],
     queryFn: () => apiRequest(endpoint),
+    enabled: options.runQuery,
   });
 
   const invalidateQuery = () => {
@@ -21,7 +27,8 @@ export const useCrud = (resourceName, endpoint) => {
       showNotification(`Element został pomyślnie ${action}.`, "success");
     },
     onError: (err) => {
-      showNotification(`Błąd operacji: ${err.message}`, "error");
+      const errorMessage = err.message || "Wystąpił nieznany błąd";
+      showNotification(`Błąd operacji: ${errorMessage}`, "error");
     },
   });
 
@@ -47,7 +54,8 @@ export const useCrud = (resourceName, endpoint) => {
       showNotification("Element został pomyślnie usunięty.", "success");
     },
     onError: (err) => {
-      showNotification(`Błąd usuwania: ${err.message}`, "error");
+      const errorMessage = err.message || "Wystąpił nieznany błąd";
+      showNotification(`Błąd usuwania: ${errorMessage}`, "error");
     },
   });
 
