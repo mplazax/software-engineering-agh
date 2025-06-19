@@ -172,10 +172,18 @@ class ChangeRecomendationBase(BaseModel):
     recommended_room_id: int
     source_proposal_id: Optional[int] = None
 
-class ChangeRecomendationResponse(ChangeRecomendationBase, OrmBase):
+
+class ChangeRecomendationResponse(BaseModel):
     id: int
-    recommended_room: Optional[RoomResponse] = None
-    source_proposal: Optional[ProposalResponse] = None
+    change_request_id: int
+    recommended_day: date
+    recommended_slot_id: int
+    recommended_room_id: int
+    source_proposal_id: Optional[int]
+    recommended_room: Optional[RoomResponse]
+
+    class Config:
+        orm_mode = True
 
 # ... reszta schematów bez zmian
 class RoomUnavailabilityBase(BaseModel):

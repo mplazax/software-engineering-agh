@@ -80,12 +80,7 @@ def create_proposal(
         # Obie strony podały dostępność, generujemy rekomendacje
         recommendations = get_recommendations(change_request.id, db, current_user)
         if recommendations:
-            # Wybieramy "najlepszą" (pierwszą z listy, która jest już posortowana)
-            best_recommendation = recommendations[0]
-            # Automatycznie akceptujemy
-            accept_recommendation(best_recommendation.source_proposal_id, db, current_user)
-            # Nie musimy tu nic zwracać, bo akceptacja modyfikuje stan,
-            # a frontend odświeży dane i zobaczy zmieniony status zgłoszenia
+            return recommendations
     
     return new_proposal
 

@@ -14,8 +14,10 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_
 
 router = APIRouter(prefix="/recommendations", tags=["Change Recommendations"])
 
+
 @router.get("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
-def get_recommendations(change_request_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> List[ChangeRecomendation]:
+def get_recommendations(change_request_id: int, db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)) -> List[ChangeRecomendation]:
     change_request = db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
     if not change_request:
         raise HTTPException(status_code=404, detail="Change request not found")
@@ -23,7 +25,7 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
     course_event = change_request.course_event
     teacher = course_event.course.teacher
     group_leader = course_event.course.group.leader
-    
+
     if not teacher or not group_leader:
         raise HTTPException(status_code=404, detail="Could not determine both parties for the request.")
 
@@ -31,17 +33,18 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
         AvailabilityProposal.change_request_id == change_request_id,
         AvailabilityProposal.user_id == teacher.id
     ).subquery()
-    
+
     leader_proposals = db.query(AvailabilityProposal).filter(
         AvailabilityProposal.change_request_id == change_request_id,
         AvailabilityProposal.user_id == group_leader.id
     )
-    
+
     common_proposals = leader_proposals.join(
         teacher_proposals,
-        (AvailabilityProposal.day == teacher_proposals.c.day) & (AvailabilityProposal.time_slot_id == teacher_proposals.c.time_slot_id)
+        (AvailabilityProposal.day == teacher_proposals.c.day) & (
+                    AvailabilityProposal.time_slot_id == teacher_proposals.c.time_slot_id)
     ).all()
-    
+
     if not common_proposals:
         return []
 
@@ -54,12 +57,12 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
         if slot_key in processed_slots:
             continue
         processed_slots.add(slot_key)
-        
+
         unavailable_by_block = db.query(RoomUnavailability.room_id).filter(
             RoomUnavailability.start_datetime <= proposal.day,
             RoomUnavailability.end_datetime >= proposal.day
         ).subquery()
-        
+
         unavailable_by_event = db.query(CourseEvent.room_id).filter(
             CourseEvent.day == proposal.day,
             CourseEvent.time_slot_id == proposal.time_slot_id,
@@ -74,9 +77,10 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
 
         if change_request.minimum_capacity > 0:
             base_query = base_query.filter(Room.capacity >= change_request.minimum_capacity)
-            
+
         if change_request.room_requirements:
-            required_eq_names = [name.strip().lower() for name in change_request.room_requirements.split(',') if name.strip()]
+            required_eq_names = [name.strip().lower() for name in change_request.room_requirements.split(',') if
+                                 name.strip()]
             if required_eq_names:
                 base_query = base_query.join(Room.equipment).filter(
                     func.lower(Equipment.name).in_(required_eq_names)
@@ -85,32 +89,44 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
                 )
 
         available_rooms = base_query.order_by(Room.capacity).all()
-        
+
         for room in available_rooms:
             # Używamy ID propozycji źródłowej jako ID rekomendacji - to upraszcza logikę akceptacji
-            recommendations.append(
-                ChangeRecomendation(
-                    id=proposal.id, # KLUCZOWA ZMIANA: ID rekomendacji to ID propozycji źródłowej
-                    change_request_id=change_request_id,
-                    recommended_day=proposal.day,
-                    recommended_slot_id=proposal.time_slot_id,
-                    recommended_room_id=room.id,
-                    source_proposal_id=proposal.id,
-                    recommended_room=room,
-                    source_proposal=proposal
-                )
+            recommendation = ChangeRecomendation(
+                change_request_id=change_request_id,
+                recommended_day=proposal.day,
+                recommended_slot_id=proposal.time_slot_id,
+                recommended_room_id=room.id,
+                source_proposal_id=proposal.id,
             )
-            
+            db.add(recommendation)
+            db.flush()  # Żeby mieć ID
+            recommendations.append(recommendation)
+            # recommendations.append(
+            #     ChangeRecomendation(
+            #         id=proposal.id, # KLUCZOWA ZMIANA: ID rekomendacji to ID propozycji źródłowej
+            #         change_request_id=change_request_id,
+            #         recommended_day=proposal.day,
+            #         recommended_slot_id=proposal.time_slot_id,
+            #         recommended_room_id=room.id,
+            #         source_proposal_id=proposal.id,
+            #         recommended_room=room,
+            #         source_proposal=proposal
+            #     )
+            # )
+    print(len(recommendations))
     return recommendations
+
 
 def shift_to_weekday(original_date: date, target_weekday: int) -> date:
     """Zwraca datę z tego samego tygodnia co `original_date`, ale z podmienionym dniem tygodnia (0=pon, 6=niedz)."""
     current_weekday = original_date.weekday()
     return original_date + timedelta(days=(target_weekday - current_weekday))
 
+
 @router.post("/{source_proposal_id}/accept", response_model=ChangeRequestResponse)
 def accept_recommendation(
-    source_proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+        source_proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     # Znajdujemy propozycję, która jest podstawą akceptacji
     source_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == source_proposal_id).first()
@@ -119,7 +135,7 @@ def accept_recommendation(
 
     change_request = source_proposal.change_request
     if not change_request:
-         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Associated change request not found.")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Associated change request not found.")
 
     if change_request.status != ChangeRequestStatus.PENDING:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="This request has already been processed.")
@@ -127,11 +143,13 @@ def accept_recommendation(
     # Rekonstruujemy zaakceptowaną rekomendację
     # Musimy znaleźć pasującą salę
     # Ta logika jest skomplikowana, ale wynika z obecnej struktury
-    all_recs = get_recommendations(change_request.id, db, current_user)
-    accepted_rec = next((rec for rec in all_recs if rec.id == source_proposal_id), None)
+    accepted_rec = db.query(ChangeRecomendation).filter(
+        ChangeRecomendation.source_proposal_id == source_proposal_id,
+        ChangeRecomendation.change_request_id == change_request.id
+    ).first()
 
     if not accepted_rec:
-         raise HTTPException(status_code=404, detail="Could not find a valid room for the selected time. It might have been taken.")
+        raise HTTPException(status_code=404, detail="Recommendation not found or no longer valid.")
 
     original_event = change_request.course_event
     course = original_event.course
@@ -192,7 +210,7 @@ def accept_recommendation(
             day=accepted_rec.recommended_day,
             time_slot_id=accepted_rec.recommended_slot_id,
             canceled=False,
-            was_rescheduled = True
+            was_rescheduled=True
         )
         conflict = db.query(CourseEvent).filter(
             CourseEvent.room_id == new_event.room_id,
@@ -205,7 +223,7 @@ def accept_recommendation(
         db.add(new_event)
 
     change_request.status = ChangeRequestStatus.ACCEPTED
-    
+
     # Czyszczenie po udanej operacji
     db.query(AvailabilityProposal).filter(
         AvailabilityProposal.change_request_id == change_request.id

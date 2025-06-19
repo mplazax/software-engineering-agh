@@ -237,6 +237,19 @@ const MyRecommendationsPage = () => {
           </Typography>
         </Paper>
       );
+
+    if (isEditingAvailability) {
+      return (
+          <AvailabilitySelector
+              changeRequestId={selectedRequestId}
+              isEditing={true}
+              onSave={handleSaveAvailability}
+              onCancelEdit={() => setIsEditingAvailability(false)}
+          />
+      );
+    }
+
+
     if (selectedRequest.status !== "PENDING")
       return (
         <Paper sx={{ p: 3 }}>
@@ -255,52 +268,57 @@ const MyRecommendationsPage = () => {
 
     const { teacher_has_proposed, leader_has_proposed } = proposalStatus;
 
-    if (teacher_has_proposed && leader_has_proposed)
+    if (teacher_has_proposed && leader_has_proposed) {
       return (
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6">Rekomendowane Terminy</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Wybierz jeden z terminów pasujących obu stronom, aby go
-            zaakceptować.
-          </Typography>
-          {isLoadingRecommendations ? (
-            <CircularProgress />
-          ) : recommendations.length === 0 ? (
-            <Alert severity="warning">
-              Brak dostępnych sal dla wspólnych terminów.
-            </Alert>
-          ) : (
-            <List>
-              {recommendations.map((rec) => (
-                <ListItemButton
-                  key={rec.id}
-                  onClick={() => setSelectedProposal(rec)}
-                >
-                  <ListItemText
-                    primary={`Data: ${format(
-                      new Date(rec.recommended_day),
-                      "EEEE, dd.MM.yyyy",
-                      { locale: pl }
-                    )}`}
-                    secondary={`Slot: ${
-                      timeSlotMap[rec.recommended_slot_id]
-                    } / Sala: ${rec.recommended_room?.name}`}
-                  />
-                </ListItemButton>
-              ))}
-            </List>
-          )}
-        </Paper>
-      );
-
-    if (isEditingAvailability) {
-      return (
-        <AvailabilitySelector
-          changeRequestId={selectedRequestId}
-          isEditing={true}
-          onSave={handleSaveAvailability}
-          onCancelEdit={() => setIsEditingAvailability(false)}
-        />
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Rekomendowane Terminy</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Wybierz jeden z terminów pasujących obu stronom, aby go zaakceptować.
+            </Typography>
+            {isLoadingRecommendations ? (
+                <CircularProgress />
+            ) : recommendations.length === 0 ? (
+                <Stack spacing={2}>
+                  <Alert severity="warning">
+                    Brak dostępnych sal dla wspólnych terminów. Możesz edytować swoją
+                    dostępność, by spróbować ponownie.
+                  </Alert>
+                  <Button
+                      variant="outlined"
+                      onClick={() => {
+                        console.log("Kliknięto: Edytuj swoją dostępność", {
+                          userId: user?.id,
+                          selectedRequestId,
+                          timestamp: new Date().toISOString(),
+                        });
+                        setIsEditingAvailability(true);
+                      }}
+                  >
+                    Edytuj swoją dostępność
+                  </Button>
+                </Stack>
+            ) : (
+                <List>
+                  {recommendations.map((rec) => (
+                      <ListItemButton
+                          key={rec.id}
+                          onClick={() => setSelectedProposal(rec)}
+                      >
+                        <ListItemText
+                            primary={`Data: ${format(
+                                new Date(rec.recommended_day),
+                                "EEEE, dd.MM.yyyy",
+                                { locale: pl }
+                            )}`}
+                            secondary={`Slot: ${
+                                timeSlotMap[rec.recommended_slot_id]
+                            } / Sala: ${rec.recommended_room?.name}`}
+                        />
+                      </ListItemButton>
+                  ))}
+                </List>
+            )}
+          </Paper>
       );
     }
 
