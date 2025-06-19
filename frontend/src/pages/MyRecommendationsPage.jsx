@@ -110,7 +110,7 @@ const MyRecommendationsPage = () => {
   const { data: serverProposals = [] } = useQuery({
     queryKey: ["proposals", selectedRequestId, user.id],
     queryFn: () =>
-      apiRequest(`/proposals?change_request_id=${selectedRequestId}`),
+      apiRequest(`/proposals/by-change-id/${selectedRequestId}`),
     enabled: !!selectedRequestId,
   });
 
