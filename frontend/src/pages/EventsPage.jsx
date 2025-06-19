@@ -3,7 +3,6 @@ import {
   Container,
   Stack,
   IconButton,
-  Box,
   Chip,
   useTheme,
   useMediaQuery,
@@ -61,7 +60,10 @@ const EventsPage = () => {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useCrud("allEvents", "/courses/events", { runQuery: false });
+  } = useCrud("allEvents", "/courses/events", {
+    runQuery: false,
+    queryEndpoint: "/courses/events/all", // Endpoint dla odświeżania listy
+  });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentEvent, setCurrentEvent] = useState(null);
@@ -90,10 +92,15 @@ const EventsPage = () => {
   );
 
   const handleSave = async (formData) => {
-    if (currentEvent) {
-      await updateItem({ id: currentEvent.id, updatedItem: formData });
-    } else {
-      await createItem(formData);
+    try {
+      if (currentEvent) {
+        await updateItem({ id: currentEvent.id, updatedItem: formData });
+      } else {
+        await createItem(formData);
+      }
+    } catch(e) {
+      console.error("Save operation failed in component", e);
+      throw e;
     }
   };
 

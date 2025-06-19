@@ -115,6 +115,7 @@ const EventFormDialog = ({ open, onClose, onSave, event }) => {
     }
     setErrors({});
     setIsSubmitting(true);
+
     try {
       const payload = {
         ...formData,
@@ -126,14 +127,25 @@ const EventFormDialog = ({ open, onClose, onSave, event }) => {
       onClose();
     } catch (error) {
       const errorMsg =
-        error?.response?.data?.detail ||
-        error.message ||
-        "Wystąpił nieznany błąd.";
-      setErrors({ general: errorMsg });
+          error?.response?.data?.detail ||
+          error.message ||
+          "Wystąpił nieznany błąd.";
+      if (Array.isArray(errorMsg)) {
+        const newErrors = {};
+        errorMsg.forEach((err) => {
+          if (err.loc && err.loc.length > 1) {
+            newErrors[err.loc[1]] = err.msg;
+          }
+        });
+        setErrors(newErrors);
+      } else {
+        setErrors({ general: errorMsg });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <Dialog
