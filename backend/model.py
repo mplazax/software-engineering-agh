@@ -117,6 +117,7 @@ class CourseEvent(Base):
     time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
     day = Column(Date, nullable=False)
     canceled = Column(Boolean, default=False)
+    was_rescheduled = Column(Boolean, default=False)
     course = relationship("Course", back_populates="events", lazy="joined")
     room = relationship("Room", back_populates="course_events")
     change_requests = relationship("ChangeRequest", back_populates="course_event", cascade="all, delete-orphan")

@@ -107,6 +107,25 @@ class CourseEventCreate(CourseEventBase):
 class CourseEventResponse(CourseEventBase, OrmBase):
     id: int
 
+class CourseEventUpdate(BaseModel):
+    room_id: Optional[int] = Field(None, description="ID of the new room for the event")
+    day: Optional[date] = Field(None, description="New date for the event")
+    time_slot_id: Optional[int] = Field(None, description="ID of the new time slot")
+    canceled: Optional[bool] = Field(None, description="Set to true to cancel the event")
+
+class CourseForEventResponse(OrmBase):
+    id: int
+    name: str
+
+class RoomForEventResponse(OrmBase):
+    id: int
+    name: str
+
+class CourseEventWithDetailsResponse(CourseEventResponse):
+    course: CourseForEventResponse
+    room: Optional[RoomForEventResponse]
+
+
 class ChangeRequestBase(BaseModel):
     reason: str
     room_requirements: Optional[str] = None

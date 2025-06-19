@@ -68,6 +68,10 @@ def create_request(
     if not course_event:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
 
+    if course_event.was_rescheduled and request_data.cyclical:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="The date of this event has already been changed. "
+                                                                     "You cannot make a cyclical change")
+
     new_request = ChangeRequest(
         **request_data.dict(),
         initiator_id=current_user.id,

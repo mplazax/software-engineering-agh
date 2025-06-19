@@ -3,8 +3,11 @@ from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from model import Course, CourseEvent, Group, Room, TimeSlots, User, UserRole
 from routers.auth import get_current_user, role_required
-from routers.schemas import CourseCreate, CourseEventCreate, CourseEventResponse, CourseUpdate, CourseResponse
-from sqlalchemy.orm import Session
+from routers.schemas import (
+    CourseCreate, CourseEventCreate, CourseEventResponse, CourseUpdate,
+    CourseResponse, CourseEventUpdate, CourseEventWithDetailsResponse
+)
+from sqlalchemy.orm import Session, joinedload
 from starlette.status import (
     HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
@@ -71,7 +74,21 @@ def delete_course(course_id: int, db: Session = Depends(get_db), current_user: U
     db.commit()
     return None
 
-@router.post("/events", response_model=CourseEventResponse, status_code=HTTP_201_CREATED)
+# --- Events Management ---
+
+@router.get("/events/all", response_model=List[CourseEventWithDetailsResponse], tags=["Course Events"])
+def get_all_events(db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+    """
+    Retrieves all course events with their associated course and room details.
+    This is an optimized endpoint to prevent N+1 query problems on the client-side.
+    """
+    events = db.query(CourseEvent).options(
+        joinedload(CourseEvent.course),
+        joinedload(CourseEvent.room)
+    ).order_by(CourseEvent.day.desc(), CourseEvent.time_slot_id).all()
+    return events
+
+@router.post("/events", response_model=CourseEventResponse, status_code=HTTP_201_CREATED, tags=["Course Events"])
 def create_event(event_data: CourseEventCreate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
     if not db.query(Course).filter(Course.id == event_data.course_id).first():
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Kurs nie znaleziony.")
@@ -87,6 +104,58 @@ def create_event(event_data: CourseEventCreate, db: Session = Depends(get_db), c
     db.commit()
     db.refresh(new_event)
     return new_event
+
+@router.put("/events/{event_id}", response_model=CourseEventResponse, tags=["Course Events"])
+def update_event(event_id: int, event_data: CourseEventUpdate, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+    """
+    Updates a specific course event.
+    """
+    db_event = db.query(CourseEvent).filter(CourseEvent.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wydarzenie nie znalezione.")
+    
+    update_data = event_data.dict(exclude_unset=True)
+
+    # Conflict check if day, time_slot or room changes
+    new_day = update_data.get("day", db_event.day)
+    new_time_slot_id = update_data.get("time_slot_id", db_event.time_slot_id)
+    new_room_id = update_data.get("room_id", db_event.room_id)
+
+    if new_room_id and (
+        "day" in update_data or "time_slot_id" in update_data or "room_id" in update_data
+    ):
+         conflict = db.query(CourseEvent).filter(
+            CourseEvent.id != event_id,
+            CourseEvent.room_id == new_room_id,
+            CourseEvent.day == new_day,
+            CourseEvent.time_slot_id == new_time_slot_id,
+            CourseEvent.canceled == False
+        ).first()
+         if conflict:
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Sala {new_room_id} jest już zarezerwowana w tym terminie.")
+
+    for key, value in update_data.items():
+        setattr(db_event, key, value)
+        
+    db.commit()
+    db.refresh(db_event)
+    return db_event
+
+@router.delete("/events/{event_id}", status_code=HTTP_204_NO_CONTENT, tags=["Course Events"])
+def delete_event(event_id: int, db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+    """
+    Deletes a specific course event.
+    """
+    event = db.query(CourseEvent).filter(CourseEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Wydarzenie nie znalezione.")
+    
+    if event.change_requests:
+        raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Nie można usunąć wydarzenia, ponieważ istnieją powiązane z nim zgłoszenia zmiany. Anuluj je najpierw.")
+
+    db.delete(event)
+    db.commit()
+    return None
 
 @router.get("/{course_id}/events", response_model=List[CourseEventResponse])
 def get_events_for_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

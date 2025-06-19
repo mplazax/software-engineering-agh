@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from typing import List
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,7 @@ from model import (
 )
 from routers.auth import get_current_user
 from routers.schemas import ChangeRecomendationResponse, ChangeRequestResponse
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, extract
 from sqlalchemy.orm import Session, joinedload
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
@@ -102,6 +103,11 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db), c
             
     return recommendations
 
+def shift_to_weekday(original_date: date, target_weekday: int) -> date:
+    """Zwraca datę z tego samego tygodnia co `original_date`, ale z podmienionym dniem tygodnia (0=pon, 6=niedz)."""
+    current_weekday = original_date.weekday()
+    return original_date + timedelta(days=(target_weekday - current_weekday))
+
 @router.post("/{source_proposal_id}/accept", response_model=ChangeRequestResponse)
 def accept_recommendation(
     source_proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
@@ -129,32 +135,74 @@ def accept_recommendation(
 
     original_event = change_request.course_event
     course = original_event.course
-    
+    group = course.group
+
     is_leader = current_user.id == course.group.leader_id
     is_teacher = current_user.id == course.teacher_id
     if not (is_leader or is_teacher):
         raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authorized to accept this recommendation.")
 
-    # Ponowne sprawdzenie konfliktu na wszelki wypadek
-    conflict = db.query(CourseEvent).filter(
-        CourseEvent.room_id == accepted_rec.recommended_room_id,
-        CourseEvent.day == accepted_rec.recommended_day,
-        CourseEvent.time_slot_id == accepted_rec.recommended_slot_id,
-        CourseEvent.canceled == False,
-    ).first()
-    if conflict:
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Sala jest już zarezerwowana w tym terminie.")
-    
-    original_event.canceled = True
-    
-    new_event = CourseEvent(
-        course_id=original_event.course_id,
-        room_id=accepted_rec.recommended_room_id,
-        day=accepted_rec.recommended_day,
-        time_slot_id=accepted_rec.recommended_slot_id,
-        canceled=False,
-    )
-    db.add(new_event)
+    if change_request.cyclical:
+        original_weekday = original_event.day.weekday()
+        target_weekday = accepted_rec.recommended_day.weekday()
+
+        related_events = db.query(CourseEvent).filter(
+            CourseEvent.course_id == original_event.course_id,
+            extract('dow', CourseEvent.day) == original_weekday,
+            CourseEvent.time_slot_id == original_event.time_slot_id,
+            CourseEvent.canceled == False
+        ).all()
+
+        for event in related_events:
+            new_day = shift_to_weekday(event.day, target_weekday)
+            new_event = CourseEvent(
+                course_id=event.course_id,
+                room_id=accepted_rec.recommended_room_id,
+                day=new_day,
+                time_slot_id=accepted_rec.recommended_slot_id,
+                canceled=False,
+                was_rescheduled=False
+            )
+            conflict = db.query(CourseEvent).filter(
+                CourseEvent.room_id == new_event.room_id,
+                CourseEvent.day == new_event.day,
+                CourseEvent.time_slot_id == new_event.time_slot_id,
+                CourseEvent.canceled == False,
+            ).first()
+
+            if conflict:
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+
+            conflict = db.query(CourseEvent).join(Course).filter(
+                Course.group_id == group.id,
+                CourseEvent.time_slot_id == new_event.time_slot_id,
+                CourseEvent.day == new_event.day,
+                CourseEvent.canceled == False,
+            ).first()
+
+            if conflict:
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Group has other event")
+
+            db.add(new_event)
+            event.canceled = True
+    else:
+        new_event = CourseEvent(
+            course_id=original_event.course_id,
+            room_id=accepted_rec.recommended_room_id,
+            day=accepted_rec.recommended_day,
+            time_slot_id=accepted_rec.recommended_slot_id,
+            canceled=False,
+            was_rescheduled = True
+        )
+        conflict = db.query(CourseEvent).filter(
+            CourseEvent.room_id == new_event.room_id,
+            CourseEvent.day == new_event.day,
+            CourseEvent.time_slot_id == new_event.time_slot_id,
+            CourseEvent.canceled == False,
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+        db.add(new_event)
 
     change_request.status = ChangeRequestStatus.ACCEPTED
     
