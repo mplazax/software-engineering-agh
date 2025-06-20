@@ -89,6 +89,8 @@ def create_proposal(
                     recommended_slot_id=r.recommended_slot_id,
                     recommended_room_id=r.recommended_room_id,
                     source_proposal_id=r.source_proposal_id,
+                    accepted_by_teacher=r.accepted_by_teacher,
+                    accepted_by_leader=r.accepted_by_leader,
                     recommended_room=RoomResponse(
                         id=r.recommended_room.id,
                         name=r.recommended_room.name,
