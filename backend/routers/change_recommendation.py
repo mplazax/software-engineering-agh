@@ -47,6 +47,10 @@ def find_recommendations(
     if not change_request:
         raise HTTPException(status_code=404, detail="Change request not found")
 
+    existing_rec = db.query(ChangeRecomendation).filter(ChangeRecomendation.change_request_id == change_request_id).all()
+    if existing_rec:
+        return existing_rec
+
     course_event = change_request.course_event
     teacher = course_event.course.teacher
     group = course_event.course.group
