@@ -115,9 +115,10 @@ def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
             recommendation.recommended_room = room
             recommendations.append(recommendation)
     db.commit()
-
-    print(len(recommendations))
-    return recommendations
+    result = db.query(ChangeRecomendation).filter(
+        ChangeRecomendation.change_request_id == change_request_id
+    ).order_by(ChangeRecomendation.id.desc()).limit(len(recommendations)).all()
+    return result
 
 
 def shift_to_weekday(original_date: date, target_weekday: int) -> date:

@@ -1,4 +1,4 @@
-import { apiRequest } from "./apiService";
+import { queryClient } from "../App";
 
 export const login = async (email, password) => {
   const response = await fetch(`/api/auth/token`, {
@@ -6,23 +6,26 @@ export const login = async (email, password) => {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ username: email, password: password }),
   });
+
   if (!response.ok) {
     const errorData = await response
       .json()
       .catch(() => ({ detail: "Nieprawidłowe dane" }));
     throw new Error(errorData.detail);
   }
+
   const data = await response.json();
   localStorage.setItem("token", data.access_token);
+
+  // ✅ Wyczyść cache po zmianie użytkownika
+  queryClient.clear();
+
   return data;
 };
 
 export const logout = () => {
   localStorage.removeItem("token");
-};
 
-export const isAuthenticated = () => !!localStorage.getItem("token");
-
-export const getCurrentUser = async () => {
-  return apiRequest("/auth/me");
+  // ✅ Czyść dane po wylogowaniu
+  queryClient.clear();
 };

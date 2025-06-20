@@ -84,6 +84,22 @@ def create_proposal(
     
     return new_proposal
 
+@router.delete("/by-user-and-change-request", status_code=204)
+def delete_proposals_by_user_and_change_request(
+    user_id: int,
+    change_request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.id != user_id and current_user.role not in [UserRole.ADMIN, UserRole.KOORDYNATOR]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.user_id == user_id,
+        AvailabilityProposal.change_request_id == change_request_id
+    ).delete(synchronize_session=False)
+    db.commit()
+
 
 @router.delete("/{proposal_id}", status_code=HTTP_204_NO_CONTENT)
 def delete_proposal(proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:

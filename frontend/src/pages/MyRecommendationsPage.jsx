@@ -144,51 +144,47 @@ const MyRecommendationsPage = () => {
         proposalStatus?.leader_has_proposed,
     });
 
-  const updateProposalsMutation = useMutation({
-    mutationFn: async ({ toAdd, toDelete }) => {
-      const addPromises = toAdd.map((p) =>
-        apiRequest("/proposals/", { method: "POST", body: JSON.stringify(p) })
-      );
-      const deletePromises = toDelete.map((p) =>
-        apiRequest(`/proposals/${p.id}`, { method: "DELETE" })
-      );
-      return Promise.all([...addPromises, ...deletePromises]);
+  const replaceProposalsMutation = useMutation({
+  mutationFn: async (proposalsToAdd) => {
+    // Usuń stare
+    await apiRequest(
+      `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
+      { method: "DELETE" }
+    );
+
+    // Dodaj nowe (jeśli są)
+    const addPromises = proposalsToAdd.map((p) =>
+      apiRequest("/proposals/", {
+        method: "POST",
+        body: JSON.stringify(p),
+      })
+    );
+    return Promise.all(addPromises);
     },
     onSuccess: () => {
       showNotification("Dostępność została zaktualizowana.", "success");
       queryClient.invalidateQueries({
         queryKey: ["proposals", selectedRequestId, user.id],
       });
-      refetchProposalStatus(); // Kluczowe odświeżenie statusu
+      refetchProposalStatus();
       setIsEditingAvailability(false);
     },
     onError: (error) =>
       showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
   });
 
+
   const handleSaveAvailability = (localProposalsSet) => {
-    const serverSet = new Set(
-      serverProposals.map((p) => `${p.day}_${p.time_slot_id}`)
-    );
-    const localArray = Array.from(localProposalsSet);
-
-    const toAdd = localArray
-      .filter((key) => !serverSet.has(key))
-      .map((key) => ({
+    const proposalsToAdd = Array.from(localProposalsSet).map((key) => {
+      const [day, timeSlotId] = key.split("_");
+      return {
         change_request_id: selectedRequestId,
-        day: key.split("_")[0],
-        time_slot_id: parseInt(key.split("_")[1], 10),
-      }));
+        day,
+        time_slot_id: parseInt(timeSlotId, 10),
+      };
+    });
 
-    const toDelete = serverProposals.filter(
-      (p) => !localProposalsSet.has(`${p.day}_${p.time_slot_id}`)
-    );
-
-    if (toAdd.length === 0 && toDelete.length === 0) {
-      setIsEditingAvailability(false);
-      return;
-    }
-    updateProposalsMutation.mutate({ toAdd, toDelete });
+    replaceProposalsMutation.mutate(proposalsToAdd);
   };
 
   const acceptMutation = useMutation({
