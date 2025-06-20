@@ -178,6 +178,8 @@ class ChangeRecomendationBase(BaseModel):
     recommended_slot_id: int
     recommended_room_id: int
     source_proposal_id: Optional[int] = None
+    accepted_by_teacher: bool
+    accepted_by_leader: bool
 
 
 class ChangeRecomendationResponse(BaseModel):
@@ -188,6 +190,8 @@ class ChangeRecomendationResponse(BaseModel):
     recommended_room_id: int
     source_proposal_id: Optional[int]
     recommended_room: Optional[RoomResponse]
+    accepted_by_teacher: bool
+    accepted_by_leader: bool
 
     class Config:
         orm_mode = True

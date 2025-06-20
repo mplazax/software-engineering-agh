@@ -20,7 +20,22 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db)):
         joinedload(ChangeRecomendation.recommended_room)
     ).filter_by(change_request_id=change_request_id).all()
 
-    return recs
+    seen = set()
+    unique_recs = []
+    for r in recs:
+        key = (r.recommended_day, r.recommended_slot_id, r.recommended_room_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_recs.append(r)
+
+    unique_recs.sort(key=lambda r: (
+        r.recommended_day,
+        r.recommended_slot_id,
+        r.recommended_room_id
+    ))
+
+    return unique_recs
 
 @router.post("/{change_request_id}")
 def find_recommendations(
@@ -40,43 +55,43 @@ def find_recommendations(
     if not teacher or not group_leader:
         raise HTTPException(status_code=404, detail="Could not determine both parties for the request.")
 
-    teacher_proposals = db.query(AvailabilityProposal.day, AvailabilityProposal.time_slot_id).filter(
+    teacher_proposals = db.query(
+        AvailabilityProposal.day,
+        AvailabilityProposal.time_slot_id
+    ).filter(
         AvailabilityProposal.change_request_id == change_request_id,
         AvailabilityProposal.user_id == teacher.id
     ).subquery()
 
-    leader_proposals = db.query(AvailabilityProposal).filter(
+    # Wspólne sloty (dzień + slot) obu stron – UNIKALNIE
+    common_slots = db.query(
+        AvailabilityProposal.day,
+        AvailabilityProposal.time_slot_id
+    ).filter(
         AvailabilityProposal.change_request_id == change_request_id,
         AvailabilityProposal.user_id == group_leader.id
-    )
-
-    common_proposals = leader_proposals.join(
+    ).join(
         teacher_proposals,
-        (AvailabilityProposal.day == teacher_proposals.c.day) & (
-            AvailabilityProposal.time_slot_id == teacher_proposals.c.time_slot_id)
-    ).all()
+        (AvailabilityProposal.day == teacher_proposals.c.day) &
+        (AvailabilityProposal.time_slot_id == teacher_proposals.c.time_slot_id)
+    ).distinct().all()
 
-    if not common_proposals:
+    if not common_slots:
         return []
 
     recommendations = []
-    processed_slots = set()
+    processed_keys = set()
 
-    for proposal in common_proposals:
-        slot_key = (proposal.day, proposal.time_slot_id)
-        if slot_key in processed_slots:
-            continue
-        processed_slots.add(slot_key)
-
+    for day, slot_id in common_slots:
         # --- Sprawdź niedostępne sale ---
         unavailable_by_block = db.query(RoomUnavailability.room_id).filter(
-            RoomUnavailability.start_datetime <= proposal.day,
-            RoomUnavailability.end_datetime >= proposal.day
+            RoomUnavailability.start_datetime <= day,
+            RoomUnavailability.end_datetime >= day
         ).subquery()
 
         unavailable_by_event = db.query(CourseEvent.room_id).filter(
-            CourseEvent.day == proposal.day,
-            CourseEvent.time_slot_id == proposal.time_slot_id,
+            CourseEvent.day == day,
+            CourseEvent.time_slot_id == slot_id,
             CourseEvent.canceled == False,
             CourseEvent.room_id.isnot(None)
         ).subquery()
@@ -90,7 +105,11 @@ def find_recommendations(
             base_query = base_query.filter(Room.capacity >= change_request.minimum_capacity)
 
         if change_request.room_requirements:
-            required_eq_names = [name.strip().lower() for name in change_request.room_requirements.split(',') if name.strip()]
+            required_eq_names = [
+                name.strip().lower()
+                for name in change_request.room_requirements.split(',')
+                if name.strip()
+            ]
             if required_eq_names:
                 base_query = base_query.join(Room.equipment).filter(
                     func.lower(Equipment.name).in_(required_eq_names)
@@ -101,10 +120,25 @@ def find_recommendations(
         available_rooms = base_query.order_by(Room.capacity).all()
 
         for room in available_rooms:
+            key = (day, slot_id, room.id)
+            if key in processed_keys:
+                continue
+
+            # Upewnij się, że nie istnieje w bazie (np. po wielokrotnym kliknięciu)
+            existing = db.query(ChangeRecomendation).filter_by(
+                change_request_id=change_request_id,
+                recommended_day=day,
+                recommended_slot_id=slot_id,
+                recommended_room_id=room.id
+            ).first()
+            if existing:
+                continue
+
+            # Sprawdź konflikty nauczyciela i grupy
             teacher_conflict = db.query(CourseEvent).join(Course).filter(
                 Course.teacher_id == teacher.id,
-                CourseEvent.day == proposal.day,
-                CourseEvent.time_slot_id == proposal.time_slot_id,
+                CourseEvent.day == day,
+                CourseEvent.time_slot_id == slot_id,
                 CourseEvent.canceled == False
             ).first()
             if teacher_conflict:
@@ -112,19 +146,21 @@ def find_recommendations(
 
             group_conflict = db.query(CourseEvent).join(Course).filter(
                 Course.group_id == group.id,
-                CourseEvent.day == proposal.day,
-                CourseEvent.time_slot_id == proposal.time_slot_id,
+                CourseEvent.day == day,
+                CourseEvent.time_slot_id == slot_id,
                 CourseEvent.canceled == False
             ).first()
             if group_conflict:
                 continue
 
+            # Wszystko OK – dodaj
+            processed_keys.add(key)
             recommendation = ChangeRecomendation(
                 change_request_id=change_request_id,
-                recommended_day=proposal.day,
-                recommended_slot_id=proposal.time_slot_id,
+                recommended_day=day,
+                recommended_slot_id=slot_id,
                 recommended_room_id=room.id,
-                source_proposal_id=proposal.id,
+                source_proposal_id=None  # lub przypisz, jeśli chcesz
             )
             db.add(recommendation)
             db.flush()
@@ -132,7 +168,12 @@ def find_recommendations(
             recommendations.append(recommendation)
 
     db.commit()
+
+
+
+
     return recommendations
+
 
 # @router.post("/{change_request_id}")
 # def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
@@ -258,64 +299,63 @@ def reject_single_recommendation(
     db.commit()
     return
 
-@router.post("/{source_proposal_id}/accept", response_model=ChangeRequestResponse)
+@router.post("/{recommendation_id}/accept", response_model=ChangeRequestResponse)
 def accept_recommendation(
-        source_proposal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    recommendation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    # Znajdujemy propozycję, która jest podstawą akceptacji
-    source_proposal = db.query(AvailabilityProposal).filter(AvailabilityProposal.id == source_proposal_id).first()
-    if not source_proposal:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Source proposal for this recommendation not found.")
+    rec = db.query(ChangeRecomendation).options(
+        joinedload(ChangeRecomendation.change_request).joinedload(ChangeRequest.course_event).joinedload(CourseEvent.course)
+    ).filter(ChangeRecomendation.id == recommendation_id).first()
 
-    change_request = source_proposal.change_request
-    if not change_request:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Associated change request not found.")
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
 
-    if change_request.status != ChangeRequestStatus.PENDING:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="This request has already been processed.")
+    course = rec.change_request.course_event.course
 
-    # Rekonstruujemy zaakceptowaną rekomendację
-    # Musimy znaleźć pasującą salę
-    # Ta logika jest skomplikowana, ale wynika z obecnej struktury
-    accepted_rec = db.query(ChangeRecomendation).filter(
-        ChangeRecomendation.source_proposal_id == source_proposal_id,
-        ChangeRecomendation.change_request_id == change_request.id
-    ).first()
+    if current_user.id == course.teacher_id:
+        print("teacher")
+        rec.accepted_by_teacher = True
+    elif current_user.id == course.group.leader_id:
+        print("leader")
+        rec.accepted_by_leader = True
+    else:
+        raise HTTPException(status_code=403, detail="Not authorized to accept this recommendation.")
 
-    if not accepted_rec:
-        raise HTTPException(status_code=404, detail="Recommendation not found or no longer valid.")
+    db.flush()
 
+    if rec.accepted_by_teacher and rec.accepted_by_leader:
+        return finalize_recommendation(rec, db)
+
+    db.commit()
+    return rec.change_request
+
+def finalize_recommendation(rec: ChangeRecomendation, db: Session):
+    change_request = rec.change_request
     original_event = change_request.course_event
     course = original_event.course
     group = course.group
 
-    is_leader = current_user.id == course.group.leader_id
-    is_teacher = current_user.id == course.teacher_id
-    if not (is_leader or is_teacher):
-        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authorized to accept this recommendation.")
-
     if change_request.cyclical:
         original_weekday = (original_event.day.weekday() + 1) % 7
-        target_weekday = accepted_rec.recommended_day.weekday()
+        target_weekday = rec.recommended_day.weekday()
 
         related_events = db.query(CourseEvent).filter(
             CourseEvent.course_id == original_event.course_id,
             extract('dow', CourseEvent.day) == original_weekday,
             CourseEvent.time_slot_id == original_event.time_slot_id,
-            CourseEvent.day >= accepted_rec.recommended_day,
+            CourseEvent.day >= rec.recommended_day,
             CourseEvent.canceled == False
         ).all()
-
-        print(
-            f"Znaleziono {len(related_events)} powiązanych eventów od dnia {accepted_rec.recommended_day} (dzień tygodnia {original_weekday})")
 
         for event in related_events:
             new_day = shift_to_weekday(event.day, target_weekday)
             new_event = CourseEvent(
                 course_id=event.course_id,
-                room_id=accepted_rec.recommended_room_id,
+                room_id=rec.recommended_room_id,
                 day=new_day,
-                time_slot_id=accepted_rec.recommended_slot_id,
+                time_slot_id=rec.recommended_slot_id,
                 canceled=False,
                 was_rescheduled=False
             )
@@ -326,28 +366,27 @@ def accept_recommendation(
                 CourseEvent.time_slot_id == new_event.time_slot_id,
                 CourseEvent.canceled == False,
             ).first()
-
             if conflict:
                 raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Room is already booked.")
 
-            conflict = db.query(CourseEvent).join(Course).filter(
+            group_conflict = db.query(CourseEvent).join(Course).filter(
                 Course.group_id == group.id,
                 CourseEvent.time_slot_id == new_event.time_slot_id,
                 CourseEvent.day == new_event.day,
                 CourseEvent.canceled == False,
             ).first()
-
-            if conflict:
+            if group_conflict:
                 raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Group has other event")
 
             db.add(new_event)
             event.canceled = True
+
     else:
         new_event = CourseEvent(
             course_id=original_event.course_id,
-            room_id=accepted_rec.recommended_room_id,
-            day=accepted_rec.recommended_day,
-            time_slot_id=accepted_rec.recommended_slot_id,
+            room_id=rec.recommended_room_id,
+            day=rec.recommended_day,
+            time_slot_id=rec.recommended_slot_id,
             canceled=False,
             was_rescheduled=True
         )
@@ -357,15 +396,15 @@ def accept_recommendation(
             CourseEvent.time_slot_id == new_event.time_slot_id,
             CourseEvent.canceled == False,
         ).first()
-
         if conflict:
-            raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+            raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Room is already booked.")
+
         db.add(new_event)
         original_event.canceled = True
 
     change_request.status = ChangeRequestStatus.ACCEPTED
-    
-    # Czyszczenie po udanej operacji
+
+    # Czyszczenie danych pomocniczych
     db.query(ChangeRecomendation).filter(
         ChangeRecomendation.change_request_id == change_request.id
     ).delete(synchronize_session=False)
@@ -377,3 +416,13 @@ def accept_recommendation(
     db.commit()
     db.refresh(change_request)
     return change_request
+
+@router.get("/{recommendation_id}/acceptance-status")
+def get_acceptance_status(recommendation_id: int, db: Session = Depends(get_db)):
+    rec = db.query(ChangeRecomendation).filter(ChangeRecomendation.id == recommendation_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+    return {
+        "accepted_by_teacher": rec.accepted_by_teacher,
+        "accepted_by_leader": rec.accepted_by_leader,
+    }

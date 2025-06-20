@@ -110,6 +110,17 @@ const MyRecommendationsPage = () => {
     return requests.find((req) => req.id === selectedRequestId) || null;
   }, [requests, selectedRequestId]);
 
+  const {
+    data: recommendationStatus,
+    refetch: refetchRecStatus,
+    isLoading: isLoadingRecStatus
+  } = useQuery({
+    queryKey: ["recommendationStatus", selectedProposal?.id],
+    queryFn: () =>
+      apiRequest(`/recommendations/${selectedProposal?.id}/acceptance-status`),
+    enabled: !!selectedProposal?.id,
+  });
+
   const { data: serverProposals = [] } = useQuery({
     queryKey: ["proposals", selectedRequestId, user.id],
     queryFn: () =>
@@ -234,14 +245,15 @@ const MyRecommendationsPage = () => {
   };
 
   const acceptMutation = useMutation({
-    mutationFn: (proposalId) =>
-      apiRequest(`/recommendations/${proposalId}/accept`, { method: "POST" }),
+    mutationFn: (recommendationId) =>
+      apiRequest(`/recommendations/${recommendationId}/accept`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["related-requests-all"] });
+      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
       queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
-      showNotification("Termin został pomyślnie zaakceptowany.", "success");
-      setSelectedProposal(null);
-      setSelectedRequestId(null);
+      refetchRecommendations();
+      refetchRecStatus();
+      showNotification("Zaakceptowano propozycję. Czekamy na drugą stronę.", "info");
     },
     onError: (error) =>
       showNotification(`Błąd akceptacji: ${error.message}`, "error"),
@@ -355,23 +367,45 @@ const MyRecommendationsPage = () => {
                 </Stack>
             ) : (
                 <List>
-                  {recommendations.map((rec) => (
+                  {recommendations.map((rec) => {
+                    const acceptedByYou =
+                      (user.role === "PROWADZACY" && rec.accepted_by_teacher) ||
+                      (user.role !== "PROWADZACY" && rec.accepted_by_leader);
+
+                    const acceptedByOther =
+                      (user.role === "PROWADZACY" && rec.accepted_by_leader) ||
+                      (user.role !== "PROWADZACY" && rec.accepted_by_teacher);
+
+                    return (
                       <ListItemButton
-                          key={rec.id}
-                          onClick={() => setSelectedProposal(rec)}
+                        key={rec.id}
+                        onClick={() => setSelectedProposal(rec)}
+                        sx={{ alignItems: "flex-start", flexDirection: "column", gap: 0.5 }}
                       >
                         <ListItemText
-                            primary={`Data: ${format(
-                                new Date(rec.recommended_day),
-                                "EEEE, dd.MM.yyyy",
-                                { locale: pl }
-                            )}`}
-                            secondary={`Slot: ${
-                                timeSlotMap[rec.recommended_slot_id]
-                            } / Sala: ${rec.recommended_room?.name}`}
+                          primary={`Data: ${format(
+                            new Date(rec.recommended_day),
+                            "EEEE, dd.MM.yyyy",
+                            { locale: pl }
+                          )}`}
+                          secondary={`Slot: ${timeSlotMap[rec.recommended_slot_id]} / Sala: ${rec.recommended_room?.name}`}
                         />
+                        {rec.accepted_by_teacher && rec.accepted_by_leader ? (
+                          <Typography variant="caption" color="success.main">
+                            Obie strony zaakceptowały
+                          </Typography>
+                        ) : acceptedByYou ? (
+                          <Typography variant="caption" color="info.main">
+                            Zaakceptowane przez Ciebie – oczekiwanie na drugą stronę
+                          </Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            Niezaakceptowane
+                          </Typography>
+                        )}
                       </ListItemButton>
-                  ))}
+                    );
+                  })}
                 </List>
             )}
           </Paper>
@@ -584,7 +618,7 @@ const MyRecommendationsPage = () => {
           </Button>
           <Button
             onClick={() =>
-              acceptMutation.mutate(selectedProposal.source_proposal_id)
+              acceptMutation.mutate(selectedProposal.id)
             }
             color="primary"
             variant="contained"
