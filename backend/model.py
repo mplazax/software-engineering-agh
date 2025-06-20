@@ -161,6 +161,8 @@ class ChangeRecomendation(Base):
     source_proposal_id = Column(Integer, ForeignKey("availability_proposals.id", ondelete="SET NULL"), nullable=True)
     accepted_by_teacher = Column(Boolean, default=False)
     accepted_by_leader = Column(Boolean, default=False)
+    rejected_by_teacher = Column(Boolean, default=False)
+    rejected_by_leader = Column(Boolean, default=False)
     recommended_room = relationship("Room", back_populates="change_recommendations", lazy="joined")
     change_request = relationship("ChangeRequest", back_populates="change_recommendations")
     source_proposal = relationship("AvailabilityProposal", lazy="joined")

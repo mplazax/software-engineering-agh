@@ -368,44 +368,67 @@ const MyRecommendationsPage = () => {
             ) : (
                 <List>
                   {recommendations.map((rec) => {
-                    const acceptedByYou =
-                      (user.role === "PROWADZACY" && rec.accepted_by_teacher) ||
-                      (user.role !== "PROWADZACY" && rec.accepted_by_leader);
+  const acceptedByYou =
+    (user.role === "PROWADZACY" && rec.accepted_by_teacher) ||
+    (user.role !== "PROWADZACY" && rec.accepted_by_leader);
 
-                    const acceptedByOther =
-                      (user.role === "PROWADZACY" && rec.accepted_by_leader) ||
-                      (user.role !== "PROWADZACY" && rec.accepted_by_teacher);
+  const acceptedByOther =
+    (user.role === "PROWADZACY" && rec.accepted_by_leader) ||
+    (user.role !== "PROWADZACY" && rec.accepted_by_teacher);
 
-                    return (
-                      <ListItemButton
-                        key={rec.id}
-                        onClick={() => setSelectedProposal(rec)}
-                        sx={{ alignItems: "flex-start", flexDirection: "column", gap: 0.5 }}
-                      >
-                        <ListItemText
-                          primary={`Data: ${format(
-                            new Date(rec.recommended_day),
-                            "EEEE, dd.MM.yyyy",
-                            { locale: pl }
-                          )}`}
-                          secondary={`Slot: ${timeSlotMap[rec.recommended_slot_id]} / Sala: ${rec.recommended_room?.name}`}
-                        />
-                        {rec.accepted_by_teacher && rec.accepted_by_leader ? (
-                          <Typography variant="caption" color="success.main">
-                            Obie strony zaakceptowały
-                          </Typography>
-                        ) : acceptedByYou ? (
-                          <Typography variant="caption" color="info.main">
-                            Zaakceptowane przez Ciebie – oczekiwanie na drugą stronę
-                          </Typography>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            Niezaakceptowane
-                          </Typography>
-                        )}
-                      </ListItemButton>
-                    );
-                  })}
+  const rejectedByYou =
+    (user.role === "PROWADZACY" && rec.rejected_by_teacher) ||
+    (user.role !== "PROWADZACY" && rec.rejected_by_leader);
+
+  const rejectedByOther =
+    (user.role === "PROWADZACY" && rec.rejected_by_leader) ||
+    (user.role !== "PROWADZACY" && rec.rejected_by_teacher);
+
+  let statusLabel = "";
+  let statusColor = "text.secondary";
+
+  if (rec.accepted_by_teacher && rec.accepted_by_leader) {
+    statusLabel = "Obie strony zaakceptowały";
+    statusColor = "success.main";
+  } else if (acceptedByYou) {
+    statusLabel = "Zaakceptowane przez Ciebie – oczekiwanie na drugą stronę";
+    statusColor = "info.main";
+  } else if (rejectedByYou) {
+    statusLabel = "Odrzucone przez Ciebie";
+    statusColor = "error.main";
+  } else if (rejectedByOther) {
+    statusLabel = "Odrzucone przez drugą stronę";
+    statusColor = "warning.main";
+  } else {
+    statusLabel = "Niezaakceptowane";
+    statusColor = "text.secondary";
+  }
+
+  return (
+    <ListItemButton
+      key={rec.id}
+      onClick={() => setSelectedProposal(rec)}
+      sx={{
+        alignItems: "flex-start",
+        flexDirection: "column",
+        gap: 0.5,
+        opacity: rec.rejected_by_teacher || rec.rejected_by_leader ? 0.6 : 1,
+      }}
+    >
+      <ListItemText
+        primary={`Data: ${format(
+          new Date(rec.recommended_day),
+          "EEEE, dd.MM.yyyy",
+          { locale: pl }
+        )}`}
+        secondary={`Slot: ${timeSlotMap[rec.recommended_slot_id]} / Sala: ${rec.recommended_room?.name}`}
+      />
+      <Typography variant="caption" color={statusColor}>
+        {statusLabel}
+      </Typography>
+    </ListItemButton>
+  );
+})}
                 </List>
             )}
           </Paper>

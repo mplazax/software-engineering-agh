@@ -295,7 +295,11 @@ def reject_single_recommendation(
     recommendation.source_proposal_id = None
     db.flush()
 
-    db.delete(recommendation)
+    if is_teacher:
+        recommendation.rejected_by_teacher = True
+    elif is_leader:
+        recommendation.rejected_by_leader = True
+    # db.delete(recommendation)
     db.commit()
     return
 
