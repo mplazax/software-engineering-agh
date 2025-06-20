@@ -70,6 +70,8 @@ const MyRecommendationsPage = () => {
   const [selectedRequestId, setSelectedRequestId] = useState(null);
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [isEditingAvailability, setIsEditingAvailability] = useState(false);
+  const [hasRequestedGeneration, setHasRequestedGeneration] = useState(false);
+
 
   const { data: requests = [], isLoading: isLoadingRequests } =
     useRelatedRequests();
@@ -79,7 +81,8 @@ const MyRecommendationsPage = () => {
 
   const handleRequestSelect = (id) => {
     setSelectedRequestId(id);
-    setIsEditingAvailability(false); // Zawsze resetuj do trybu podglądu przy zmianie
+    setHasRequestedGeneration(false);
+    setIsEditingAvailability(false);
   };
 
   const getRequestDisplayLabel = (req) => {
@@ -110,7 +113,7 @@ const MyRecommendationsPage = () => {
   const { data: serverProposals = [] } = useQuery({
     queryKey: ["proposals", selectedRequestId, user.id],
     queryFn: () =>
-      apiRequest(`/proposals?change_request_id=${selectedRequestId}`),
+      apiRequest(`/proposals/by-change-id/${selectedRequestId}`),
     enabled: !!selectedRequestId,
   });
 
@@ -134,61 +137,100 @@ const MyRecommendationsPage = () => {
     }
   }, [selectedRequest, proposalStatus, user.role]);
 
-  const { data: recommendations = [], isLoading: isLoadingRecommendations } =
-    useQuery({
-      queryKey: ["recommendations", selectedRequestId],
-      queryFn: () => apiRequest(`/recommendations/${selectedRequestId}`),
-      enabled:
-        !!selectedRequestId &&
-        proposalStatus?.teacher_has_proposed &&
-        proposalStatus?.leader_has_proposed,
-    });
-
-  const updateProposalsMutation = useMutation({
-    mutationFn: async ({ toAdd, toDelete }) => {
-      const addPromises = toAdd.map((p) =>
-        apiRequest("/proposals/", { method: "POST", body: JSON.stringify(p) })
-      );
-      const deletePromises = toDelete.map((p) =>
-        apiRequest(`/proposals/${p.id}`, { method: "DELETE" })
-      );
-      return Promise.all([...addPromises, ...deletePromises]);
-    },
+  const generateRecommendationsMutation = useMutation({
+    mutationFn: () => apiRequest(`/recommendations/${selectedRequestId}`, { method: "POST" }),
     onSuccess: () => {
-      showNotification("Dostępność została zaktualizowana.", "success");
-      queryClient.invalidateQueries({
-        queryKey: ["proposals", selectedRequestId, user.id],
-      });
-      refetchProposalStatus(); // Kluczowe odświeżenie statusu
-      setIsEditingAvailability(false);
+      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      refetchRecommendations(); // ⬅️ Pobierz po wygenerowaniu
     },
-    onError: (error) =>
-      showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
+    onError: (error) => {
+      showNotification(`Błąd generowania rekomendacji: ${error.message}`, "error");
+    },
   });
 
-  const handleSaveAvailability = (localProposalsSet) => {
-    const serverSet = new Set(
-      serverProposals.map((p) => `${p.day}_${p.time_slot_id}`)
-    );
-    const localArray = Array.from(localProposalsSet);
+  const {
+    data: recommendations = [],
+    isLoading: isLoadingRecommendations,
+    refetch: refetchRecommendations,
+  } = useQuery({
+    queryKey: ["recommendations", selectedRequestId],
+    queryFn: () => apiRequest(`/recommendations/${selectedRequestId}`),
+    enabled: false,
+  });
 
-    const toAdd = localArray
-      .filter((key) => !serverSet.has(key))
-      .map((key) => ({
-        change_request_id: selectedRequestId,
-        day: key.split("_")[0],
-        time_slot_id: parseInt(key.split("_")[1], 10),
-      }));
-
-    const toDelete = serverProposals.filter(
-      (p) => !localProposalsSet.has(`${p.day}_${p.time_slot_id}`)
-    );
-
-    if (toAdd.length === 0 && toDelete.length === 0) {
-      setIsEditingAvailability(false);
-      return;
+  useEffect(() => {
+    if (
+      selectedRequestId &&
+      proposalStatus?.teacher_has_proposed &&
+      proposalStatus?.leader_has_proposed &&
+      !hasRequestedGeneration
+    ) {
+      setHasRequestedGeneration(true);
+      generateRecommendationsMutation.mutate();
     }
-    updateProposalsMutation.mutate({ toAdd, toDelete });
+  }, [selectedRequestId, proposalStatus, hasRequestedGeneration]);
+
+  const replaceProposalsMutation = useMutation({
+  mutationFn: async (proposalsToAdd) => {
+    // Usuń stare propozycje
+    await apiRequest(
+      `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
+      { method: "DELETE" }
+    );
+
+    // Dodaj nowe (jeśli są)
+    const addResults = await Promise.all(
+      proposalsToAdd.map((p) =>
+        apiRequest("/proposals/", {
+          method: "POST",
+          body: JSON.stringify(p),
+        })
+      )
+    );
+
+    return addResults;
+  },
+  onSuccess: (responses) => {
+    let anyRecommendationGenerated = false;
+
+    for (const res of responses) {
+      if (res?.type === "recommendations") {
+        anyRecommendationGenerated = true;
+        queryClient.invalidateQueries({
+          queryKey: ["recommendations", selectedRequestId],
+        });
+        refetchRecommendations();
+        showNotification("Wygenerowano rekomendacje.", "success");
+        break;
+      }
+    }
+
+    if (!anyRecommendationGenerated) {
+      showNotification("Dostępność została zaktualizowana.", "success");
+    }
+
+    queryClient.invalidateQueries({
+      queryKey: ["proposals", selectedRequestId, user.id],
+    });
+    refetchProposalStatus();
+    setIsEditingAvailability(false);
+  },
+  onError: (error) =>
+    showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
+});
+
+
+  const handleSaveAvailability = (localProposalsSet) => {
+    const proposalsToAdd = Array.from(localProposalsSet).map((key) => {
+      const [day, timeSlotId] = key.split("_");
+      return {
+        change_request_id: selectedRequestId,
+        day,
+        time_slot_id: parseInt(timeSlotId, 10),
+      };
+    });
+
+    replaceProposalsMutation.mutate(proposalsToAdd);
   };
 
   const acceptMutation = useMutation({
@@ -220,6 +262,20 @@ const MyRecommendationsPage = () => {
       showNotification(`Błąd odrzucenia: ${error.message}`, "error"),
   });
 
+  const rejectSingleMutation = useMutation({
+    mutationFn: (recommendationId) =>
+      apiRequest(`/recommendations/${recommendationId}/reject`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      showNotification("Propozycja została odrzucona.", "warning");
+      setSelectedProposal(null);
+    },
+    onError: (error) =>
+      showNotification(`Błąd odrzucenia propozycji: ${error.message}`, "error"),
+  });
+
   const renderDetailsContent = () => {
     if (!selectedRequest)
       return (
@@ -237,6 +293,19 @@ const MyRecommendationsPage = () => {
           </Typography>
         </Paper>
       );
+
+    if (isEditingAvailability) {
+      return (
+          <AvailabilitySelector
+              changeRequestId={selectedRequestId}
+              isEditing={true}
+              onSave={handleSaveAvailability}
+              onCancelEdit={() => setIsEditingAvailability(false)}
+          />
+      );
+    }
+
+
     if (selectedRequest.status !== "PENDING")
       return (
         <Paper sx={{ p: 3 }}>
@@ -255,52 +324,57 @@ const MyRecommendationsPage = () => {
 
     const { teacher_has_proposed, leader_has_proposed } = proposalStatus;
 
-    if (teacher_has_proposed && leader_has_proposed)
+    if (teacher_has_proposed && leader_has_proposed) {
       return (
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6">Rekomendowane Terminy</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Wybierz jeden z terminów pasujących obu stronom, aby go
-            zaakceptować.
-          </Typography>
-          {isLoadingRecommendations ? (
-            <CircularProgress />
-          ) : recommendations.length === 0 ? (
-            <Alert severity="warning">
-              Brak dostępnych sal dla wspólnych terminów.
-            </Alert>
-          ) : (
-            <List>
-              {recommendations.map((rec) => (
-                <ListItemButton
-                  key={rec.id}
-                  onClick={() => setSelectedProposal(rec)}
-                >
-                  <ListItemText
-                    primary={`Data: ${format(
-                      new Date(rec.recommended_day),
-                      "EEEE, dd.MM.yyyy",
-                      { locale: pl }
-                    )}`}
-                    secondary={`Slot: ${
-                      timeSlotMap[rec.recommended_slot_id]
-                    } / Sala: ${rec.recommended_room?.name}`}
-                  />
-                </ListItemButton>
-              ))}
-            </List>
-          )}
-        </Paper>
-      );
-
-    if (isEditingAvailability) {
-      return (
-        <AvailabilitySelector
-          changeRequestId={selectedRequestId}
-          isEditing={true}
-          onSave={handleSaveAvailability}
-          onCancelEdit={() => setIsEditingAvailability(false)}
-        />
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Rekomendowane Terminy</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Wybierz jeden z terminów pasujących obu stronom, aby go zaakceptować.
+            </Typography>
+            {isLoadingRecommendations ? (
+                <CircularProgress />
+            ) : recommendations.length === 0 ? (
+                <Stack spacing={2}>
+                  <Alert severity="warning">
+                    Brak dostępnych sal dla wspólnych terminów. Możesz edytować swoją
+                    dostępność, by spróbować ponownie.
+                  </Alert>
+                  <Button
+                      variant="outlined"
+                      onClick={() => {
+                        console.log("Kliknięto: Edytuj swoją dostępność", {
+                          userId: user?.id,
+                          selectedRequestId,
+                          timestamp: new Date().toISOString(),
+                        });
+                        setIsEditingAvailability(true);
+                      }}
+                  >
+                    Edytuj swoją dostępność
+                  </Button>
+                </Stack>
+            ) : (
+                <List>
+                  {recommendations.map((rec) => (
+                      <ListItemButton
+                          key={rec.id}
+                          onClick={() => setSelectedProposal(rec)}
+                      >
+                        <ListItemText
+                            primary={`Data: ${format(
+                                new Date(rec.recommended_day),
+                                "EEEE, dd.MM.yyyy",
+                                { locale: pl }
+                            )}`}
+                            secondary={`Slot: ${
+                                timeSlotMap[rec.recommended_slot_id]
+                            } / Sala: ${rec.recommended_room?.name}`}
+                        />
+                      </ListItemButton>
+                  ))}
+                </List>
+            )}
+          </Paper>
       );
     }
 
@@ -500,6 +574,13 @@ const MyRecommendationsPage = () => {
             disabled={rejectMutation.isPending || acceptMutation.isPending}
           >
             Odrzuć zgłoszenie
+          </Button>
+          <Button
+            onClick={() =>
+              rejectSingleMutation.mutate(selectedProposal.id)
+            }
+          >
+            Odrzuć propozycję
           </Button>
           <Button
             onClick={() =>

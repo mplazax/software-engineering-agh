@@ -69,8 +69,7 @@ def create_request(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Course event not found")
 
     if course_event.was_rescheduled and request_data.cyclical:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="The date of this event has already been changed. "
-                                                                     "You cannot make a cyclical change")
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Data tego kursu już zostałą zmieniona. Nie możesz zmienić tego kursu cyklicznie")
 
     new_request = ChangeRequest(
         **request_data.dict(),
@@ -161,3 +160,4 @@ def reject_request(
     db.commit()
     db.refresh(db_request)
     return db_request
+

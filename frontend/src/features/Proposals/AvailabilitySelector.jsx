@@ -52,10 +52,17 @@ const AvailabilitySelector = ({
     });
 
   useEffect(() => {
-    const serverSet = new Set(
-      serverProposals.map((p) => `${p.day}_${p.time_slot_id}`)
+    const newSet = new Set(
+        serverProposals.map((p) => `${p.day}_${p.time_slot_id}`)
     );
-    setLocalProposals(serverSet);
+
+    const areEqual =
+        localProposals.size === newSet.size &&
+        [...newSet].every((item) => localProposals.has(item));
+
+    if (!areEqual) {
+      setLocalProposals(newSet);
+    }
   }, [serverProposals]);
 
   const handleSlotClick = (day, slotId) => {

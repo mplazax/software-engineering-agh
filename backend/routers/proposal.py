@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
 from model import (
@@ -10,7 +10,7 @@ from model import (
     UserRole
 )
 # Ważne: importujemy funkcje z innych routerów
-from routers.change_recommendation import get_recommendations, accept_recommendation
+from routers.change_recommendation import find_recommendations, accept_recommendation
 from routers.auth import get_current_user, role_required
 from routers.schemas import (
     ProposalCreate,
@@ -25,6 +25,7 @@ from starlette.status import (
     HTTP_404_NOT_FOUND,
 )
 
+from routers.schemas import ChangeRecomendationResponse, EquipmentResponse, ProposalCreateResponse, AvailabilityProposalResponse, RoomResponse
 
 router = APIRouter(prefix="/proposals", tags=["Availability Proposals"])
 
@@ -46,8 +47,8 @@ def get_proposals(
     return proposals
 
 
-@router.post("", status_code=HTTP_201_CREATED, response_model=ProposalResponse)
-@router.post("/", status_code=HTTP_201_CREATED, response_model=ProposalResponse, include_in_schema=False)
+@router.post("", status_code=HTTP_201_CREATED, response_model=ProposalCreateResponse)
+@router.post("/", status_code=HTTP_201_CREATED, include_in_schema=False, response_model=ProposalCreateResponse)
 def create_proposal(
     proposal_data: ProposalCreate,
     db: Session = Depends(get_db),
@@ -78,16 +79,51 @@ def create_proposal(
 
     if teacher_proposal and leader_proposal:
         # Obie strony podały dostępność, generujemy rekomendacje
-        recommendations = get_recommendations(change_request.id, db, current_user)
+        recommendations = find_recommendations(change_request.id, db, current_user)
         if recommendations:
-            # Wybieramy "najlepszą" (pierwszą z listy, która jest już posortowana)
-            best_recommendation = recommendations[0]
-            # Automatycznie akceptujemy
-            accept_recommendation(best_recommendation.source_proposal_id, db, current_user)
-            # Nie musimy tu nic zwracać, bo akceptacja modyfikuje stan,
-            # a frontend odświeży dane i zobaczy zmieniony status zgłoszenia
-    
-    return new_proposal
+            parsed_recommendations = [
+                ChangeRecomendationResponse(
+                    id=r.id,
+                    change_request_id=r.change_request_id,
+                    recommended_day=r.recommended_day,
+                    recommended_slot_id=r.recommended_slot_id,
+                    recommended_room_id=r.recommended_room_id,
+                    source_proposal_id=r.source_proposal_id,
+                    recommended_room=RoomResponse(
+                        id=r.recommended_room.id,
+                        name=r.recommended_room.name,
+                        capacity=r.recommended_room.capacity,
+                        type=r.recommended_room.type,
+                        equipment=[EquipmentResponse.from_orm(e) for e in r.recommended_room.equipment]
+                    )
+                )
+                for r in recommendations
+            ]
+            return ProposalCreateResponse(
+                type="recommendations",
+                data=parsed_recommendations
+            )
+
+    return ProposalCreateResponse(
+        type="proposal",
+        data=AvailabilityProposalResponse.from_orm(new_proposal)
+    )
+
+@router.delete("/by-user-and-change-request", status_code=204)
+def delete_proposals_by_user_and_change_request(
+    user_id: int,
+    change_request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.id != user_id and current_user.role not in [UserRole.ADMIN, UserRole.KOORDYNATOR]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db.query(AvailabilityProposal).filter(
+        AvailabilityProposal.user_id == user_id,
+        AvailabilityProposal.change_request_id == change_request_id
+    ).delete(synchronize_session=False)
+    db.commit()
 
 
 @router.delete("/{proposal_id}", status_code=HTTP_204_NO_CONTENT)

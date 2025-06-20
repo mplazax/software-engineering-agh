@@ -1,11 +1,13 @@
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from model import ChangeRequestStatus, RoomType, UserRole
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
 
 class OrmBase(BaseModel):
     class Config:
+        orm_mode = True
         from_attributes = True
 
 # UserResponse musi być zdefiniowany przed użyciem go w innych schematach
@@ -25,6 +27,7 @@ class EquipmentCreate(EquipmentBase):
 class EquipmentResponse(EquipmentBase, OrmBase):
     id: int
 
+
 class RoomBase(BaseModel):
     name: str = Field(..., min_length=3, max_length=100)
     capacity: int = Field(..., gt=0)
@@ -42,6 +45,10 @@ class RoomUpdate(BaseModel):
 class RoomResponse(RoomBase, OrmBase):
     id: int
     equipment: List[EquipmentResponse] = []
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -172,10 +179,35 @@ class ChangeRecomendationBase(BaseModel):
     recommended_room_id: int
     source_proposal_id: Optional[int] = None
 
-class ChangeRecomendationResponse(ChangeRecomendationBase, OrmBase):
+
+class ChangeRecomendationResponse(BaseModel):
     id: int
-    recommended_room: Optional[RoomResponse] = None
-    source_proposal: Optional[ProposalResponse] = None
+    change_request_id: int
+    recommended_day: date
+    recommended_slot_id: int
+    recommended_room_id: int
+    source_proposal_id: Optional[int]
+    recommended_room: Optional[RoomResponse]
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class AvailabilityProposalResponse(BaseModel):
+    id: int
+    user_id: int
+    change_request_id: int
+    day: date
+    time_slot_id: int
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class ProposalCreateResponse(BaseModel):
+    type: str  # "proposal" lub "recommendations"
+    data: Union[AvailabilityProposalResponse, List[ChangeRecomendationResponse]]
+
 
 # ... reszta schematów bez zmian
 class RoomUnavailabilityBase(BaseModel):
