@@ -14,10 +14,6 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_
 
 router = APIRouter(prefix="/recommendations", tags=["Change Recommendations"])
 
-@router.get("/", response_model=List[ChangeRecomendationResponse])
-def get_all_recomendations(db: Session = Depends(get_db)):
-    return db.query(ChangeRecomendation).all()
-
 @router.get("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
 def get_recommendations(change_request_id: int, db: Session = Depends(get_db)):
     recs = db.query(ChangeRecomendation).options(
@@ -299,7 +295,7 @@ def accept_recommendation(
         raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authorized to accept this recommendation.")
 
     if change_request.cyclical:
-        original_weekday = original_event.day.weekday()
+        original_weekday = (original_event.day.weekday() + 1) % 7
         target_weekday = accepted_rec.recommended_day.weekday()
 
         related_events = db.query(CourseEvent).filter(
@@ -308,6 +304,8 @@ def accept_recommendation(
             CourseEvent.time_slot_id == original_event.time_slot_id,
             CourseEvent.canceled == False
         ).all()
+
+        print(f"Znaleziono {len(related_events)} powiązanych eventów dla dnia tygodnia {original_weekday}")
 
         for event in related_events:
             new_day = shift_to_weekday(event.day, target_weekday)
@@ -363,7 +361,7 @@ def accept_recommendation(
         original_event.canceled = True
 
     change_request.status = ChangeRequestStatus.ACCEPTED
-
+    
     # Czyszczenie po udanej operacji
     db.query(ChangeRecomendation).filter(
         ChangeRecomendation.change_request_id == change_request.id
