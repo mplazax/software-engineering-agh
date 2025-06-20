@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
 from model import (
@@ -25,6 +25,7 @@ from starlette.status import (
     HTTP_404_NOT_FOUND,
 )
 
+from routers.schemas import ChangeRecomendationResponse, EquipmentResponse, ProposalCreateResponse, AvailabilityProposalResponse, RoomResponse
 
 router = APIRouter(prefix="/proposals", tags=["Availability Proposals"])
 
@@ -46,8 +47,8 @@ def get_proposals(
     return proposals
 
 
-@router.post("", status_code=HTTP_201_CREATED, response_model=ProposalResponse)
-@router.post("/", status_code=HTTP_201_CREATED, response_model=ProposalResponse, include_in_schema=False)
+@router.post("", status_code=HTTP_201_CREATED, response_model=ProposalCreateResponse)
+@router.post("/", status_code=HTTP_201_CREATED, include_in_schema=False, response_model=ProposalCreateResponse)
 def create_proposal(
     proposal_data: ProposalCreate,
     db: Session = Depends(get_db),
@@ -80,9 +81,33 @@ def create_proposal(
         # Obie strony podały dostępność, generujemy rekomendacje
         recommendations = find_recommendations(change_request.id, db, current_user)
         if recommendations:
-            return recommendations
-    
-    return new_proposal
+            parsed_recommendations = [
+                ChangeRecomendationResponse(
+                    id=r.id,
+                    change_request_id=r.change_request_id,
+                    recommended_day=r.recommended_day,
+                    recommended_slot_id=r.recommended_slot_id,
+                    recommended_room_id=r.recommended_room_id,
+                    source_proposal_id=r.source_proposal_id,
+                    recommended_room=RoomResponse(
+                        id=r.recommended_room.id,
+                        name=r.recommended_room.name,
+                        capacity=r.recommended_room.capacity,
+                        type=r.recommended_room.type,
+                        equipment=[EquipmentResponse.from_orm(e) for e in r.recommended_room.equipment]
+                    )
+                )
+                for r in recommendations
+            ]
+            return ProposalCreateResponse(
+                type="recommendations",
+                data=parsed_recommendations
+            )
+
+    return ProposalCreateResponse(
+        type="proposal",
+        data=AvailabilityProposalResponse.from_orm(new_proposal)
+    )
 
 @router.delete("/by-user-and-change-request", status_code=204)
 def delete_proposals_by_user_and_change_request(

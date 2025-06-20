@@ -172,32 +172,52 @@ const MyRecommendationsPage = () => {
 
   const replaceProposalsMutation = useMutation({
   mutationFn: async (proposalsToAdd) => {
-    // Usuń stare
+    // Usuń stare propozycje
     await apiRequest(
       `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
       { method: "DELETE" }
     );
 
     // Dodaj nowe (jeśli są)
-    const addPromises = proposalsToAdd.map((p) =>
-      apiRequest("/proposals/", {
-        method: "POST",
-        body: JSON.stringify(p),
-      })
+    const addResults = await Promise.all(
+      proposalsToAdd.map((p) =>
+        apiRequest("/proposals/", {
+          method: "POST",
+          body: JSON.stringify(p),
+        })
+      )
     );
-    return Promise.all(addPromises);
-    },
-    onSuccess: () => {
+
+    return addResults;
+  },
+  onSuccess: (responses) => {
+    let anyRecommendationGenerated = false;
+
+    for (const res of responses) {
+      if (res?.type === "recommendations") {
+        anyRecommendationGenerated = true;
+        queryClient.invalidateQueries({
+          queryKey: ["recommendations", selectedRequestId],
+        });
+        refetchRecommendations();
+        showNotification("Wygenerowano rekomendacje.", "success");
+        break;
+      }
+    }
+
+    if (!anyRecommendationGenerated) {
       showNotification("Dostępność została zaktualizowana.", "success");
-      queryClient.invalidateQueries({
-        queryKey: ["proposals", selectedRequestId, user.id],
-      });
-      refetchProposalStatus();
-      setIsEditingAvailability(false);
-    },
-    onError: (error) =>
-      showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
-  });
+    }
+
+    queryClient.invalidateQueries({
+      queryKey: ["proposals", selectedRequestId, user.id],
+    });
+    refetchProposalStatus();
+    setIsEditingAvailability(false);
+  },
+  onError: (error) =>
+    showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
+});
 
 
   const handleSaveAvailability = (localProposalsSet) => {
