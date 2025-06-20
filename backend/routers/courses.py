@@ -77,13 +77,14 @@ def delete_course(course_id: int, db: Session = Depends(get_db), current_user: U
 # --- Events Management ---
 
 @router.get("/events/all", response_model=List[CourseEventWithDetailsResponse], tags=["Course Events"])
-def get_all_events(db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR]))):
+def get_all_events(db: Session = Depends(get_db), current_user: User = Depends(role_required([UserRole.ADMIN, UserRole.KOORDYNATOR, UserRole.PROWADZACY, UserRole.STAROSTA]))):
     """
     Retrieves all course events with their associated course and room details.
     This is an optimized endpoint to prevent N+1 query problems on the client-side.
     """
     events = db.query(CourseEvent).options(
-        joinedload(CourseEvent.course),
+        joinedload(CourseEvent.course).joinedload(Course.teacher),
+        joinedload(CourseEvent.course).joinedload(Course.group).joinedload(Group.leader),
         joinedload(CourseEvent.room)
     ).order_by(CourseEvent.day.desc(), CourseEvent.time_slot_id).all()
     return events

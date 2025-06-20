@@ -1,3 +1,5 @@
+// Plik: ./frontend/src/theme/theme.js
+
 import { createTheme } from "@mui/material/styles";
 
 const theme = createTheme({
@@ -8,6 +10,24 @@ const theme = createTheme({
     text: { primary: "#1E293B", secondary: "#64748B" },
     success: { main: "#10B981", light: "#E8F5E9", dark: "#1B5E20" },
     warning: { main: "#F59E0B" },
+    calendar: {
+      background: "#FFFFFF",
+      headerBg: "#F8FAFC",
+      border: "#E2E8F0",
+      todayBg: "#EBF5FF",
+      currentTime: "#EF4444",
+    },
+    event: {
+      default: "#3B82F6",
+      defaultText: "#FFFFFF",
+      canceled: "#9CA3AF",
+      canceledText: "#FFFFFF",
+      canceledBg: "#F3F4F6",
+      // NOWE KOLORY DLA STYLU ZE ZDJĘCIA
+      custom: "#FEFBEB",
+      customBorder: "#FDE68A",
+      customText: "#92400E",
+    },
   },
   typography: {
     fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',

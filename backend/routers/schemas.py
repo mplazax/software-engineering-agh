@@ -129,7 +129,7 @@ class RoomForEventResponse(OrmBase):
     name: str
 
 class CourseEventWithDetailsResponse(CourseEventResponse):
-    course: CourseForEventResponse
+    course: CourseResponse
     room: Optional[RoomForEventResponse]
 
 

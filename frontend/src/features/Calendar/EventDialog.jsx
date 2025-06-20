@@ -1,3 +1,5 @@
+// Plik: ./frontend/src/features/Calendar/EventDialog.jsx
+
 import React from "react";
 import {
   Dialog,
@@ -11,7 +13,17 @@ import {
   CircularProgress,
   Typography,
   Chip,
+  Box,
+  ListItemIcon, // <-- NOWY IMPORT
 } from "@mui/material";
+// NOWE IKONY
+import SchoolIcon from "@mui/icons-material/School";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import ConstructionIcon from "@mui/icons-material/Construction";
+
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../api/apiService.js";
 
@@ -28,16 +40,26 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
       <DialogContent dividers>
         {event ? (
           <List>
+            {/* ZMIANY PONIŻEJ - DODAJEMY IKONY */}
             <ListItem>
+              <ListItemIcon>
+                <SchoolIcon color="secondary" />
+              </ListItemIcon>
               <ListItemText primary="Kurs" secondary={event.title} />
             </ListItem>
             <ListItem>
+              <ListItemIcon>
+                <CalendarTodayIcon color="secondary" />
+              </ListItemIcon>
               <ListItemText
                 primary="Data"
                 secondary={event.start.toLocaleDateString("pl-PL")}
               />
             </ListItem>
             <ListItem>
+              <ListItemIcon>
+                <AccessTimeIcon color="secondary" />
+              </ListItemIcon>
               <ListItemText
                 primary="Godziny"
                 secondary={`${event.start.toLocaleTimeString("pl-PL", {
@@ -50,6 +72,9 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
               />
             </ListItem>
             <ListItem>
+              <ListItemIcon>
+                <MeetingRoomIcon color="secondary" />
+              </ListItemIcon>
               <ListItemText
                 primary="Sala"
                 secondary={
@@ -64,26 +89,41 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
             {room && (
               <>
                 <ListItem>
+                  <ListItemIcon>
+                    <PeopleAltIcon color="secondary" />
+                  </ListItemIcon>
                   <ListItemText
                     primary="Pojemność sali"
                     secondary={room.capacity}
                   />
                 </ListItem>
                 <ListItem>
-                  <Typography variant="subtitle2" sx={{ pl: 2, pt: 1 }}>
-                    Wyposażenie
-                  </Typography>
-                </ListItem>
-                <ListItem sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                  {room.equipment.length > 0 ? (
-                    room.equipment.map((eq) => (
-                      <Chip key={eq.id} label={eq.name} size="small" />
-                    ))
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Brak
-                    </Typography>
-                  )}
+                  <ListItemIcon>
+                    <ConstructionIcon color="secondary" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="Wyposażenie"
+                    secondary={
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 0.5,
+                          mt: 0.5,
+                        }}
+                      >
+                        {room.equipment.length > 0 ? (
+                          room.equipment.map((eq) => (
+                            <Chip key={eq.id} label={eq.name} size="small" />
+                          ))
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Brak
+                          </Typography>
+                        )}
+                      </Box>
+                    }
+                  />
                 </ListItem>
               </>
             )}
@@ -94,7 +134,11 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Zamknij</Button>
-        <Button onClick={onProposeChange} variant="contained" disabled={!event}>
+        <Button
+          onClick={onProposeChange}
+          variant="contained"
+          disabled={!event || event.isCanceled} // <- Zablokuj dla anulowanych
+        >
           Zgłoś potrzebę zmiany
         </Button>
       </DialogActions>

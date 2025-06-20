@@ -1,5 +1,13 @@
+// Plik: ./frontend/src/pages/ChangeRequestsPage.jsx
+
 import React, { useState, useContext, useMemo } from "react";
-import { Box, Container, CircularProgress } from "@mui/material";
+import {
+  Box,
+  Container,
+  CircularProgress,
+  useTheme,
+  Typography,
+} from "@mui/material";
 import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -50,85 +58,131 @@ const getSlotTimes = (day, slot) => {
     { start: "16:45", end: "18:15" },
     { start: "18:30", end: "20:00" },
   ];
-  const { start, end } = slotTimes[slot - 1];
-  const startDate = new Date(`${day}T${start}`);
-  const endDate = new Date(`${day}T${end}`);
-  return { start: startDate, end: endDate };
+  const { start, end } = slotTimes[slot - 1] || {
+    start: "00:00",
+    end: "00:00",
+  };
+  return {
+    start: new Date(`${day}T${start}`),
+    end: new Date(`${day}T${end}`),
+  };
 };
 
-const useCalendarEvents = () => {
+const useFilteredCalendarEvents = () => {
   const { user } = useContext(AuthContext);
 
-  const queryKey = useMemo(
-    () => ["calendarEvents", user?.role, user?.id],
-    [user]
-  );
-
-  const fetchEvents = async () => {
-    let courses = await apiRequest("/courses");
-
-    if (user.role === "PROWADZACY") {
-      courses = courses.filter((c) => c.teacher_id === user.id);
-    } else if (user.role === "STAROSTA") {
-      const groups = await apiRequest("/groups");
-      const myGroupIds = groups
-        .filter((g) => g.leader_id === user.id)
-        .map((g) => g.id);
-      courses = courses.filter((c) => myGroupIds.includes(c.group_id));
-    }
-
-    const eventPromises = courses.map((course) =>
-      apiRequest(`/courses/${course.id}/events`).then((events) =>
-        events.map((event) => ({
-          ...event,
-          courseName: course.name,
-          courseId: course.id,
-        }))
-      )
-    );
-
-    const eventsByCourse = await Promise.all(eventPromises);
-    return eventsByCourse.flat();
-  };
-
-  const {
-    data: rawEvents,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
-    queryKey,
-    queryFn: fetchEvents,
+  const { data: allEvents = [], ...queryResult } = useQuery({
+    queryKey: ["allEventsWithDetails"],
+    queryFn: () => apiRequest("/courses/events/all"),
     enabled: !!user,
   });
 
-  const calendarEvents = useMemo(() => {
-    if (!rawEvents) return [];
-    return rawEvents
-      .map((event) => {
-        if (event.canceled) return null;
-        const { start, end } = getSlotTimes(event.day, event.time_slot_id);
-        return {
-          ...event,
-          id: `${event.courseId}-${event.id}`,
-          title: event.courseName,
-          start,
-          end,
-        };
-      })
-      .filter(Boolean);
-  }, [rawEvents]);
+  const filteredEvents = useMemo(() => {
+    if (!user || !allEvents.length) return [];
+    if (user.role === "ADMIN" || user.role === "KOORDYNATOR") {
+      return allEvents;
+    }
 
-  return { events: calendarEvents, isLoading, isError, error };
+    let userGroupId;
+    if (user.role === "STAROSTA") {
+      const group = allEvents.find((e) => e.course.group.leader_id === user.id)
+        ?.course.group;
+      userGroupId = group?.id;
+    }
+
+    return allEvents.filter((event) => {
+      if (user.role === "PROWADZACY") {
+        return event.course.teacher_id === user.id;
+      }
+      if (user.role === "STAROSTA") {
+        return event.course.group_id === userGroupId;
+      }
+      return false;
+    });
+  }, [allEvents, user]);
+
+  const calendarEvents = useMemo(() => {
+    return filteredEvents.map((event) => {
+      const { start, end } = getSlotTimes(event.day, event.time_slot_id);
+      return {
+        ...event,
+        id: `evt-${event.id}`,
+        title: event.course.name,
+        start,
+        end,
+        isCanceled: event.canceled,
+      };
+    });
+  }, [filteredEvents]);
+
+  return { events: calendarEvents, ...queryResult };
+};
+
+// Komponent dla widoku tygodnia i dnia - zgodny z PIERWOTNYM obrazkiem
+const WeekAndDayEvent = ({ event }) => {
+  return (
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        p: "4px 8px",
+      }}
+    >
+      {/* Część górna */}
+      <Box>
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: "bold", lineHeight: 1.2 }}
+        >
+          {event.title}
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{ lineHeight: 1.1, display: "block" }}
+        >
+          {/* Można tu dodać typ zajęć, np. "W, " */}
+          gr. {event.course.group.name}, {event.room?.name || "(on-line)"}
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
+
+// Uproszczony komponent dla widoku miesiąca - bez zmian
+const MonthEvent = ({ event }) => {
+  return (
+    <Box
+      sx={{
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        fontSize: "0.8rem",
+        p: "0 4px",
+      }}
+    >
+      <Typography
+        variant="caption"
+        component="span"
+        sx={{ fontWeight: "bold" }}
+      >
+        {format(event.start, "H:mm")}
+      </Typography>{" "}
+      {event.title}
+    </Box>
+  );
 };
 
 const ChangeRequestsPage = () => {
-  const { events, isLoading } = useCalendarEvents();
+  const theme = useTheme();
+  const { events, isLoading } = useFilteredCalendarEvents();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
 
   const handleSelectEvent = (event) => {
+    if (event.isCanceled) return;
     setSelectedEvent(event);
     setEventDialogOpen(true);
   };
@@ -136,6 +190,28 @@ const ChangeRequestsPage = () => {
   const handleProposeChange = () => {
     setEventDialogOpen(false);
     setChangeDialogOpen(true);
+  };
+
+  const eventStyleGetter = (event) => {
+    let style;
+    if (event.isCanceled) {
+      style = {
+        backgroundColor: theme.palette.event.canceledBg,
+        color: theme.palette.event.canceled,
+        border: `1px dashed ${theme.palette.event.canceled}`,
+        textDecoration: "line-through",
+      };
+    } else {
+      style = {
+        backgroundColor: theme.palette.event.custom,
+        color: theme.palette.event.customText,
+        border: `1px solid ${theme.palette.event.customBorder}`,
+        boxShadow: "none",
+      };
+    }
+    return {
+      style: { ...style, borderRadius: "4px", opacity: 1, cursor: "pointer" },
+    };
   };
 
   return (
@@ -152,22 +228,39 @@ const ChangeRequestsPage = () => {
           <CircularProgress />
         </Box>
       )}
-      <Calendar
-        localizer={localizer}
-        culture="pl"
-        events={events}
-        startAccessor="start"
-        endAccessor="end"
-        views={availableViews}
-        onSelectEvent={handleSelectEvent}
-        messages={calendarMessages}
-        style={{
+      <Box
+        sx={{
+          height: "100%",
           opacity: isLoading ? 0.5 : 1,
-          backgroundColor: "#FFFFFF",
-          padding: "1rem",
-          borderRadius: "8px",
+          ".rbc-event": { p: 0 },
+          ".rbc-event-content": {
+            display: "flex",
+            height: "100%",
+            width: "100%",
+          },
         }}
-      />
+      >
+        <Calendar
+          localizer={localizer}
+          culture="pl"
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          views={availableViews}
+          onSelectEvent={handleSelectEvent}
+          messages={calendarMessages}
+          eventPropGetter={eventStyleGetter}
+          components={{
+            week: { event: WeekAndDayEvent },
+            day: { event: WeekAndDayEvent },
+            month: { event: MonthEvent },
+            agenda: { event: WeekAndDayEvent },
+          }}
+          scrollToTime={new Date(0, 0, 0, 8)}
+          min={new Date(0, 0, 0, 7, 0, 0)}
+          max={new Date(0, 0, 0, 20, 30, 0)}
+        />
+      </Box>
 
       <EventDialog
         event={selectedEvent}
