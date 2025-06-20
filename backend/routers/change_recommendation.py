@@ -302,10 +302,12 @@ def accept_recommendation(
             CourseEvent.course_id == original_event.course_id,
             extract('dow', CourseEvent.day) == original_weekday,
             CourseEvent.time_slot_id == original_event.time_slot_id,
+            CourseEvent.day >= accepted_rec.recommended_day,
             CourseEvent.canceled == False
         ).all()
 
-        print(f"Znaleziono {len(related_events)} powiązanych eventów dla dnia tygodnia {original_weekday}")
+        print(
+            f"Znaleziono {len(related_events)} powiązanych eventów od dnia {accepted_rec.recommended_day} (dzień tygodnia {original_weekday})")
 
         for event in related_events:
             new_day = shift_to_weekday(event.day, target_weekday)
@@ -317,6 +319,7 @@ def accept_recommendation(
                 canceled=False,
                 was_rescheduled=False
             )
+
             conflict = db.query(CourseEvent).filter(
                 CourseEvent.room_id == new_event.room_id,
                 CourseEvent.day == new_event.day,
@@ -325,7 +328,7 @@ def accept_recommendation(
             ).first()
 
             if conflict:
-                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Room is already booked.")
 
             conflict = db.query(CourseEvent).join(Course).filter(
                 Course.group_id == group.id,
@@ -335,7 +338,7 @@ def accept_recommendation(
             ).first()
 
             if conflict:
-                raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Group has other event")
+                raise HTTPException(status_code=HTTP_409_CONFLICT, detail="Group has other event")
 
             db.add(new_event)
             event.canceled = True
