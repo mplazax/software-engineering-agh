@@ -1,3 +1,4 @@
+import { apiRequest } from "./apiService";
 import { queryClient } from "../App";
 
 export const login = async (email, password) => {
@@ -16,16 +17,17 @@ export const login = async (email, password) => {
 
   const data = await response.json();
   localStorage.setItem("token", data.access_token);
-
-  // ✅ Wyczyść cache po zmianie użytkownika
   queryClient.clear();
-
   return data;
 };
 
 export const logout = () => {
   localStorage.removeItem("token");
-
-  // ✅ Czyść dane po wylogowaniu
   queryClient.clear();
 };
+
+export const getCurrentUser = async () => {
+  return apiRequest("/auth/me");
+};
+
+export const isAuthenticated = () => !!localStorage.getItem("token");

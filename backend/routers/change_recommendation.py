@@ -26,9 +26,9 @@ def get_recommendations(change_request_id: int, db: Session = Depends(get_db)):
 
     return recs
 
-@router.post("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
+@router.post("/{change_request_id}")
 def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
-                         current_user: User = Depends(get_current_user)) -> List[ChangeRecomendation]:
+                         current_user: User = Depends(get_current_user)):
     change_request = db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
     if not change_request:
         raise HTTPException(status_code=404, detail="Change request not found")
@@ -115,10 +115,7 @@ def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
             recommendation.recommended_room = room
             recommendations.append(recommendation)
     db.commit()
-    result = db.query(ChangeRecomendation).filter(
-        ChangeRecomendation.change_request_id == change_request_id
-    ).order_by(ChangeRecomendation.id.desc()).limit(len(recommendations)).all()
-    return result
+    return
 
 
 def shift_to_weekday(original_date: date, target_weekday: int) -> date:

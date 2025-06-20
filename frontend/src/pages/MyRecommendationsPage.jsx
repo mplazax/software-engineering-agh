@@ -70,6 +70,8 @@ const MyRecommendationsPage = () => {
   const [selectedRequestId, setSelectedRequestId] = useState(null);
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [isEditingAvailability, setIsEditingAvailability] = useState(false);
+  const [hasRequestedGeneration, setHasRequestedGeneration] = useState(false);
+
 
   const { data: requests = [], isLoading: isLoadingRequests } =
     useRelatedRequests();
@@ -79,7 +81,8 @@ const MyRecommendationsPage = () => {
 
   const handleRequestSelect = (id) => {
     setSelectedRequestId(id);
-    setIsEditingAvailability(false); // Zawsze resetuj do trybu podglądu przy zmianie
+    setHasRequestedGeneration(false);
+    setIsEditingAvailability(false);
   };
 
   const getRequestDisplayLabel = (req) => {
@@ -134,15 +137,38 @@ const MyRecommendationsPage = () => {
     }
   }, [selectedRequest, proposalStatus, user.role]);
 
-  const { data: recommendations = [], isLoading: isLoadingRecommendations } =
-    useQuery({
-      queryKey: ["recommendations", selectedRequestId],
-      queryFn: () => apiRequest(`/recommendations/${selectedRequestId}`),
-      enabled:
-        !!selectedRequestId &&
-        proposalStatus?.teacher_has_proposed &&
-        proposalStatus?.leader_has_proposed,
-    });
+  const generateRecommendationsMutation = useMutation({
+    mutationFn: () => apiRequest(`/recommendations/${selectedRequestId}`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      refetchRecommendations(); // ⬅️ Pobierz po wygenerowaniu
+    },
+    onError: (error) => {
+      showNotification(`Błąd generowania rekomendacji: ${error.message}`, "error");
+    },
+  });
+
+  const {
+    data: recommendations = [],
+    isLoading: isLoadingRecommendations,
+    refetch: refetchRecommendations,
+  } = useQuery({
+    queryKey: ["recommendations", selectedRequestId],
+    queryFn: () => apiRequest(`/recommendations/${selectedRequestId}`),
+    enabled: false,
+  });
+
+  useEffect(() => {
+    if (
+      selectedRequestId &&
+      proposalStatus?.teacher_has_proposed &&
+      proposalStatus?.leader_has_proposed &&
+      !hasRequestedGeneration
+    ) {
+      setHasRequestedGeneration(true);
+      generateRecommendationsMutation.mutate();
+    }
+  }, [selectedRequestId, proposalStatus, hasRequestedGeneration]);
 
   const replaceProposalsMutation = useMutation({
   mutationFn: async (proposalsToAdd) => {
