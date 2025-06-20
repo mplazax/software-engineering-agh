@@ -14,6 +14,17 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_
 
 router = APIRouter(prefix="/recommendations", tags=["Change Recommendations"])
 
+@router.get("/", response_model=List[ChangeRecomendationResponse])
+def get_all_recomendations(db: Session = Depends(get_db)):
+    return db.query(ChangeRecomendation).all()
+
+@router.get("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
+def get_recommendations(change_request_id: int, db: Session = Depends(get_db)):
+    recs = db.query(ChangeRecomendation).options(
+        joinedload(ChangeRecomendation.recommended_room)
+    ).filter_by(change_request_id=change_request_id).all()
+
+    return recs
 
 @router.post("/{change_request_id}", response_model=List[ChangeRecomendationResponse])
 def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
@@ -101,9 +112,12 @@ def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
             )
             db.add(recommendation)
             db.flush()
+            recommendation.recommended_room = room
             recommendations.append(recommendation)
+    db.commit()
 
-    return [ChangeRecomendationResponse.from_orm(r) for r in recommendations]
+    print(len(recommendations))
+    return recommendations
 
 
 def shift_to_weekday(original_date: date, target_weekday: int) -> date:
@@ -130,6 +144,9 @@ def reject_single_recommendation(
     is_teacher = current_user.id == course.teacher_id
     if not (is_leader or is_teacher):
         raise HTTPException(status_code=403, detail="Not authorized to reject recommendation")
+
+    recommendation.source_proposal_id = None
+    db.flush()
 
     db.delete(recommendation)
     db.commit()
@@ -229,13 +246,19 @@ def accept_recommendation(
             CourseEvent.time_slot_id == new_event.time_slot_id,
             CourseEvent.canceled == False,
         ).first()
+
         if conflict:
             raise HTTPException(status_code=HTTP_409_CONFLICT, detail=f"Room is already booked.")
         db.add(new_event)
+        original_event.canceled = True
 
     change_request.status = ChangeRequestStatus.ACCEPTED
 
     # Czyszczenie po udanej operacji
+    db.query(ChangeRecomendation).filter(
+        ChangeRecomendation.change_request_id == change_request.id
+    ).delete(synchronize_session=False)
+
     db.query(AvailabilityProposal).filter(
         AvailabilityProposal.change_request_id == change_request.id
     ).delete(synchronize_session=False)

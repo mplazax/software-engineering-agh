@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 class OrmBase(BaseModel):
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # UserResponse musi być zdefiniowany przed użyciem go w innych schematach
 class UserResponse(OrmBase):
@@ -182,9 +182,9 @@ class ChangeRecomendationResponse(BaseModel):
     recommended_room_id: int
     source_proposal_id: Optional[int]
     recommended_room: Optional[RoomResponse]
-    model_config = ConfigDict(from_attributes=True)
-    # class Config:
-    #     orm_mode = True
+
+    class Config:
+        orm_mode = True
 
 # ... reszta schematów bez zmian
 class RoomUnavailabilityBase(BaseModel):

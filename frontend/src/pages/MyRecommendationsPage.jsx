@@ -135,18 +135,14 @@ const MyRecommendationsPage = () => {
   }, [selectedRequest, proposalStatus, user.role]);
 
   const { data: recommendations = [], isLoading: isLoadingRecommendations } =
-  useQuery({
-    queryKey: ["recommendations", selectedRequestId],
-    queryFn: () =>
-      apiRequest(`/recommendations/${selectedRequestId}`, {
-        method: "POST",
-        body: null,
-      }),
-    enabled:
-      !!selectedRequestId &&
-      proposalStatus?.teacher_has_proposed &&
-      proposalStatus?.leader_has_proposed,
-  });
+    useQuery({
+      queryKey: ["recommendations", selectedRequestId],
+      queryFn: () => apiRequest(`/recommendations/${selectedRequestId}`),
+      enabled:
+        !!selectedRequestId &&
+        proposalStatus?.teacher_has_proposed &&
+        proposalStatus?.leader_has_proposed,
+    });
 
   const updateProposalsMutation = useMutation({
     mutationFn: async ({ toAdd, toDelete }) => {
@@ -209,20 +205,33 @@ const MyRecommendationsPage = () => {
       showNotification(`Błąd akceptacji: ${error.message}`, "error"),
   });
 
-  const rejectRecommendationMutation = useMutation({
+  const rejectMutation = useMutation({
+    mutationFn: (changeRequestId) =>
+      apiRequest(`/change-requests/${changeRequestId}/reject`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["related-requests-all"] });
+      showNotification("Zgłoszenie zostało odrzucone.", "warning");
+      setSelectedProposal(null);
+      setSelectedRequestId(null);
+    },
+    onError: (error) =>
+      showNotification(`Błąd odrzucenia: ${error.message}`, "error"),
+  });
+
+  const rejectSingleMutation = useMutation({
     mutationFn: (recommendationId) =>
       apiRequest(`/recommendations/${recommendationId}/reject`, {
         method: "POST",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["recommendations", selectedRequestId],
-      });
-      showNotification("Propozycja została odrzucona.", "info");
+      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      showNotification("Propozycja została odrzucona.", "warning");
       setSelectedProposal(null);
     },
     onError: (error) =>
-      showNotification(`Błąd odrzucenia: ${error.message}`, "error"),
+      showNotification(`Błąd odrzucenia propozycji: ${error.message}`, "error"),
   });
 
   const renderDetailsContent = () => {
@@ -515,15 +524,18 @@ const MyRecommendationsPage = () => {
         <DialogActions>
           <Button onClick={() => setSelectedProposal(null)}>Anuluj</Button>
           <Button
-            onClick={() => {
-                console.log(selectedProposal);
-
-              rejectRecommendationMutation.mutate(selectedProposal.id);}
+            onClick={() =>
+              rejectMutation.mutate(selectedProposal.change_request_id)
             }
             color="error"
             variant="outlined"
-            disabled={
-              rejectRecommendationMutation.isPending || acceptMutation.isPending
+            disabled={rejectMutation.isPending || acceptMutation.isPending}
+          >
+            Odrzuć zgłoszenie
+          </Button>
+          <Button
+            onClick={() =>
+              rejectSingleMutation.mutate(selectedProposal.id)
             }
           >
             Odrzuć propozycję
@@ -534,14 +546,11 @@ const MyRecommendationsPage = () => {
             }
             color="primary"
             variant="contained"
-            disabled={
-              acceptMutation.isPending || rejectRecommendationMutation.isPending
-            }
+            disabled={acceptMutation.isPending || rejectMutation.isPending}
           >
             {acceptMutation.isPending ? "Akceptowanie..." : "Zaakceptuj"}
           </Button>
         </DialogActions>
-
       </Dialog>
     </Grid>
   );
