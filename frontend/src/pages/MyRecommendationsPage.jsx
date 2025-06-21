@@ -152,7 +152,10 @@ const MyRecommendationsPage = () => {
     mutationFn: () => apiRequest(`/recommendations/${selectedRequestId}`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
-      refetchRecommendations(); // ⬅️ Pobierz po wygenerowaniu
+      refetchRecommendations().then(({ data }) => {
+        const updated = data?.find(r => r.id === selectedProposal?.id);
+        if (updated) setSelectedProposal(updated);
+      });
     },
     onError: (error) => {
       showNotification(`Błąd generowania rekomendacji: ${error.message}`, "error");
@@ -250,7 +253,7 @@ const MyRecommendationsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["related-requests-all"] });
       queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
-      queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
+      queryClient.invalidateQueries({ queryKey: ["allEventsWithDetails"] });
       refetchRecommendations();
       refetchRecStatus();
       showNotification("Zaakceptowano propozycję. Czekamy na drugą stronę.", "info");
@@ -279,10 +282,15 @@ const MyRecommendationsPage = () => {
       apiRequest(`/recommendations/${recommendationId}/reject`, {
         method: "POST",
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
-      showNotification("Propozycja została odrzucona.", "warning");
+    onSuccess: async () => {
+      const { data } = await refetchRecommendations();
       setSelectedProposal(null);
+
+      if (!data || data.length === 0) {
+        showNotification("Propozycja została odrzucona. Brak kolejnych rekomendacji.", "warning");
+      } else {
+        showNotification("Propozycja została odrzucona.", "warning");
+      }
     },
     onError: (error) =>
       showNotification(`Błąd odrzucenia propozycji: ${error.message}`, "error"),
@@ -399,6 +407,9 @@ const MyRecommendationsPage = () => {
   } else if (rejectedByOther) {
     statusLabel = "Odrzucone przez drugą stronę";
     statusColor = "warning.main";
+  } else if (acceptedByOther) {
+  statusLabel = "Zaakceptowane przez drugą stronę – oczekiwanie na Ciebie";
+  statusColor = "info.main";
   } else {
     statusLabel = "Niezaakceptowane";
     statusColor = "text.secondary";

@@ -11,7 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
-    Table,
+    Table, UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -166,3 +166,13 @@ class ChangeRecomendation(Base):
     recommended_room = relationship("Room", back_populates="change_recommendations", lazy="joined")
     change_request = relationship("ChangeRequest", back_populates="change_recommendations")
     source_proposal = relationship("AvailabilityProposal", lazy="joined")
+
+    __table_args__ = (
+        UniqueConstraint(
+            'change_request_id',
+            'recommended_day',
+            'recommended_slot_id',
+            'recommended_room_id',
+            name='uq_unique_recommendation'
+        ),
+    )

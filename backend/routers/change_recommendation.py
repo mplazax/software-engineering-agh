@@ -9,6 +9,7 @@ from model import (
 from routers.auth import get_current_user
 from routers.schemas import ChangeRecomendationResponse, ChangeRequestResponse
 from sqlalchemy import func, or_, extract
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
@@ -166,109 +167,20 @@ def find_recommendations(
                 recommended_room_id=room.id,
                 source_proposal_id=None  # lub przypisz, jeśli chcesz
             )
-            db.add(recommendation)
-            db.flush()
+            try:
+                db.add(recommendation)
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                continue
+            # db.add(recommendation)
+            # db.flush()
             recommendation.recommended_room = room
             recommendations.append(recommendation)
 
     db.commit()
 
-
-
-
     return recommendations
-
-
-# @router.post("/{change_request_id}")
-# def find_recommendations(change_request_id: int, db: Session = Depends(get_db),
-#                          current_user: User = Depends(get_current_user)):
-#     change_request = db.query(ChangeRequest).filter(ChangeRequest.id == change_request_id).first()
-#     if not change_request:
-#         raise HTTPException(status_code=404, detail="Change request not found")
-#
-#     course_event = change_request.course_event
-#     teacher = course_event.course.teacher
-#     group_leader = course_event.course.group.leader
-#
-#     if not teacher or not group_leader:
-#         raise HTTPException(status_code=404, detail="Could not determine both parties for the request.")
-#
-#     teacher_proposals = db.query(AvailabilityProposal.day, AvailabilityProposal.time_slot_id).filter(
-#         AvailabilityProposal.change_request_id == change_request_id,
-#         AvailabilityProposal.user_id == teacher.id
-#     ).subquery()
-#
-#     leader_proposals = db.query(AvailabilityProposal).filter(
-#         AvailabilityProposal.change_request_id == change_request_id,
-#         AvailabilityProposal.user_id == group_leader.id
-#     )
-#
-#     common_proposals = leader_proposals.join(
-#         teacher_proposals,
-#         (AvailabilityProposal.day == teacher_proposals.c.day) & (
-#                     AvailabilityProposal.time_slot_id == teacher_proposals.c.time_slot_id)
-#     ).all()
-#
-#     if not common_proposals:
-#         return []
-#
-#     recommendations = []
-#     processed_slots = set()
-#     next_id = 1
-#
-#     for proposal in common_proposals:
-#         slot_key = (proposal.day, proposal.time_slot_id)
-#         if slot_key in processed_slots:
-#             continue
-#         processed_slots.add(slot_key)
-#
-#         unavailable_by_block = db.query(RoomUnavailability.room_id).filter(
-#             RoomUnavailability.start_datetime <= proposal.day,
-#             RoomUnavailability.end_datetime >= proposal.day
-#         ).subquery()
-#
-#         unavailable_by_event = db.query(CourseEvent.room_id).filter(
-#             CourseEvent.day == proposal.day,
-#             CourseEvent.time_slot_id == proposal.time_slot_id,
-#             CourseEvent.canceled == False,
-#             CourseEvent.room_id.isnot(None)
-#         ).subquery()
-#
-#         base_query = db.query(Room).filter(
-#             Room.id.notin_(unavailable_by_block),
-#             Room.id.notin_(unavailable_by_event),
-#         )
-#
-#         if change_request.minimum_capacity > 0:
-#             base_query = base_query.filter(Room.capacity >= change_request.minimum_capacity)
-#
-#         if change_request.room_requirements:
-#             required_eq_names = [name.strip().lower() for name in change_request.room_requirements.split(',') if
-#                                  name.strip()]
-#             if required_eq_names:
-#                 base_query = base_query.join(Room.equipment).filter(
-#                     func.lower(Equipment.name).in_(required_eq_names)
-#                 ).group_by(Room.id).having(
-#                     func.count(Equipment.id) >= len(required_eq_names)
-#                 )
-#
-#         available_rooms = base_query.order_by(Room.capacity).all()
-#
-#         for room in available_rooms:
-#             # Używamy ID propozycji źródłowej jako ID rekomendacji - to upraszcza logikę akceptacji
-#             recommendation = ChangeRecomendation(
-#                 change_request_id=change_request_id,
-#                 recommended_day=proposal.day,
-#                 recommended_slot_id=proposal.time_slot_id,
-#                 recommended_room_id=room.id,
-#                 source_proposal_id=proposal.id,
-#             )
-#             db.add(recommendation)
-#             db.flush()
-#             recommendation.recommended_room = room
-#             recommendations.append(recommendation)
-#     db.commit()
-#     return
 
 
 def shift_to_weekday(original_date: date, target_weekday: int) -> date:
