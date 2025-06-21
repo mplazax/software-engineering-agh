@@ -15,11 +15,12 @@ import CoursesPage from "./pages/CoursesPage";
 import EquipmentPage from "./pages/EquipmentPage";
 import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import MyRecommendationsPage from "./pages/MyRecommendationsPage";
+import ChangeRequestsOverviewPage from "./pages/ChangeRequestsOverviewPage"; // NOWY IMPORT
 import RoomUnavailabilityPage from "./pages/RoomUnavailabilityPage";
 import EventsPage from "./pages/EventsPage.jsx";
 
 const AppRoutes = () => {
-  const { loading, isAuthenticated } = useContext(AuthContext);
+  const { loading, isAuthenticated, user } = useContext(AuthContext);
 
   if (loading) {
     return (
@@ -40,16 +41,39 @@ const AppRoutes = () => {
         <Route path="/login" element={<LoginPage />} />
       </Route>
 
-      {/* KLUCZOWA POPRAWKA: Wszystkie trasy chronione muszą być tutaj */}
       <Route element={<PrivateRoute />}>
         <Route path="/" element={<MainPage />} />
         <Route path="/rooms" element={<RoomsPage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/groups" element={<GroupsPage />} />
         <Route path="/courses" element={<CoursesPage />} />
         <Route path="/equipment" element={<EquipmentPage />} />
         <Route path="/calendar" element={<ChangeRequestsPage />} />
-        <Route path="/recommendations" element={<MyRecommendationsPage />} />
+
+        {/* Trasy warunkowe zależne od roli */}
+        {user?.role === "ADMIN" && (
+          <>
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/groups" element={<GroupsPage />} />
+            <Route
+              path="/change-requests-overview"
+              element={<ChangeRequestsOverviewPage />}
+            />
+          </>
+        )}
+
+        {user?.role === "KOORDYNATOR" && (
+          <>
+            <Route path="/groups" element={<GroupsPage />} />
+            <Route
+              path="/recommendations"
+              element={<MyRecommendationsPage />}
+            />
+          </>
+        )}
+
+        {(user?.role === "PROWADZACY" || user?.role === "STAROSTA") && (
+          <Route path="/recommendations" element={<MyRecommendationsPage />} />
+        )}
+
         <Route path="/events" element={<EventsPage />} />
         <Route
           path="/room-unavailability"

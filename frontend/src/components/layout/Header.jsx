@@ -20,13 +20,20 @@ const getPageTitle = (pathname) => {
     "/": "Panel główny",
     "/calendar": "Kalendarz",
     "/recommendations": "Rekomendacje i Propozycje",
+    "/change-requests-overview": "Przegląd Zgłoszeń Zmian",
     "/users": "Użytkownicy",
     "/groups": "Grupy",
     "/rooms": "Sale",
     "/courses": "Kursy",
-    "/events": "Zajęcia"
+    "/equipment": "Wyposażenie",
+    "/room-unavailability": "Blokady Sal",
+    "/events": "Zajęcia",
   };
-  return titles[pathname] || "System Rezerwacji Sal";
+  // Dopasowanie dla ścieżek z ID, np. /users/1
+  const matchedPath = Object.keys(titles).find(
+    (path) => pathname.startsWith(path) && path !== "/"
+  );
+  return titles[pathname] || titles[matchedPath] || "System Rezerwacji Sal";
 };
 
 const Header = () => {

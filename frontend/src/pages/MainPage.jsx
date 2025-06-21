@@ -6,12 +6,143 @@ import {
   Container,
   CircularProgress,
   Chip,
+  Grid,
+  Alert,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  Avatar,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { AuthContext } from "../contexts/AuthContext";
 import { apiRequest } from "../api/apiService";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import PeopleIcon from "@mui/icons-material/People";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+
+// --- Admin-specific Dashboard ---
+
+const StatCard = ({ title, value, icon, color }) => (
+  <Paper sx={{ p: 2, display: "flex", alignItems: "center", height: "100%" }}>
+    <Avatar sx={{ bgcolor: color, mr: 2 }}>{icon}</Avatar>
+    <Box>
+      <Typography variant="h6" component="div">
+        {value}
+      </Typography>
+      <Typography color="text.secondary">{title}</Typography>
+    </Box>
+  </Paper>
+);
+
+const AdminDashboard = () => {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["dashboardStats"],
+    queryFn: () => apiRequest("/dashboard/stats"),
+  });
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={5}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert severity="error">Błąd ładowania danych: {error.message}</Alert>
+    );
+  }
+
+  const { stats, recent_pending_requests } = data;
+
+  return (
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Panel Administratora
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Przegląd kluczowych informacji o systemie.
+        </Typography>
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="Użytkownicy"
+          value={stats.total_users}
+          icon={<PeopleIcon />}
+          color="primary.main"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="Sale"
+          value={stats.total_rooms}
+          icon={<MeetingRoomIcon />}
+          color="success.main"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="Aktywne Zajęcia"
+          value={stats.active_events_count}
+          icon={<EventAvailableIcon />}
+          color="info.main"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="Oczekujące Zgłoszenia"
+          value={stats.pending_change_requests}
+          icon={<HourglassEmptyIcon />}
+          color="warning.main"
+        />
+      </Grid>
+
+      <Grid item xs={12} md={12}>
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Ostatnie oczekujące zgłoszenia
+          </Typography>
+          {recent_pending_requests.length > 0 ? (
+            <List disablePadding>
+              {recent_pending_requests.map((req, index) => (
+                <React.Fragment key={req.id}>
+                  <ListItem>
+                    <ListItemText
+                      primary={`${req.course_event.course.name}`}
+                      secondary={`Zgłaszający: ${req.initiator.name} ${
+                        req.initiator.surname
+                      } | Data: ${format(
+                        new Date(req.created_at),
+                        "dd.MM.yyyy HH:mm",
+                        { locale: pl }
+                      )}`}
+                    />
+                  </ListItem>
+                  {index < recent_pending_requests.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </List>
+          ) : (
+            <Typography
+              color="text.secondary"
+              sx={{ p: 2, textAlign: "center" }}
+            >
+              Brak oczekujących zgłoszeń.
+            </Typography>
+          )}
+        </Paper>
+      </Grid>
+    </Grid>
+  );
+};
+
+// --- User-specific dashboard (Prowadzący/Starosta) ---
 
 const timeSlotMap = {
   1: "08:00 - 09:30",
@@ -63,6 +194,7 @@ const useUpcomingEvents = (user) => {
       const eventsByCourse = await Promise.all(eventPromises);
       const allEvents = eventsByCourse.flat();
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       return allEvents
         .map((e) => ({ ...e, date: new Date(e.day) }))
@@ -74,7 +206,7 @@ const useUpcomingEvents = (user) => {
   });
 };
 
-const MainPage = () => {
+const UserDashboard = () => {
   const { user } = useContext(AuthContext);
   const { data: upcomingEvents = [], isLoading: isLoadingEvents } =
     useUpcomingEvents(user);
@@ -88,7 +220,6 @@ const MainPage = () => {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
         Oto przegląd Twoich nadchodzących rezerwacji i wydarzeń.
       </Typography>
-
       <Paper sx={{ p: 2, overflow: "hidden" }}>
         <Typography variant="h6" gutterBottom sx={{ px: 2, pt: 1 }}>
           Twoje nadchodzące zajęcia
@@ -197,6 +328,18 @@ const MainPage = () => {
       </Paper>
     </Container>
   );
+};
+
+// --- Main component with role-based rendering ---
+
+const MainPage = () => {
+  const { user } = useContext(AuthContext);
+
+  if (user.role === "ADMIN" || user.role === "KOORDYNATOR") {
+    return <AdminDashboard />;
+  }
+
+  return <UserDashboard />;
 };
 
 export default MainPage;

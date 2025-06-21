@@ -23,7 +23,8 @@ import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
 import BuildIcon from "@mui/icons-material/Build";
 import BlockIcon from "@mui/icons-material/Block";
-import {CalendarIcon} from "@mui/x-date-pickers";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows"; // Nowa ikona
+import { CalendarIcon } from "@mui/x-date-pickers";
 
 const drawerWidth = 280;
 
@@ -46,37 +47,49 @@ const roleTranslations = {
 const commonNavItems = [
   { text: "Panel główny", icon: <DashboardIcon />, path: "/" },
   { text: "Kalendarz", icon: <EventNoteIcon />, path: "/calendar" },
-  { text: "Rekomendacje", icon: <RecommendIcon />, path: "/recommendations" },
 ];
 
-const adminNavItems = [
-  { text: "Użytkownicy", icon: <PeopleIcon />, path: "/users" },
-  { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
-  { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
-  { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" },
-  { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
-  { text: "Zajęcia", icon: <CalendarIcon />, path: "/events" },
-  { text: "Blokady Sal", icon: <BlockIcon />, path: "/room-unavailability" },
-];
+const roleSpecificNavItems = {
+  ADMIN: [
+    {
+      text: "Przegląd Zgłoszeń",
+      icon: <CompareArrowsIcon />,
+      path: "/change-requests-overview",
+    },
+    { text: "Użytkownicy", icon: <PeopleIcon />, path: "/users" },
+    { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
+    { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
+    { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" },
+    { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
+    { text: "Zajęcia", icon: <CalendarIcon />, path: "/events" },
+    { text: "Blokady Sal", icon: <BlockIcon />, path: "/room-unavailability" },
+  ],
+  KOORDYNATOR: [
+    { text: "Rekomendacje", icon: <RecommendIcon />, path: "/recommendations" },
+    { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
+    { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
+    { text: "Wyposażenie", icon: <BuildIcon />, path: "/equipment" },
+    { text: "Kursy", icon: <SchoolIcon />, path: "/courses" },
+    { text: "Zajęcia", icon: <CalendarIcon />, path: "/events" },
+    { text: "Blokady Sal", icon: <BlockIcon />, path: "/room-unavailability" },
+  ],
+  PROWADZACY: [
+    { text: "Rekomendacje", icon: <RecommendIcon />, path: "/recommendations" },
+  ],
+  STAROSTA: [
+    { text: "Rekomendacje", icon: <RecommendIcon />, path: "/recommendations" },
+  ],
+};
 
 const Sidebar = () => {
   const { user } = useContext(AuthContext);
 
   const getNavItems = () => {
-    switch (user?.role) {
-      case "ADMIN":
-        return [...commonNavItems, ...adminNavItems];
-      case "KOORDYNATOR":
-        const coordinatorItems = adminNavItems.filter(
-          (item) => item.path !== "/users"
-        );
-        return [...commonNavItems, ...coordinatorItems];
-      case "PROWADZACY":
-      case "STAROSTA":
-        return commonNavItems;
-      default:
-        return [];
-    }
+    if (!user) return [];
+
+    const roleItems = roleSpecificNavItems[user.role] || [];
+
+    return [...commonNavItems, ...roleItems];
   };
 
   const navItems = getNavItems();

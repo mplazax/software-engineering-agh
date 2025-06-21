@@ -250,3 +250,14 @@ class TokenData(BaseModel):
 class ProposalStatusResponse(BaseModel):
     teacher_has_proposed: bool
     leader_has_proposed: bool
+
+
+class DashboardStatCard(BaseModel):
+    total_users: int
+    total_rooms: int
+    pending_change_requests: int
+    active_events_count: int
+
+class DashboardDataResponse(BaseModel):
+    stats: DashboardStatCard
+    recent_pending_requests: List[ChangeRequestResponse]
