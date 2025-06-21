@@ -68,7 +68,6 @@ def find_recommendations(
         AvailabilityProposal.user_id == teacher.id
     ).subquery()
 
-    # Wspólne sloty (dzień + slot) obu stron – UNIKALNIE
     common_slots = db.query(
         AvailabilityProposal.day,
         AvailabilityProposal.time_slot_id
@@ -88,7 +87,6 @@ def find_recommendations(
     processed_keys = set()
 
     for day, slot_id in common_slots:
-        # --- Sprawdź niedostępne sale ---
         unavailable_by_block = db.query(RoomUnavailability.room_id).filter(
             RoomUnavailability.start_datetime <= day,
             RoomUnavailability.end_datetime >= day
@@ -261,11 +259,15 @@ def finalize_recommendation(rec: ChangeRecomendation, db: Session):
         original_weekday = (original_event.day.weekday() + 1) % 7
         target_weekday = rec.recommended_day.weekday()
 
+        start = change_request.start_date or rec.recommended_day
+        end = change_request.end_date or date.max
+
         related_events = db.query(CourseEvent).filter(
             CourseEvent.course_id == original_event.course_id,
             extract('dow', CourseEvent.day) == original_weekday,
             CourseEvent.time_slot_id == original_event.time_slot_id,
-            CourseEvent.day >= rec.recommended_day,
+            CourseEvent.day >= start,
+            CourseEvent.day <= end,
             CourseEvent.canceled == False
         ).all()
 

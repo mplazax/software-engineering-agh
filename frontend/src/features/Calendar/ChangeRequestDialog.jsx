@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import dayjs from "dayjs";
 import {
   Dialog,
   DialogTitle,
@@ -44,6 +46,8 @@ const ChangeRequestDialog = ({ event, open, onClose }) => {
     cyclical: false,
   });
   const [errors, setErrors] = useState({});
+  const startDate = event ? dayjs(event.start) : null;
+  const [endDate, setEndDate] = useState(null);
 
   useEffect(() => {
     if (open) {
@@ -54,6 +58,7 @@ const ChangeRequestDialog = ({ event, open, onClose }) => {
         cyclical: false,
       });
       setErrors({});
+      setEndDate(null);
     }
   }, [open]);
 
@@ -65,6 +70,13 @@ const ChangeRequestDialog = ({ event, open, onClose }) => {
     const capacity = Number(formData.minimum_capacity);
     if (formData.minimum_capacity && (isNaN(capacity) || capacity < 0)) {
       newErrors.minimum_capacity = "Pojemność musi być liczbą nieujemną.";
+    }
+    if (formData.cyclical) {
+      if (!event?.start || !endDate) {
+        newErrors.date = "Zakres dat jest wymagany przy zmianie cyklicznej.";
+      } else if (dayjs(startDate).isAfter(dayjs(endDate))) {
+        newErrors.date = "Data początkowa nie może być późniejsza niż końcowa.";
+      }
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -107,9 +119,11 @@ const ChangeRequestDialog = ({ event, open, onClose }) => {
     mutation.mutate({
       course_event_id: event.id.split("-")[1],
       reason: formData.reason,
-      room_requirements: formData.equipment_names.join(","), // Przekształcamy na string dla backendu
+      room_requirements: formData.equipment_names.join(","),
       minimum_capacity: parseInt(formData.minimum_capacity, 10) || 0,
       cyclical: formData.cyclical,
+      start_date: formData.cyclical && event?.start ? dayjs(event.start).format("YYYY-MM-DD") : null,
+      end_date: formData.cyclical && endDate ? dayjs(endDate).format("YYYY-MM-DD") : null,
     });
   };
 
@@ -184,14 +198,36 @@ const ChangeRequestDialog = ({ event, open, onClose }) => {
               label="Zmiana cykliczna"
             />
             <Tooltip title="Zaznacz, jeśli zmiana ma dotyczyć wszystkich przyszłych zajęć w tym cyklu (np. wszystkich poniedziałkowych wykładów o 10:00), a nie tylko tego jednego terminu.">
-              <IconButton
-                size="small"
-                sx={{ position: "absolute", top: 4, right: -5 }}
-              >
+              <IconButton size="small" sx={{ position: "absolute", top: 4, right: -5 }}>
                 <InfoOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
+
+          {formData.cyclical && (
+              <>
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <TextField
+                label="Data początkowa"
+                value={startDate?.format("YYYY-MM-DD") || ""}
+                fullWidth
+                disabled
+              />
+              <DatePicker
+                label="Data końcowa"
+                value={endDate}
+                onChange={(newValue) => setEndDate(newValue)}
+                slotProps={{ textField: { fullWidth: true } }}
+                minDate={startDate}
+              />
+            </Box>
+            {errors.date && (
+              <Box sx={{ color: "error.main", fontSize: "0.85rem", ml: 1 }}>
+                {errors.date}
+              </Box>
+            )}
+            </>
+        )}
         </Stack>
       </DialogContent>
       <DialogActions>

@@ -132,6 +132,8 @@ class ChangeRequest(Base):
     room_requirements = Column(Text, nullable=True)
     minimum_capacity = Column(Integer, default=0)
     cyclical = Column(Boolean, default=False)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     course_event = relationship("CourseEvent", back_populates="change_requests", lazy="joined")
     initiator = relationship("User", back_populates="initiated_requests")
@@ -145,9 +147,6 @@ class AvailabilityProposal(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     day = Column(Date, nullable=False)
     time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
-    # PONIŻSZE KOLUMNY ZOSTAŁY USUNIĘTE, PONIEWAŻ SĄ JUŻ ZBĘDNE
-    # accepted_by_leader = Column(Boolean, default=False)
-    # accepted_by_representative = Column(Boolean, default=False)
     change_request = relationship("ChangeRequest", back_populates="availability_proposals")
     user = relationship("User", back_populates="availability_proposals")
 
