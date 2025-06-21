@@ -63,7 +63,8 @@ def role_required(allowed_roles: list[UserRole]):
         return current_user
     return role_checker
 
-@router.post("/token", response_model=Token)
+@router.post("/token", response_model=Token, include_in_schema=False)
+@router.post("/token/", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
