@@ -19,10 +19,10 @@ services:
   backend:
     container_name: booking_system_backend
     build:
-      context: ./backend
+      context: ./api
       dockerfile: Dockerfile
     volumes:
-      - ./backend:/app
+      - ./api:/app
       - /app/.venv
     ports:
       - "8000:8000"
