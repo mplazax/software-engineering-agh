@@ -29,3 +29,5 @@ yarn-error.log*
 project_source_code.txt
 project_essentials.txt
 collect_source_code.sh
+
+.env
