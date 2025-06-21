@@ -13,7 +13,6 @@ import { apiRequest } from "../api/apiService";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-// Definicje slotów czasowych
 const timeSlotMap = {
   1: "08:00 - 09:30",
   2: "09:45 - 11:15",
@@ -24,7 +23,6 @@ const timeSlotMap = {
   7: "18:30 - 20:00",
 };
 
-// Hook do pobierania mapy ID sal na ich nazwy
 const useRoomsMap = () => {
   const { data: rooms = [] } = useQuery({
     queryKey: ["rooms"],
@@ -36,7 +34,6 @@ const useRoomsMap = () => {
   );
 };
 
-// Główny hook do pobierania nadchodzących wydarzeń
 const useUpcomingEvents = (user) => {
   return useQuery({
     queryKey: ["upcomingEvents", user?.id],
@@ -55,7 +52,7 @@ const useUpcomingEvents = (user) => {
           myCourses = courses.filter((c) => c.group_id === myGroupId);
         }
       } else {
-        myCourses = courses; // Admin/Koordynator widzi wszystko
+        myCourses = courses;
       }
 
       const eventPromises = myCourses.map(async (course) => {
@@ -66,13 +63,12 @@ const useUpcomingEvents = (user) => {
       const eventsByCourse = await Promise.all(eventPromises);
       const allEvents = eventsByCourse.flat();
       const today = new Date();
-      // today.setHours(0, 0, 0, 0); // Ustaw godzinę na początek dnia do porównań
 
       return allEvents
         .map((e) => ({ ...e, date: new Date(e.day) }))
-        .filter((e) => !e.canceled && e.date >= today) // Pokaż tylko aktywne wydarzenia od dzisiaj
-        .sort((a, b) => a.date - b.date) // Sortuj od najbliższego
-        .slice(0, 7); // Pokaż do 7 nadchodzących wydarzeń
+        .filter((e) => !e.canceled && e.date >= today)
+        .sort((a, b) => a.date - b.date)
+        .slice(0, 7);
     },
     enabled: !!user,
   });

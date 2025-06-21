@@ -1,5 +1,3 @@
-// Plik: ./frontend/src/features/Calendar/EventDialog.jsx
-
 import React from "react";
 import {
   Dialog,
@@ -14,9 +12,8 @@ import {
   Typography,
   Chip,
   Box,
-  ListItemIcon, // <-- NOWY IMPORT
+  ListItemIcon,
 } from "@mui/material";
-// NOWE IKONY
 import SchoolIcon from "@mui/icons-material/School";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -40,7 +37,6 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
       <DialogContent dividers>
         {event ? (
           <List>
-            {/* ZMIANY PONIŻEJ - DODAJEMY IKONY */}
             <ListItem>
               <ListItemIcon>
                 <SchoolIcon color="secondary" />
@@ -137,7 +133,7 @@ const EventDialog = ({ event, open, onClose, onProposeChange }) => {
         <Button
           onClick={onProposeChange}
           variant="contained"
-          disabled={!event || event.isCanceled} // <- Zablokuj dla anulowanych
+          disabled={!event || event.isCanceled}
         >
           Zgłoś potrzebę zmiany
         </Button>

@@ -136,7 +136,6 @@ const MyRecommendationsPage = () => {
   });
 
   useEffect(() => {
-    // Jeśli nie ma propozycji od bieżącego użytkownika, automatycznie przejdź w tryb edycji
     if (selectedRequest && proposalStatus) {
       const isCurrentUserTeacher = user.role === "PROWADZACY";
       const currentUserHasProposed =
@@ -186,13 +185,11 @@ const MyRecommendationsPage = () => {
 
   const replaceProposalsMutation = useMutation({
   mutationFn: async (proposalsToAdd) => {
-    // Usuń stare propozycje
     await apiRequest(
       `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
       { method: "DELETE" }
     );
 
-    // Dodaj nowe (jeśli są)
     const addResults = await Promise.all(
       proposalsToAdd.map((p) =>
         apiRequest("/proposals/", {
@@ -504,7 +501,6 @@ const MyRecommendationsPage = () => {
       );
     }
 
-    // Ten widok powinien być teraz rzadkością, ale jest jako fallback
     return <CircularProgress />;
   };
 

@@ -68,8 +68,7 @@ const AvailabilitySelector = ({
   const handleSlotClick = (day, slotId) => {
     if (!isEditing) return;
     const key = `${format(day, "yyyy-MM-dd")}_${slotId}`;
-
-    // Kluczowa poprawka: Tworzymy nową instancję Set, aby React wykrył zmianę
+    
     setLocalProposals((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(key)) {

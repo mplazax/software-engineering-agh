@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import { Container, Stack, IconButton, Box } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import BuildIcon from "@mui/icons-material/Build"; // Ikona dla wyposażenia
+import BuildIcon from "@mui/icons-material/Build";
 
 import { useCrud } from "../hooks/useCrud.js";
 import AdminDataGrid from "../features/Admin/AdminDataGrid.jsx";
@@ -56,9 +56,8 @@ const EquipmentPage = () => {
       }
       setDialogOpen(false);
     } catch (e) {
-      // Błąd zostanie obsłużony w formularzu, ale logujemy go na wszelki wypadek
       console.error("Save failed:", e);
-      throw e; // Rzucamy błąd dalej, aby formularz mógł go złapać
+      throw e;
     }
   };
 

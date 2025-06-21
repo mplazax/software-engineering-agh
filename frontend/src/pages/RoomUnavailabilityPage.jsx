@@ -49,7 +49,6 @@ const RoomUnavailabilityPage = () => {
   );
 
   const handleSave = async (data) => {
-    // Obecnie nie ma edycji, więc tylko tworzymy nowe blokady
     await createItem(data);
   };
 

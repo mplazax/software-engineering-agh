@@ -38,7 +38,6 @@ const AdminDataGrid = ({
     );
   }, [rows, searchText, customFilterFn]);
 
-  // Wbudowany komponent Toolbar, aby uniknąć zbędnego pliku
   const CustomToolbar = () => (
     <Toolbar>
       <Box sx={{ flexGrow: 1 }}>

@@ -16,7 +16,6 @@ const roomTypeTranslations = {
   OTHER: "Inne",
 };
 
-// Niestandardowa funkcja filtrowania przekazywana jako prop
 const filterRooms = (rows, searchText) => {
   return rows.filter((row) => {
     const inName = row.name.toLowerCase().includes(searchText);
