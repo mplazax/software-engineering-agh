@@ -122,6 +122,10 @@ class CourseEvent(Base):
     room = relationship("Room", back_populates="course_events")
     change_requests = relationship("ChangeRequest", back_populates="course_event", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        UniqueConstraint('room_id', 'day', 'time_slot_id', name='uq_room_day_time'),
+    )
+
 class ChangeRequest(Base):
     __tablename__ = "change_requests"
     id = Column(Integer, primary_key=True, index=True)
