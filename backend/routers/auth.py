@@ -16,8 +16,12 @@ from starlette.status import (
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token/")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+@router.get("/healthcheck")
+def auth_healthcheck():
+    return {"status": "ok", "router": "auth", "timestamp": datetime.utcnow()}
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
