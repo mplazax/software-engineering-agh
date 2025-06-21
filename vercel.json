@@ -2,29 +2,18 @@
   "version": 2,
   "builds": [
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/vite",
-      "config": {
-        "project": "frontend/package.json",
-        "root": "frontend"
-      }
-    },
-    {
       "src": "backend/main.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/vite"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "backend/main.py"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/"
     }
   ]
 }
