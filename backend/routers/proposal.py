@@ -7,7 +7,8 @@ from model import (
     User,
     CourseEvent,
     ChangeRequestStatus,
-    UserRole
+    UserRole,
+    ChangeRecomendation
 )
 # Ważne: importujemy funkcje z innych routerów
 from routers.change_recommendation import find_recommendations, accept_recommendation
@@ -79,34 +80,41 @@ def create_proposal(
 
     if teacher_proposal and leader_proposal:
         # Obie strony podały dostępność, generujemy rekomendacje
-        recommendations = find_recommendations(change_request.id, db, current_user)
-        if recommendations:
-            parsed_recommendations = [
-                ChangeRecomendationResponse(
-                    id=r.id,
-                    change_request_id=r.change_request_id,
-                    recommended_day=r.recommended_day,
-                    recommended_slot_id=r.recommended_slot_id,
-                    recommended_room_id=r.recommended_room_id,
-                    source_proposal_id=r.source_proposal_id,
-                    accepted_by_teacher=r.accepted_by_teacher,
-                    accepted_by_leader=r.accepted_by_leader,
-                    rejected_by_teacher=r.rejected_by_teacher,
-                    rejected_by_leader=r.rejected_by_leader,
-                    recommended_room=RoomResponse(
-                        id=r.recommended_room.id,
-                        name=r.recommended_room.name,
-                        capacity=r.recommended_room.capacity,
-                        type=r.recommended_room.type,
-                        equipment=[EquipmentResponse.from_orm(e) for e in r.recommended_room.equipment]
+        print("sssss")
+        existing_recommendations = db.query(ChangeRecomendation).filter(
+            ChangeRecomendation.change_request_id == change_request.id
+        ).first()
+
+        if not existing_recommendations:
+            print("tripple")
+            recommendations = find_recommendations(change_request.id, db, current_user)
+            if recommendations:
+                parsed_recommendations = [
+                    ChangeRecomendationResponse(
+                        id=r.id,
+                        change_request_id=r.change_request_id,
+                        recommended_day=r.recommended_day,
+                        recommended_slot_id=r.recommended_slot_id,
+                        recommended_room_id=r.recommended_room_id,
+                        source_proposal_id=r.source_proposal_id,
+                        accepted_by_teacher=r.accepted_by_teacher,
+                        accepted_by_leader=r.accepted_by_leader,
+                        rejected_by_teacher=r.rejected_by_teacher,
+                        rejected_by_leader=r.rejected_by_leader,
+                        recommended_room=RoomResponse(
+                            id=r.recommended_room.id,
+                            name=r.recommended_room.name,
+                            capacity=r.recommended_room.capacity,
+                            type=r.recommended_room.type,
+                            equipment=[EquipmentResponse.from_orm(e) for e in r.recommended_room.equipment]
+                        )
                     )
+                    for r in recommendations
+                ]
+                return ProposalCreateResponse(
+                    type="recommendations",
+                    data=parsed_recommendations
                 )
-                for r in recommendations
-            ]
-            return ProposalCreateResponse(
-                type="recommendations",
-                data=parsed_recommendations
-            )
 
     return ProposalCreateResponse(
         type="proposal",

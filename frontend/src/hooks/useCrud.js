@@ -5,7 +5,6 @@ import { useNotification } from "../contexts/NotificationContext.jsx";
 export const useCrud = (
     resourceName,
     endpoint,
-    // ZMIANA: Zamiast `options` z domyślnym `runQuery`, destrukuryzujemy opcje
     { runQuery = true, queryEndpoint = endpoint } = {}
 ) => {
   const queryClient = useQueryClient();
@@ -13,7 +12,6 @@ export const useCrud = (
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: [resourceName],
-    // ZMIANA: Używamy `queryEndpoint` do pobierania danych
     queryFn: () => apiRequest(queryEndpoint),
     enabled: runQuery,
   });
@@ -30,20 +28,17 @@ export const useCrud = (
     onError: (err) => {
       const errorMessage = err.message || "Wystąpił nieznany błąd";
       showNotification(`Błąd operacji: ${errorMessage}`, "error");
-      // Rzucamy błąd dalej, aby formularz mógł go obsłużyć
       throw err;
     },
   });
 
   const createMutation = useMutation({
-    // Endpoint do mutacji pozostaje bez zmian
     mutationFn: (newItem) =>
         apiRequest(endpoint, { method: "POST", body: JSON.stringify(newItem) }),
     ...mutationOptions("utworzony"),
   });
 
   const updateMutation = useMutation({
-    // Endpoint do mutacji pozostaje bez zmian
     mutationFn: ({ id, updatedItem }) =>
         apiRequest(`${endpoint}/${id}`, {
           method: "PUT",
@@ -53,7 +48,6 @@ export const useCrud = (
   });
 
   const deleteMutation = useMutation({
-    // Endpoint do mutacji pozostaje bez zmian
     mutationFn: (id) => apiRequest(`${endpoint}/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       invalidateQuery();

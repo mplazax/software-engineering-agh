@@ -9,7 +9,6 @@ export const apiRequest = async (endpoint, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  // Używamy prostego endpointu, Nginx zajmie się resztą
   const requestUrl = `/api${endpoint}`;
 
   const response = await fetch(requestUrl, {

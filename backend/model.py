@@ -11,7 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
-    Table,
+    Table, UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -122,6 +122,10 @@ class CourseEvent(Base):
     room = relationship("Room", back_populates="course_events")
     change_requests = relationship("ChangeRequest", back_populates="course_event", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        UniqueConstraint('room_id', 'day', 'time_slot_id', name='uq_room_day_time'),
+    )
+
 class ChangeRequest(Base):
     __tablename__ = "change_requests"
     id = Column(Integer, primary_key=True, index=True)
@@ -132,6 +136,8 @@ class ChangeRequest(Base):
     room_requirements = Column(Text, nullable=True)
     minimum_capacity = Column(Integer, default=0)
     cyclical = Column(Boolean, default=False)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     course_event = relationship("CourseEvent", back_populates="change_requests", lazy="joined")
     initiator = relationship("User", back_populates="initiated_requests")
@@ -145,9 +151,6 @@ class AvailabilityProposal(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     day = Column(Date, nullable=False)
     time_slot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
-    # PONIŻSZE KOLUMNY ZOSTAŁY USUNIĘTE, PONIEWAŻ SĄ JUŻ ZBĘDNE
-    # accepted_by_leader = Column(Boolean, default=False)
-    # accepted_by_representative = Column(Boolean, default=False)
     change_request = relationship("ChangeRequest", back_populates="availability_proposals")
     user = relationship("User", back_populates="availability_proposals")
 
@@ -166,3 +169,13 @@ class ChangeRecomendation(Base):
     recommended_room = relationship("Room", back_populates="change_recommendations", lazy="joined")
     change_request = relationship("ChangeRequest", back_populates="change_recommendations")
     source_proposal = relationship("AvailabilityProposal", lazy="joined")
+
+    __table_args__ = (
+        UniqueConstraint(
+            'change_request_id',
+            'recommended_day',
+            'recommended_slot_id',
+            'recommended_room_id',
+            name='uq_unique_recommendation'
+        ),
+    )

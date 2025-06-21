@@ -141,6 +141,8 @@ class ChangeRequestBase(BaseModel):
 class ChangeRequestCreate(ChangeRequestBase):
     course_event_id: int
     cyclical: bool = False
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 class ChangeRequestUpdate(BaseModel):
     status: Optional[ChangeRequestStatus] = None
@@ -149,7 +151,7 @@ class CourseEventForRequestResponse(OrmBase):
     id: int
     day: date
     course_id: int
-    course: CourseResponse # Zagnieżdżamy pełne dane kursu
+    course: CourseResponse
 
 class ChangeRequestResponse(ChangeRequestBase, OrmBase):
     id: int
@@ -157,8 +159,11 @@ class ChangeRequestResponse(ChangeRequestBase, OrmBase):
     initiator_id: int
     status: ChangeRequestStatus
     created_at: datetime
-    course_event: CourseEventForRequestResponse # Zagnieżdżamy dane wydarzenia
-    initiator: UserResponse # Dołączamy pełne dane inicjatora
+    course_event: CourseEventForRequestResponse
+    initiator: UserResponse
+    start_date: Optional[date]
+    end_date: Optional[date]
+    cyclical: bool
 
 class ProposalBase(BaseModel):
     change_request_id: int

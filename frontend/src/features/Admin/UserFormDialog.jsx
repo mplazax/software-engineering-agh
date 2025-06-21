@@ -113,7 +113,6 @@ const UserFormDialog = ({ open, onClose, onSave, user }) => {
       await onSave(payload);
       onClose();
     } catch (error) {
-      // Poprawiona obsługa błędów
       const errorMsg =
         error?.response?.data?.detail ||
         error.message ||

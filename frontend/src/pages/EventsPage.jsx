@@ -62,7 +62,7 @@ const EventsPage = () => {
     isDeleting,
   } = useCrud("allEvents", "/courses/events", {
     runQuery: false,
-    queryEndpoint: "/courses/events/all", // Endpoint dla odświeżania listy
+    queryEndpoint: "/courses/events/all",
   });
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -168,7 +168,6 @@ const EventsPage = () => {
       return baseColumns;
     }
 
-    // Dodaj kolumny dla większych ekranów
     return [{ field: "id", headerName: "ID", width: 70 }, ...baseColumns];
   }, [isMobile, handleEdit, handleDelete]);
 

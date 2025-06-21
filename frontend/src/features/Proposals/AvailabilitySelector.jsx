@@ -51,6 +51,12 @@ const AvailabilitySelector = ({
       refetchOnWindowFocus: false,
     });
 
+  const { data: changeRequest, isLoading: isLoadingRequest } = useQuery({
+    queryKey: ["change-request", changeRequestId],
+    queryFn: () => apiRequest(`/change-requests/${changeRequestId}`),
+    enabled: !!changeRequestId,
+  });
+
   useEffect(() => {
     const newSet = new Set(
         serverProposals.map((p) => `${p.day}_${p.time_slot_id}`)
@@ -65,18 +71,17 @@ const AvailabilitySelector = ({
     }
   }, [serverProposals]);
 
-  const handleSlotClick = (day, slotId) => {
+  const handleSlotClick = (dayOrIndex, slotId) => {
     if (!isEditing) return;
-    const key = `${format(day, "yyyy-MM-dd")}_${slotId}`;
 
-    // Kluczowa poprawka: Tworzymy nową instancję Set, aby React wykrył zmianę
+    const key =
+      typeof dayOrIndex === "number"
+        ? `${dayOrIndex}_${slotId}`
+        : `${format(dayOrIndex, "yyyy-MM-dd")}_${slotId}`;
+
     setLocalProposals((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
-      }
+      newSet.has(key) ? newSet.delete(key) : newSet.add(key);
       return newSet;
     });
   };
@@ -85,6 +90,7 @@ const AvailabilitySelector = ({
   const weekDays = Array.from({ length: 7 }).map((_, i) =>
     addDays(weekStartsOn, i)
   );
+  const weekDaysNoDates = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"];
 
   if (isLoadingServerProposals) {
     return <CircularProgress sx={{ display: "block", margin: "auto" }} />;
@@ -92,24 +98,36 @@ const AvailabilitySelector = ({
 
   return (
     <Paper sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <IconButton onClick={() => setCurrentDate(subDays(currentDate, 7))}>
-          <ArrowBackIosNewIcon />
-        </IconButton>
-        <Typography variant="h6" textAlign="center">
-          {format(weekStartsOn, "dd MMMM yyyy", { locale: pl })} -{" "}
-          {format(addDays(weekStartsOn, 6), "dd MMMM yyyy", { locale: pl })}
-        </Typography>
-        <IconButton onClick={() => setCurrentDate(addDays(currentDate, 7))}>
-          <ArrowForwardIosIcon />
-        </IconButton>
+      <Stack direction="row" justifyContent="center" alignItems="center">
+        {changeRequest?.cyclical ? (
+          <Typography variant="h6">Wybierz dostępność dla typowego tygodnia</Typography>
+        ) : (
+          <>
+            <IconButton onClick={() => setCurrentDate(subDays(currentDate, 7))}>
+              <ArrowBackIosNewIcon />
+            </IconButton>
+            <Typography variant="h6" textAlign="center">
+              {format(weekStartsOn, "dd MMMM yyyy", { locale: pl })} -{" "}
+              {format(addDays(weekStartsOn, 6), "dd MMMM yyyy", { locale: pl })}
+            </Typography>
+            <IconButton onClick={() => setCurrentDate(addDays(currentDate, 7))}>
+              <ArrowForwardIosIcon />
+            </IconButton>
+          </>
+        )}
       </Stack>
 
       <Grid container spacing={1}>
-        {weekDays.map((day) => {
+        {(changeRequest?.cyclical ? weekDaysNoDates : weekDays).map((day, index) => {
           const dayIsPast = isPast(day) && !isToday(day);
           return (
-            <Grid item xs={12} sm={6} md={12 / 7} key={day.toISOString()}>
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={12 / 7}
+              key={changeRequest?.cyclical ? index : day.toISOString()}
+            >
               <Paper
                 sx={{
                   p: 1,
@@ -123,25 +141,27 @@ const AvailabilitySelector = ({
                   height: "100%",
                 }}
               >
-                <Typography
-                  variant="subtitle2"
-                  align="center"
-                  fontWeight="bold"
-                >
-                  {format(day, "EEEE", { locale: pl })}
+                <Typography variant="h6" component="div">
+                  <Typography variant="body1">
+                    {changeRequest?.cyclical ? day : format(day, "EEEE", { locale: pl })}
+                  </Typography>
                 </Typography>
-                <Typography
-                  variant="body2"
-                  align="center"
-                  color="text.secondary"
-                  mb={1}
-                >
-                  {format(day, "dd.MM", { locale: pl })}
-                </Typography>
+                {!changeRequest?.cyclical && (
+                  <Typography
+                    variant="body2"
+                    align="center"
+                    color="text.secondary"
+                    mb={1}
+                  >
+                    {format(day, "dd.MM", { locale: pl })}
+                  </Typography>
+                )}
                 <Stack spacing={1}>
                   {Object.entries(timeSlotMap).map(([id, time]) => {
                     const slotId = parseInt(id, 10);
-                    const key = `${format(day, "yyyy-MM-dd")}_${slotId}`;
+                    const key = changeRequest?.cyclical
+                      ? `${index}_${slotId}`
+                      : `${format(day, "yyyy-MM-dd")}_${slotId}`;
                     const isSelected = localProposals.has(key);
 
                     return (
@@ -149,7 +169,9 @@ const AvailabilitySelector = ({
                         key={id}
                         label={time}
                         clickable={isEditing && !dayIsPast}
-                        onClick={() => handleSlotClick(day, slotId)}
+                        onClick={() =>
+                          handleSlotClick(changeRequest?.cyclical ? index : day, slotId)
+                        }
                         color={isSelected ? "success" : "default"}
                         variant={isSelected ? "filled" : "outlined"}
                         disabled={dayIsPast}

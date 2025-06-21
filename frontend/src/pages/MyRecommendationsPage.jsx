@@ -71,7 +71,7 @@ const MyRecommendationsPage = () => {
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [isEditingAvailability, setIsEditingAvailability] = useState(false);
   const [hasRequestedGeneration, setHasRequestedGeneration] = useState(false);
-
+  const [expanded, setExpanded] = useState(false);
 
   const { data: requests = [], isLoading: isLoadingRequests } =
     useRelatedRequests();
@@ -86,11 +86,7 @@ const MyRecommendationsPage = () => {
   };
 
   const getRequestDisplayLabel = (req) => {
-    const courseName = req.course_event?.course?.name || "Nieznany kurs";
-    const eventDate = req.course_event?.day
-      ? format(new Date(req.course_event.day), "dd.MM.yyyy", { locale: pl })
-      : "Brak daty";
-    return `${courseName} (z dnia ${eventDate})`;
+    return req.course_event?.course?.name || "Nieznany kurs";
   };
 
   const filteredRequests = useMemo(() => {
@@ -136,7 +132,6 @@ const MyRecommendationsPage = () => {
   });
 
   useEffect(() => {
-    // Jeśli nie ma propozycji od bieżącego użytkownika, automatycznie przejdź w tryb edycji
     if (selectedRequest && proposalStatus) {
       const isCurrentUserTeacher = user.role === "PROWADZACY";
       const currentUserHasProposed =
@@ -152,10 +147,13 @@ const MyRecommendationsPage = () => {
     mutationFn: () => apiRequest(`/recommendations/${selectedRequestId}`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
-      refetchRecommendations(); // ⬅️ Pobierz po wygenerowaniu
+      refetchRecommendations().then(({ data }) => {
+        const updated = data?.find(r => r.id === selectedProposal?.id);
+        if (updated) setSelectedProposal(updated);
+      });
     },
     onError: (error) => {
-      showNotification(`Błąd generowania rekomendacji: ${error.message}`, "error");
+      showNotification(`Błąd aktualizacji: ${error?.message || JSON.stringify(error)}`, "error");
     },
   });
 
@@ -183,13 +181,11 @@ const MyRecommendationsPage = () => {
 
   const replaceProposalsMutation = useMutation({
   mutationFn: async (proposalsToAdd) => {
-    // Usuń stare propozycje
     await apiRequest(
       `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
       { method: "DELETE" }
     );
 
-    // Dodaj nowe (jeśli są)
     const addResults = await Promise.all(
       proposalsToAdd.map((p) =>
         apiRequest("/proposals/", {
@@ -233,12 +229,28 @@ const MyRecommendationsPage = () => {
 
   const handleSaveAvailability = (localProposalsSet) => {
     const proposalsToAdd = Array.from(localProposalsSet).map((key) => {
-      const [day, timeSlotId] = key.split("_");
-      return {
-        change_request_id: selectedRequestId,
-        day,
-        time_slot_id: parseInt(timeSlotId, 10),
-      };
+      const [dayOrIndex, timeSlotId] = key.split("_");
+
+      if (selectedRequest?.cyclical) {
+        const startDate = new Date(selectedRequest.start_date);
+        const weekdayIndex = parseInt(dayOrIndex, 10);
+
+        const dayOffset = (7 + weekdayIndex - startDate.getDay() + 1) % 7;
+        const matchedDate = new Date(startDate);
+        matchedDate.setDate(startDate.getDate() + dayOffset);
+
+        return {
+          change_request_id: selectedRequestId,
+          day: matchedDate.toISOString().split("T")[0],
+          time_slot_id: parseInt(timeSlotId, 10),
+        };
+      } else {
+        return {
+          change_request_id: selectedRequestId,
+          day: dayOrIndex,
+          time_slot_id: parseInt(timeSlotId, 10),
+        };
+      }
     });
 
     replaceProposalsMutation.mutate(proposalsToAdd);
@@ -250,7 +262,7 @@ const MyRecommendationsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["related-requests-all"] });
       queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
-      queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
+      queryClient.invalidateQueries({ queryKey: ["allEventsWithDetails"] });
       refetchRecommendations();
       refetchRecStatus();
       showNotification("Zaakceptowano propozycję. Czekamy na drugą stronę.", "info");
@@ -279,10 +291,15 @@ const MyRecommendationsPage = () => {
       apiRequest(`/recommendations/${recommendationId}/reject`, {
         method: "POST",
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
-      showNotification("Propozycja została odrzucona.", "warning");
+    onSuccess: async () => {
+      const { data } = await refetchRecommendations();
       setSelectedProposal(null);
+
+      if (!data || data.length === 0) {
+        showNotification("Propozycja została odrzucona. Brak kolejnych rekomendacji.", "warning");
+      } else {
+        showNotification("Propozycja została odrzucona.", "warning");
+      }
     },
     onError: (error) =>
       showNotification(`Błąd odrzucenia propozycji: ${error.message}`, "error"),
@@ -340,6 +357,23 @@ const MyRecommendationsPage = () => {
       return (
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6">Rekomendowane Terminy</Typography>
+            {selectedRequest?.cyclical && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2">
+                  To jest zgłoszenie <strong>cykliczne</strong>.
+                </Typography>
+                <Typography variant="body2">
+                  Zakres zmiany:{" "}
+                  {selectedRequest.start_date
+                    ? format(new Date(selectedRequest.start_date), "dd.MM.yyyy")
+                    : "brak daty"}{" "}
+                  –{" "}
+                  {selectedRequest.end_date
+                    ? format(new Date(selectedRequest.end_date), "dd.MM.yyyy")
+                    : "brak daty"}
+                </Typography>
+              </Alert>
+            )}
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Wybierz jeden z terminów pasujących obu stronom, aby go zaakceptować.
             </Typography>
@@ -399,6 +433,9 @@ const MyRecommendationsPage = () => {
   } else if (rejectedByOther) {
     statusLabel = "Odrzucone przez drugą stronę";
     statusColor = "warning.main";
+  } else if (acceptedByOther) {
+  statusLabel = "Zaakceptowane przez drugą stronę – oczekiwanie na Ciebie";
+  statusColor = "info.main";
   } else {
     statusLabel = "Niezaakceptowane";
     statusColor = "text.secondary";
@@ -493,7 +530,6 @@ const MyRecommendationsPage = () => {
       );
     }
 
-    // Ten widok powinien być teraz rzadkością, ale jest jako fallback
     return <CircularProgress />;
   };
 
@@ -555,20 +591,74 @@ const MyRecommendationsPage = () => {
                       onClick={() => handleRequestSelect(req.id)}
                     >
                       <ListItemText
-                        primary={getRequestDisplayLabel(req)}
-                        secondary={req.reason}
-                        primaryTypographyProps={{
-                          fontWeight: 600,
-                          noWrap: true,
-                        }}
-                        secondaryTypographyProps={{ noWrap: true }}
+                        primary={
+                          <>
+                            <Typography fontWeight={600} sx={{ whiteSpace: "normal" }}>
+                              {getRequestDisplayLabel(req)}
+                            </Typography>
+
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{ whiteSpace: "pre-line", mt: 0.5 }}
+                            >
+                              {expanded === req.id || req.reason.length < 100
+                                ? req.reason
+                                : `${req.reason.slice(0, 100)}...`}
+                              {req.reason.length > 100 && (
+                                <Button
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpanded((prev) => (prev === req.id ? null : req.id));
+                                  }}
+                                  sx={{ ml: 1 }}
+                                >
+                                  {expanded === req.id ? "Pokaż mniej" : "Pokaż więcej"}
+                                </Button>
+                              )}
+                            </Typography>
+
+                            {req.cyclical ? (
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                Zakres:{" "}
+                                {req.start_date
+                                  ? format(new Date(req.start_date), "dd.MM.yyyy", { locale: pl })
+                                  : "?"}{" "}
+                                –{" "}
+                                {req.end_date
+                                  ? format(new Date(req.end_date), "dd.MM.yyyy", { locale: pl })
+                                  : "?"}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                Dotyczy dnia:{" "}
+                                {req.course_event?.day
+                                  ? format(new Date(req.course_event.day), "dd.MM.yyyy", { locale: pl })
+                                  : "?"}
+                              </Typography>
+                            )}
+                          </>
+                        }
                       />
+                    <Stack spacing={0.5} alignItems="flex-end">
+                      {req.cyclical && (
+                        <Chip
+                          label="Cykliczne"
+                          size="small"
+                          color="info"
+                          variant="filled"
+                          sx={{ height: 24, minWidth: 100, fontSize: 12, px: 1 }}
+                        />
+                      )}
                       <Chip
                         label={statusConfig[req.status]?.label}
                         color={statusConfig[req.status]?.color}
                         size="small"
-                        sx={{ ml: 1, flexShrink: 0 }}
+                        variant="filled"
+                        sx={{ height: 24, minWidth: 100, fontSize: 12, px: 1 }}
                       />
+                    </Stack>
                     </ListItemButton>
                     <Divider />
                   </React.Fragment>

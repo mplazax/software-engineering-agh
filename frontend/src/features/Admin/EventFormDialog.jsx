@@ -63,7 +63,7 @@ const EventFormDialog = ({ open, onClose, onSave, event }) => {
     room_id: "",
     day: "",
     time_slot_id: "",
-    canceled: false, // Dodane pole
+    canceled: false,
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,7 +78,7 @@ const EventFormDialog = ({ open, onClose, onSave, event }) => {
           room_id: event.room?.id || event.room_id || "",
           day: event.day || "",
           time_slot_id: event.time_slot_id || "",
-          canceled: event.canceled || false, // Inicjalizacja z danych wydarzenia
+          canceled: event.canceled || false,
         });
       } else {
         setFormData({

@@ -23,7 +23,7 @@ import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
 import BuildIcon from "@mui/icons-material/Build";
 import BlockIcon from "@mui/icons-material/Block";
-import {CalendarIcon} from "@mui/x-date-pickers"; // <-- Nowa ikona
+import {CalendarIcon} from "@mui/x-date-pickers";
 
 const drawerWidth = 280;
 
@@ -67,7 +67,6 @@ const Sidebar = () => {
       case "ADMIN":
         return [...commonNavItems, ...adminNavItems];
       case "KOORDYNATOR":
-        // Koordynator widzi wszystko oprócz zarządzania użytkownikami
         const coordinatorItems = adminNavItems.filter(
           (item) => item.path !== "/users"
         );

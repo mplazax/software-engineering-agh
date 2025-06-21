@@ -93,7 +93,6 @@ const RoomUnavailabilityFormDialog = ({
       return;
     }
 
-    // Konwertuj daty na format ISO, którego oczekuje backend
     const payload = {
       ...formData,
       start_datetime: formData.start_datetime.toISOString(),
@@ -104,7 +103,6 @@ const RoomUnavailabilityFormDialog = ({
       await onSave(payload);
       onClose();
     } catch (e) {
-      // Błędy z serwera będą obsłużone przez hook useCrud
       console.error("Save failed:", e);
     }
   };

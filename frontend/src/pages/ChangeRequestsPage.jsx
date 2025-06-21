@@ -1,5 +1,3 @@
-// Plik: ./frontend/src/pages/ChangeRequestsPage.jsx
-
 import React, { useState, useContext, useMemo } from "react";
 import {
   Box,
@@ -118,7 +116,6 @@ const useFilteredCalendarEvents = () => {
   return { events: calendarEvents, ...queryResult };
 };
 
-// Komponent dla widoku tygodnia i dnia - zgodny z PIERWOTNYM obrazkiem
 const WeekAndDayEvent = ({ event }) => {
   return (
     <Box
@@ -130,7 +127,6 @@ const WeekAndDayEvent = ({ event }) => {
         p: "4px 8px",
       }}
     >
-      {/* Część górna */}
       <Box>
         <Typography
           variant="body2"
@@ -142,7 +138,6 @@ const WeekAndDayEvent = ({ event }) => {
           variant="caption"
           sx={{ lineHeight: 1.1, display: "block" }}
         >
-          {/* Można tu dodać typ zajęć, np. "W, " */}
           gr. {event.course.group.name}, {event.room?.name || "(on-line)"}
         </Typography>
       </Box>
@@ -150,7 +145,6 @@ const WeekAndDayEvent = ({ event }) => {
   );
 };
 
-// Uproszczony komponent dla widoku miesiąca - bez zmian
 const MonthEvent = ({ event }) => {
   return (
     <Box
