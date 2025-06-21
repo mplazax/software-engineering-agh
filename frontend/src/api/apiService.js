@@ -1,3 +1,5 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
 export const apiRequest = async (endpoint, options = {}) => {
   const token = localStorage.getItem("token");
   const headers = {
@@ -9,7 +11,8 @@ export const apiRequest = async (endpoint, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const requestUrl = `/api${endpoint}`;
+  // Budujemy pełny, absolutny URL
+  const requestUrl = `${API_BASE_URL}/api${endpoint}`;
 
   const response = await fetch(requestUrl, {
     ...options,

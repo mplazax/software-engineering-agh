@@ -1,8 +1,11 @@
 import { apiRequest } from "./apiService";
 import { queryClient } from "../App";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
 export const login = async (email, password) => {
-  const response = await fetch(`/api/auth/token`, {
+  const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
+    // Używamy pełnego URL
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ username: email, password: password }),
