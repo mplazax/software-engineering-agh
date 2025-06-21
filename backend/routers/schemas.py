@@ -163,6 +163,7 @@ class ChangeRequestResponse(ChangeRequestBase, OrmBase):
     initiator: UserResponse
     start_date: Optional[date]
     end_date: Optional[date]
+    cyclical: bool
 
 class ProposalBase(BaseModel):
     change_request_id: int
