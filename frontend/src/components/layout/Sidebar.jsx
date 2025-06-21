@@ -23,7 +23,8 @@ import SchoolIcon from "@mui/icons-material/School";
 import RecommendIcon from "@mui/icons-material/Recommend";
 import BuildIcon from "@mui/icons-material/Build";
 import BlockIcon from "@mui/icons-material/Block";
-import {CalendarIcon} from "@mui/x-date-pickers"; // <-- Nowa ikona
+import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory"; // <-- NOWA IKONA
+import { CalendarIcon } from "@mui/x-date-pickers";
 
 const drawerWidth = 280;
 
@@ -46,10 +47,18 @@ const roleTranslations = {
 const commonNavItems = [
   { text: "Panel główny", icon: <DashboardIcon />, path: "/" },
   { text: "Kalendarz", icon: <EventNoteIcon />, path: "/calendar" },
+];
+
+const userNavItems = [
   { text: "Rekomendacje", icon: <RecommendIcon />, path: "/recommendations" },
 ];
 
 const adminNavItems = [
+  {
+    text: "Zgłoszenia Zmian",
+    icon: <ChangeHistoryIcon />,
+    path: "/change-requests-management",
+  },
   { text: "Użytkownicy", icon: <PeopleIcon />, path: "/users" },
   { text: "Grupy", icon: <GroupsIcon />, path: "/groups" },
   { text: "Sale", icon: <MeetingRoomIcon />, path: "/rooms" },
@@ -67,14 +76,13 @@ const Sidebar = () => {
       case "ADMIN":
         return [...commonNavItems, ...adminNavItems];
       case "KOORDYNATOR":
-        // Koordynator widzi wszystko oprócz zarządzania użytkownikami
         const coordinatorItems = adminNavItems.filter(
           (item) => item.path !== "/users"
         );
         return [...commonNavItems, ...coordinatorItems];
       case "PROWADZACY":
       case "STAROSTA":
-        return commonNavItems;
+        return [...commonNavItems, ...userNavItems];
       default:
         return [];
     }

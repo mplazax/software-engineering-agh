@@ -17,6 +17,7 @@ import ChangeRequestsPage from "./pages/ChangeRequestsPage";
 import MyRecommendationsPage from "./pages/MyRecommendationsPage";
 import RoomUnavailabilityPage from "./pages/RoomUnavailabilityPage";
 import EventsPage from "./pages/EventsPage.jsx";
+import ChangeRequestsManagementPage from "./pages/ChangeRequestsManagementPage.jsx"; // <-- NOWY IMPORT
 
 const AppRoutes = () => {
   const { loading, isAuthenticated } = useContext(AuthContext);
@@ -40,7 +41,6 @@ const AppRoutes = () => {
         <Route path="/login" element={<LoginPage />} />
       </Route>
 
-      {/* KLUCZOWA POPRAWKA: Wszystkie trasy chronione muszą być tutaj */}
       <Route element={<PrivateRoute />}>
         <Route path="/" element={<MainPage />} />
         <Route path="/rooms" element={<RoomsPage />} />
@@ -54,6 +54,11 @@ const AppRoutes = () => {
         <Route
           path="/room-unavailability"
           element={<RoomUnavailabilityPage />}
+        />
+        {/* NOWA TRASA */}
+        <Route
+          path="/change-requests-management"
+          element={<ChangeRequestsManagementPage />}
         />
       </Route>
 

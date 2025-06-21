@@ -245,3 +245,10 @@ class TokenData(BaseModel):
 class ProposalStatusResponse(BaseModel):
     teacher_has_proposed: bool
     leader_has_proposed: bool
+
+class DashboardStatsResponse(BaseModel):
+    total_users: int
+    total_rooms: int
+    total_courses: int
+    pending_requests_count: int
+    events_today_count: int

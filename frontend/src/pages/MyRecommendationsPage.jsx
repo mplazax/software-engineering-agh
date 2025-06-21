@@ -72,7 +72,6 @@ const MyRecommendationsPage = () => {
   const [isEditingAvailability, setIsEditingAvailability] = useState(false);
   const [hasRequestedGeneration, setHasRequestedGeneration] = useState(false);
 
-
   const { data: requests = [], isLoading: isLoadingRequests } =
     useRelatedRequests();
 
@@ -113,7 +112,7 @@ const MyRecommendationsPage = () => {
   const {
     data: recommendationStatus,
     refetch: refetchRecStatus,
-    isLoading: isLoadingRecStatus
+    isLoading: isLoadingRecStatus,
   } = useQuery({
     queryKey: ["recommendationStatus", selectedProposal?.id],
     queryFn: () =>
@@ -123,8 +122,7 @@ const MyRecommendationsPage = () => {
 
   const { data: serverProposals = [] } = useQuery({
     queryKey: ["proposals", selectedRequestId, user.id],
-    queryFn: () =>
-      apiRequest(`/proposals/by-change-id/${selectedRequestId}`),
+    queryFn: () => apiRequest(`/proposals/by-change-id/${selectedRequestId}`),
     enabled: !!selectedRequestId,
   });
 
@@ -149,13 +147,19 @@ const MyRecommendationsPage = () => {
   }, [selectedRequest, proposalStatus, user.role]);
 
   const generateRecommendationsMutation = useMutation({
-    mutationFn: () => apiRequest(`/recommendations/${selectedRequestId}`, { method: "POST" }),
+    mutationFn: () =>
+      apiRequest(`/recommendations/${selectedRequestId}`, { method: "POST" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedRequestId],
+      });
       refetchRecommendations(); // ⬅️ Pobierz po wygenerowaniu
     },
     onError: (error) => {
-      showNotification(`Błąd generowania rekomendacji: ${error.message}`, "error");
+      showNotification(
+        `Błąd generowania rekomendacji: ${error.message}`,
+        "error"
+      );
     },
   });
 
@@ -182,54 +186,53 @@ const MyRecommendationsPage = () => {
   }, [selectedRequestId, proposalStatus, hasRequestedGeneration]);
 
   const replaceProposalsMutation = useMutation({
-  mutationFn: async (proposalsToAdd) => {
-    // Usuń stare propozycje
-    await apiRequest(
-      `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
-      { method: "DELETE" }
-    );
+    mutationFn: async (proposalsToAdd) => {
+      // Usuń stare propozycje
+      await apiRequest(
+        `/proposals/by-user-and-change-request?user_id=${user.id}&change_request_id=${selectedRequestId}`,
+        { method: "DELETE" }
+      );
 
-    // Dodaj nowe (jeśli są)
-    const addResults = await Promise.all(
-      proposalsToAdd.map((p) =>
-        apiRequest("/proposals/", {
-          method: "POST",
-          body: JSON.stringify(p),
-        })
-      )
-    );
+      // Dodaj nowe (jeśli są)
+      const addResults = await Promise.all(
+        proposalsToAdd.map((p) =>
+          apiRequest("/proposals/", {
+            method: "POST",
+            body: JSON.stringify(p),
+          })
+        )
+      );
 
-    return addResults;
-  },
-  onSuccess: (responses) => {
-    let anyRecommendationGenerated = false;
+      return addResults;
+    },
+    onSuccess: (responses) => {
+      let anyRecommendationGenerated = false;
 
-    for (const res of responses) {
-      if (res?.type === "recommendations") {
-        anyRecommendationGenerated = true;
-        queryClient.invalidateQueries({
-          queryKey: ["recommendations", selectedRequestId],
-        });
-        refetchRecommendations();
-        showNotification("Wygenerowano rekomendacje.", "success");
-        break;
+      for (const res of responses) {
+        if (res?.type === "recommendations") {
+          anyRecommendationGenerated = true;
+          queryClient.invalidateQueries({
+            queryKey: ["recommendations", selectedRequestId],
+          });
+          refetchRecommendations();
+          showNotification("Wygenerowano rekomendacje.", "success");
+          break;
+        }
       }
-    }
 
-    if (!anyRecommendationGenerated) {
-      showNotification("Dostępność została zaktualizowana.", "success");
-    }
+      if (!anyRecommendationGenerated) {
+        showNotification("Dostępność została zaktualizowana.", "success");
+      }
 
-    queryClient.invalidateQueries({
-      queryKey: ["proposals", selectedRequestId, user.id],
-    });
-    refetchProposalStatus();
-    setIsEditingAvailability(false);
-  },
-  onError: (error) =>
-    showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
-});
-
+      queryClient.invalidateQueries({
+        queryKey: ["proposals", selectedRequestId, user.id],
+      });
+      refetchProposalStatus();
+      setIsEditingAvailability(false);
+    },
+    onError: (error) =>
+      showNotification(`Błąd aktualizacji: ${error.message}`, "error"),
+  });
 
   const handleSaveAvailability = (localProposalsSet) => {
     const proposalsToAdd = Array.from(localProposalsSet).map((key) => {
@@ -246,14 +249,21 @@ const MyRecommendationsPage = () => {
 
   const acceptMutation = useMutation({
     mutationFn: (recommendationId) =>
-      apiRequest(`/recommendations/${recommendationId}/accept`, { method: "POST" }),
+      apiRequest(`/recommendations/${recommendationId}/accept`, {
+        method: "POST",
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["related-requests-all"] });
-      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedRequestId],
+      });
       queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
       refetchRecommendations();
       refetchRecStatus();
-      showNotification("Zaakceptowano propozycję. Czekamy na drugą stronę.", "info");
+      showNotification(
+        "Zaakceptowano propozycję. Czekamy na drugą stronę.",
+        "info"
+      );
     },
     onError: (error) =>
       showNotification(`Błąd akceptacji: ${error.message}`, "error"),
@@ -280,7 +290,9 @@ const MyRecommendationsPage = () => {
         method: "POST",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recommendations", selectedRequestId] });
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedRequestId],
+      });
       showNotification("Propozycja została odrzucona.", "warning");
       setSelectedProposal(null);
     },
@@ -308,15 +320,14 @@ const MyRecommendationsPage = () => {
 
     if (isEditingAvailability) {
       return (
-          <AvailabilitySelector
-              changeRequestId={selectedRequestId}
-              isEditing={true}
-              onSave={handleSaveAvailability}
-              onCancelEdit={() => setIsEditingAvailability(false)}
-          />
+        <AvailabilitySelector
+          changeRequestId={selectedRequestId}
+          isEditing={true}
+          onSave={handleSaveAvailability}
+          onCancelEdit={() => setIsEditingAvailability(false)}
+        />
       );
     }
-
 
     if (selectedRequest.status !== "PENDING")
       return (
@@ -338,100 +349,56 @@ const MyRecommendationsPage = () => {
 
     if (teacher_has_proposed && leader_has_proposed) {
       return (
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6">Rekomendowane Terminy</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Wybierz jeden z terminów pasujących obu stronom, aby go zaakceptować.
-            </Typography>
-            {isLoadingRecommendations ? (
-                <CircularProgress />
-            ) : recommendations.length === 0 ? (
-                <Stack spacing={2}>
-                  <Alert severity="warning">
-                    Brak dostępnych sal dla wspólnych terminów. Możesz edytować swoją
-                    dostępność, by spróbować ponownie.
-                  </Alert>
-                  <Button
-                      variant="outlined"
-                      onClick={() => {
-                        console.log("Kliknięto: Edytuj swoją dostępność", {
-                          userId: user?.id,
-                          selectedRequestId,
-                          timestamp: new Date().toISOString(),
-                        });
-                        setIsEditingAvailability(true);
-                      }}
-                  >
-                    Edytuj swoją dostępność
-                  </Button>
-                </Stack>
-            ) : (
-                <List>
-                  {recommendations.map((rec) => {
-  const acceptedByYou =
-    (user.role === "PROWADZACY" && rec.accepted_by_teacher) ||
-    (user.role !== "PROWADZACY" && rec.accepted_by_leader);
-
-  const acceptedByOther =
-    (user.role === "PROWADZACY" && rec.accepted_by_leader) ||
-    (user.role !== "PROWADZACY" && rec.accepted_by_teacher);
-
-  const rejectedByYou =
-    (user.role === "PROWADZACY" && rec.rejected_by_teacher) ||
-    (user.role !== "PROWADZACY" && rec.rejected_by_leader);
-
-  const rejectedByOther =
-    (user.role === "PROWADZACY" && rec.rejected_by_leader) ||
-    (user.role !== "PROWADZACY" && rec.rejected_by_teacher);
-
-  let statusLabel = "";
-  let statusColor = "text.secondary";
-
-  if (rec.accepted_by_teacher && rec.accepted_by_leader) {
-    statusLabel = "Obie strony zaakceptowały";
-    statusColor = "success.main";
-  } else if (acceptedByYou) {
-    statusLabel = "Zaakceptowane przez Ciebie – oczekiwanie na drugą stronę";
-    statusColor = "info.main";
-  } else if (rejectedByYou) {
-    statusLabel = "Odrzucone przez Ciebie";
-    statusColor = "error.main";
-  } else if (rejectedByOther) {
-    statusLabel = "Odrzucone przez drugą stronę";
-    statusColor = "warning.main";
-  } else {
-    statusLabel = "Niezaakceptowane";
-    statusColor = "text.secondary";
-  }
-
-  return (
-    <ListItemButton
-      key={rec.id}
-      onClick={() => setSelectedProposal(rec)}
-      sx={{
-        alignItems: "flex-start",
-        flexDirection: "column",
-        gap: 0.5,
-        opacity: rec.rejected_by_teacher || rec.rejected_by_leader ? 0.6 : 1,
-      }}
-    >
-      <ListItemText
-        primary={`Data: ${format(
-          new Date(rec.recommended_day),
-          "EEEE, dd.MM.yyyy",
-          { locale: pl }
-        )}`}
-        secondary={`Slot: ${timeSlotMap[rec.recommended_slot_id]} / Sala: ${rec.recommended_room?.name}`}
-      />
-      <Typography variant="caption" color={statusColor}>
-        {statusLabel}
-      </Typography>
-    </ListItemButton>
-  );
-})}
-                </List>
-            )}
-          </Paper>
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6">Rekomendowane Terminy</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Wybierz jeden z terminów pasujących obu stronom, aby go
+            zaakceptować.
+          </Typography>
+          {isLoadingRecommendations ? (
+            <CircularProgress />
+          ) : recommendations.length === 0 ? (
+            <Stack spacing={2}>
+              <Alert severity="warning">
+                Brak dostępnych sal dla wspólnych terminów. Możesz edytować
+                swoją dostępność, by spróbować ponownie.
+              </Alert>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  console.log("Kliknięto: Edytuj swoją dostępność", {
+                    userId: user?.id,
+                    selectedRequestId,
+                    timestamp: new Date().toISOString(),
+                  });
+                  setIsEditingAvailability(true);
+                }}
+              >
+                Edytuj swoją dostępność
+              </Button>
+            </Stack>
+          ) : (
+            <List>
+              {recommendations.map((rec) => (
+                <ListItemButton
+                  key={rec.id}
+                  onClick={() => setSelectedProposal(rec)}
+                >
+                  <ListItemText
+                    primary={`Data: ${format(
+                      new Date(rec.recommended_day),
+                      "EEEE, dd.MM.yyyy",
+                      { locale: pl }
+                    )}`}
+                    secondary={`Slot: ${
+                      timeSlotMap[rec.recommended_slot_id]
+                    } / Sala: ${rec.recommended_room?.name}`}
+                  />
+                </ListItemButton>
+              ))}
+            </List>
+          )}
+        </Paper>
       );
     }
 
@@ -633,16 +600,12 @@ const MyRecommendationsPage = () => {
             Odrzuć zgłoszenie
           </Button>
           <Button
-            onClick={() =>
-              rejectSingleMutation.mutate(selectedProposal.id)
-            }
+            onClick={() => rejectSingleMutation.mutate(selectedProposal.id)}
           >
             Odrzuć propozycję
           </Button>
           <Button
-            onClick={() =>
-              acceptMutation.mutate(selectedProposal.id)
-            }
+            onClick={() => acceptMutation.mutate(selectedProposal.id)}
             color="primary"
             variant="contained"
             disabled={acceptMutation.isPending || rejectMutation.isPending}

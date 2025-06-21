@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     auth, change_recommendation, change_request, courses, equipment,
-    group, proposal, room, room_unavailability, user
+    group, proposal, room, room_unavailability, user, dashboard
 )
 
 app = FastAPI(title="System Rezerwacji Sal AGH", version="1.0.0")
@@ -18,6 +18,7 @@ app.include_router(courses.router)
 app.include_router(change_request.router)
 app.include_router(proposal.router)
 app.include_router(change_recommendation.router)
+app.include_router(dashboard.router)
 
 origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost"]
 app.add_middleware(

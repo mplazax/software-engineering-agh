@@ -6,6 +6,7 @@ import {
   Container,
   CircularProgress,
   Chip,
+  Grid,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { AuthContext } from "../contexts/AuthContext";
@@ -13,7 +14,17 @@ import { apiRequest } from "../api/apiService";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-// Definicje slotów czasowych
+// Ikony dla panelu admina
+import PeopleIcon from "@mui/icons-material/People";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
+import SchoolIcon from "@mui/icons-material/School";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import PendingActionsIcon from "@mui/icons-material/PendingActions";
+
+// Import komponentu StatCard
+import StatCard from "../components/dashboard/StatCard.jsx";
+
+// Definicje slotów czasowych (przeniesione z UserDashboard)
 const timeSlotMap = {
   1: "08:00 - 09:30",
   2: "09:45 - 11:15",
@@ -24,7 +35,91 @@ const timeSlotMap = {
   7: "18:30 - 20:00",
 };
 
-// Hook do pobierania mapy ID sal na ich nazwy
+// ===================================================================
+// Panel dla Administratora i Koordynatora
+// ===================================================================
+
+// ZMIANA: Usunięto hook `useAdminDashboardData` na rzecz prostszego `useQuery` tylko dla statystyk
+const useAdminStats = () => {
+  return useQuery({
+    queryKey: ["adminDashboardStats"],
+    queryFn: () => apiRequest("/dashboard/stats"),
+  });
+};
+
+const AdminDashboard = ({ user }) => {
+  const { data: stats, isLoading } = useAdminStats();
+
+  const statCards = stats
+    ? [
+        {
+          title: "Aktywnych użytkowników",
+          value: stats.total_users,
+          icon: <PeopleIcon />,
+          color: "#3B82F6",
+        },
+        {
+          title: "Zarejestrowanych sal",
+          value: stats.total_rooms,
+          icon: <MeetingRoomIcon />,
+          color: "#10B981",
+        },
+        {
+          title: "Zaplanowanych kursów",
+          value: stats.total_courses,
+          icon: <SchoolIcon />,
+          color: "#F59E0B",
+        },
+        {
+          title: "Zajęć dzisiaj",
+          value: stats.events_today_count,
+          icon: <EventAvailableIcon />,
+          color: "#8B5CF6",
+        },
+        {
+          title: "Zgłoszeń do akcji",
+          value: stats.pending_requests_count,
+          icon: <PendingActionsIcon />,
+          color: "#EF4444",
+        },
+      ]
+    : [];
+
+  return (
+    <Box>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Panel Administratora
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+        Przegląd kluczowych informacji o systemie, {user.name}.
+      </Typography>
+
+      {isLoading ? (
+        <CircularProgress />
+      ) : (
+        // ZMIANA: Uproszczony układ siatki
+        <Grid container spacing={3}>
+          {statCards.map((card) => (
+            <Grid item xs={12} sm={6} md={4} lg={2.4} key={card.title}>
+              <StatCard
+                title={card.title}
+                value={card.value}
+                icon={card.icon}
+                color={card.color}
+              />
+            </Grid>
+          ))}
+          {/* Można tu w przyszłości dodać inne komponenty */}
+        </Grid>
+      )}
+    </Box>
+  );
+};
+
+// ===================================================================
+// Panel dla Nauczyciela i Starosty (bez zmian)
+// ===================================================================
+
 const useRoomsMap = () => {
   const { data: rooms = [] } = useQuery({
     queryKey: ["rooms"],
@@ -36,63 +131,55 @@ const useRoomsMap = () => {
   );
 };
 
-// Główny hook do pobierania nadchodzących wydarzeń
 const useUpcomingEvents = (user) => {
   return useQuery({
     queryKey: ["upcomingEvents", user?.id],
     queryFn: async () => {
       if (!user) return [];
+      const allEvents = await apiRequest("/courses/events/all");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      let courses = await apiRequest("/courses");
-      let myCourses = [];
+      const filtered = allEvents.filter((event) => {
+        if (event.canceled) return false;
+        const eventDate = new Date(event.day);
+        if (eventDate < today) return false;
 
-      if (user.role === "PROWADZACY") {
-        myCourses = courses.filter((c) => c.teacher_id === user.id);
-      } else if (user.role === "STAROSTA") {
-        const groups = await apiRequest("/groups");
-        const myGroupId = groups.find((g) => g.leader_id === user.id)?.id;
-        if (myGroupId) {
-          myCourses = courses.filter((c) => c.group_id === myGroupId);
+        if (user.role === "PROWADZACY") {
+          return event.course.teacher_id === user.id;
         }
-      } else {
-        myCourses = courses; // Admin/Koordynator widzi wszystko
-      }
-
-      const eventPromises = myCourses.map(async (course) => {
-        const events = await apiRequest(`/courses/${course.id}/events`);
-        return events.map((e) => ({ ...e, courseName: course.name }));
+        if (user.role === "STAROSTA") {
+          return event.course.group?.leader_id === user.id;
+        }
+        return false;
       });
 
-      const eventsByCourse = await Promise.all(eventPromises);
-      const allEvents = eventsByCourse.flat();
-      const today = new Date();
-      // today.setHours(0, 0, 0, 0); // Ustaw godzinę na początek dnia do porównań
-
-      return allEvents
-        .map((e) => ({ ...e, date: new Date(e.day) }))
-        .filter((e) => !e.canceled && e.date >= today) // Pokaż tylko aktywne wydarzenia od dzisiaj
-        .sort((a, b) => a.date - b.date) // Sortuj od najbliższego
-        .slice(0, 7); // Pokaż do 7 nadchodzących wydarzeń
+      return filtered
+        .map((e) => ({
+          ...e,
+          date: new Date(e.day),
+          courseName: e.course.name,
+        }))
+        .sort((a, b) => a.date - b.date || a.time_slot_id - b.time_slot_id)
+        .slice(0, 7);
     },
     enabled: !!user,
   });
 };
 
-const MainPage = () => {
-  const { user } = useContext(AuthContext);
-  const { data: upcomingEvents = [], isLoading: isLoadingEvents } =
+const UserDashboard = ({ user }) => {
+  const { data: upcomingEvents, isLoading: isLoadingEvents } =
     useUpcomingEvents(user);
   const roomsMap = useRoomsMap();
 
   return (
-    <Container maxWidth="lg" sx={{ p: "0 !important" }}>
+    <>
       <Typography variant="h4" component="h1" gutterBottom>
         Witaj ponownie, {user?.name}!
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
         Oto przegląd Twoich nadchodzących rezerwacji i wydarzeń.
       </Typography>
-
       <Paper sx={{ p: 2, overflow: "hidden" }}>
         <Typography variant="h6" gutterBottom sx={{ px: 2, pt: 1 }}>
           Twoje nadchodzące zajęcia
@@ -199,6 +286,27 @@ const MainPage = () => {
           </Typography>
         )}
       </Paper>
+    </>
+  );
+};
+
+// ===================================================================
+// Główny komponent strony
+// ===================================================================
+
+const MainPage = () => {
+  const { user } = useContext(AuthContext);
+
+  const isAdminOrCoordinator =
+    user?.role === "ADMIN" || user?.role === "KOORDYNATOR";
+
+  return (
+    <Container maxWidth="xl" sx={{ p: "0 !important" }}>
+      {isAdminOrCoordinator ? (
+        <AdminDashboard user={user} />
+      ) : (
+        <UserDashboard user={user} />
+      )}
     </Container>
   );
 };
