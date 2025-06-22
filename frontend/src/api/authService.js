@@ -30,7 +30,7 @@ export const logout = () => {
 };
 
 export const getCurrentUser = async () => {
-  return apiRequest(`${API_BASE_URL}/auth/me`);
+  return apiRequest(`/auth/me`);
 };
 
 export const isAuthenticated = () => !!localStorage.getItem("token");
