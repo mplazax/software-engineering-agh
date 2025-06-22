@@ -12,7 +12,7 @@ export const apiRequest = async (endpoint, options = {}) => {
   }
 
   // Budujemy pełny, absolutny URL
-  const requestUrl = `/api${endpoint}`;
+  const requestUrl = `${API_BASE_URL}/api${endpoint}`;
 
   const response = await fetch(requestUrl, {
     ...options,
