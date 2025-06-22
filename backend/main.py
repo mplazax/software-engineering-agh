@@ -33,10 +33,19 @@ app.include_router(room_unavailability_router)
 app.include_router(user_router)
 # === KONIEC ZMIAN W DOŁĄCZANIU ROUTERÓW ===
 
-origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost", "https://booking-system-agh.vercel.app"]
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost",
+    "https://booking-system-agh-michals-projects-db1ef6d3.vercel.app"  # <-- DODAJ TĘ LINIĘ
+]
+
 app.add_middleware(
-    CORSMiddleware, allow_origins=origins, allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")
