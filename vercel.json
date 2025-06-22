@@ -1,21 +1,10 @@
 {
   "version": 2,
-  "functions": {
-    "backend/main.py": {
-      "runtime": "@vercel/python"
+  "builds": [
+    {
+      "src": "backend/main.py",
+      "use": "@vercel/python"
     }
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/main.py"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
+  ],
+  "routes": [{ "src": "/api/(.*)", "dest": "backend/main.py" }]
 }
