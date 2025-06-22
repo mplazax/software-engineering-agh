@@ -37,7 +37,8 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost",
-    "https://booking-system-agh.vercel.app"  # <-- DODAJ TĘ LINIĘ
+    "https://booking-system-agh.vercel.app",  # <-- DODAJ TĘ LINIĘ
+    "https://booking-system-agh-michals-projects-db1ef6d3.vercel.app",  # <-- DODAJ TĘ LINIĘ
 ]
 
 app.add_middleware(
